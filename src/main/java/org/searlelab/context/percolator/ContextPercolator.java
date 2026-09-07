@@ -44,9 +44,16 @@ public class ContextPercolator {
 	public static ContextPercolatorResult trainAndApply(File backgroundFeatures, File referenceFeatures, File fasta,
 			HashMap<String, String> encyclopediaArgs, PyIsoPEPRunner pyIsoPEP, float fdr, File outputDirectory,
 			String prefix) throws IOException, InterruptedException {
+		
+		return trainAndApply(backgroundFeatures, referenceFeatures, fasta, encyclopediaArgs, pyIsoPEP, fdr, outputDirectory, prefix, TrainingSeeds.DEFAULT_SEED);
+	}
 
+	public static ContextPercolatorResult trainAndApply(File backgroundFeatures, File referenceFeatures, File fasta, HashMap<String, String> encyclopediaArgs, PyIsoPEPRunner pyIsoPEP, float fdr, File outputDirectory, String prefix, int seed) throws IOException, InterruptedException {
 		requireReadable(fasta, "FASTA file");
 
+		TrainingSeeds.requireValid(seed);
+		requireReadable(fasta, "FASTA file");
+		
 		File engineDirectory = DirectoryOptions.engineDirectory(outputDirectory, ENGINE_NAME);
 		File workingDirectory = DirectoryOptions.subdirectory(engineDirectory, DirectoryOptions.WORK_DIRECTORY);
 		File modelDirectory = DirectoryOptions.subdirectory(engineDirectory, DirectoryOptions.MODEL_DIRECTORY);
@@ -56,7 +63,7 @@ public class ContextPercolator {
 
 		File nativeWeights = new File(modelDirectory, prefix + ".weights.txt");
 		PercolatorWeights model = train(prepared.getBackground(), fasta, encyclopediaArgs, workingDirectory, prefix,
-				fdr, nativeWeights);
+				fdr, nativeWeights, seed);
 
 		File averagedWeights = new File(modelDirectory, prefix + ".weights.averaged.txt");
 		model.writeAveraged(averagedWeights);
@@ -102,7 +109,7 @@ public class ContextPercolator {
 	}
 
 	private static PercolatorWeights train(File prunedBackground, File fasta, HashMap<String, String> encyclopediaArgs,
-			File workingDirectory, String prefix, float fdr, File weightsDestination)
+			File workingDirectory, String prefix, float fdr, File weightsDestination, int seed)
 			throws IOException, InterruptedException {
 
 		SearchParameters parameters = SearchParameterParser.parseParameters(copyOf(encyclopediaArgs));
@@ -112,11 +119,16 @@ public class ContextPercolator {
 		File peptideDecoy = new File(workingDirectory, prefix + ".background.percolator.decoy.peptides.txt");
 		File proteinOutput = new File(workingDirectory, prefix + ".background.percolator.proteins.txt");
 		File proteinDecoy = new File(workingDirectory, prefix + ".background.percolator.decoy.proteins.txt");
-		PercolatorExecutionData trainingRun = new PercolatorExecutionData(prunedBackground, fasta, peptideOutput,
+		ContextPercolatorExecutionData trainingRun = new ContextPercolatorExecutionData(prunedBackground, fasta, peptideOutput,
 				peptideDecoy, proteinOutput, proteinDecoy, parameters);
+		
+		Files.deleteIfExists(peptideOutput.toPath());
+		Files.deleteIfExists(peptideDecoy.toPath());
+		Files.deleteIfExists(trainingRun.getModelFile().toPath());
+		Files.deleteIfExists(trainingRun.getWeightsFile(FIRST_ROUND).toPath());
 
-		Logger.logLine("Training Percolator on the background...");
-		PercolatorExecutor.executePercolatorTSV(version, trainingRun, fdr, parameters.getAAConstants(), FIRST_ROUND);
+		Logger.logLine("Training Percolator on the background with seed " + seed + "...");
+		ContextPercolatorRunner.executePercolatorTSV(version, trainingRun, fdr, parameters.getAAConstants(), FIRST_ROUND, seed);
 
 		File trainedModel = trainingRun.getModelFile();
 		if (!trainedModel.exists() || !trainedModel.canRead()) {

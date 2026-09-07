@@ -22,7 +22,7 @@ public class TrainingSeeds {
 	public static List<Integer> parse(String value) {
 		
 		if (value == null || value.isBlank()) {
-			throw new IllegalArgumentException("--seed should be formatted as a comma-separated list (for ex. 1,2,3 for multiple seeds to 1 for 1 seed).");
+			throw new IllegalArgumentException("--seeds should be formatted as a comma-separated list (for ex. 1,2,3 for multiple seeds to 1 for 1 seed).");
 		}
 		
 		LinkedHashSet<Integer> seeds = new LinkedHashSet<>();
@@ -47,10 +47,8 @@ public class TrainingSeeds {
 		LinkedHashSet<Integer> distinct = new LinkedHashSet<>(); 
 		
 		for (Integer seed : seeds) {
-			if (seed == null) {
-				seed = DEFAULT_SEED;
-				Logger.logLine("Training seed is null, using the default training seed: \nDefault Training Seed: " + DEFAULT_SEED);
-			}
+			if (seed == null) throw new IllegalArgumentException("Training seeds must not be null.");			
+				requireValid(seed);
 			if(!distinct.add(seed)) throw new IllegalArgumentException("Duplicate training seed: " + seed);
 		}
 		return List.copyOf(distinct);

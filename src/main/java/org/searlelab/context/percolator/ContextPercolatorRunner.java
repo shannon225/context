@@ -5,6 +5,7 @@ import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.UnsupportedEncodingException;
 import java.nio.file.Files;
+import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.nio.file.StandardOpenOption;
 import java.text.DecimalFormat;
@@ -166,6 +167,16 @@ public class ContextPercolatorRunner extends ExternalExecutor {
 	static String[] generateCommand(PercolatorVersion percolatorVersion, ContextPercolatorExecutionData commandData, int round, int seed) {
 		TrainingSeeds.requireValid(seed);
 		File percolator = percolatorVersion.getPercolator();
+		
+		// For debugging 
+		try {
+			Path debugCopy = Path.of("target", "debuf-percolator-" + System.nanoTime() + ".exe");
+			Files.copy(percolator.toPath(), Path.of("target", "debug-percolator.exe"), StandardCopyOption.REPLACE_EXISTING);
+		    System.out.println("Saved Percolator debug copy to: " + debugCopy.toAbsolutePath());
+
+		} catch (IOException e) {
+		    throw new IllegalStateException("Could not preserve Percolator executable for debugging", e);
+		}
 
 		ArrayList<String> params = new ArrayList<>();
 
