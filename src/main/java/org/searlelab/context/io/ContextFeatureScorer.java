@@ -12,7 +12,7 @@ import java.util.Comparator;
 import java.util.HashMap;
 import java.util.zip.DataFormatException;
 
-import edu.washington.gs.maccoss.encyclopedia.algorithms.library.EncyclopediaScoringFactory;
+//import edu.washington.gs.maccoss.encyclopedia.algorithms.library.EncyclopediaScoringFactory;
 import edu.washington.gs.maccoss.encyclopedia.algorithms.library.EncyclopediaTwoJobData;
 import edu.washington.gs.maccoss.encyclopedia.algorithms.library.LibraryScoringFactory;
 import edu.washington.gs.maccoss.encyclopedia.datastructures.SearchParameters;
@@ -28,6 +28,8 @@ import edu.washington.gs.maccoss.encyclopedia.algorithms.percolator.PercolatorPe
 import org.searlelab.context.datastructures.IsolationWindow;
 import org.searlelab.context.datastructures.ScoredFeature;
 import org.searlelab.context.encyclopedia.EncyclopediaTwo;
+import org.searlelab.context.encyclopedia.ContextEncyclopediaScoringFactory;
+import org.searlelab.context.encyclopedia.EncyclopediaTwoPointOneScoringTask;
 import org.searlelab.msrawjava.Main.CliArguments;
 
 public class ContextFeatureScorer {
@@ -145,7 +147,7 @@ public class ContextFeatureScorer {
 
 		// Run an Encyclopedia job
 		SearchParameters params = SearchParameterParser.getDefaultParametersObject();
-		LibraryScoringFactory scoringForLibrary = EncyclopediaScoringFactory.getDefaultScoringFactory(params);
+		LibraryScoringFactory scoringForLibrary = new ContextEncyclopediaScoringFactory(params);
 		LibraryInterface interfaceForLibrary = BlibToLibraryConverter.getFile(library, fasta, params);
 
 		File outputPrefix = new File(baseName);
@@ -264,13 +266,14 @@ public class ContextFeatureScorer {
 		return partitionedFeatures;
 	}
 
+
 	// Scores features from a global experiment
 	public static ArrayList<ScoredFeature> scoreFeatures(int shuffledSeed, File library, File rawFile, File fasta, String baseName,
 			String massListPath) throws IOException, SQLException, DataFormatException, InterruptedException {
 
 		// Run an Encyclopedia job
 		SearchParameters params = SearchParameterParser.getDefaultParametersObject();
-		LibraryScoringFactory scoringForLibrary = EncyclopediaScoringFactory.getDefaultScoringFactory(params);
+		LibraryScoringFactory scoringForLibrary = new ContextEncyclopediaScoringFactory(params);
 		LibraryInterface interfaceForLibrary = BlibToLibraryConverter.getFile(library, fasta, params);
 
 		File outputPrefix = new File(baseName);

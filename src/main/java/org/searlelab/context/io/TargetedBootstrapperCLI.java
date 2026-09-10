@@ -5,6 +5,7 @@ public class TargetedBootstrapperCLI {
 	private static final int DEFAULT_NUMBER_OF_PEPTIDES = 100;
 	private static final float DEFAULT_WINDOW_WIDTH_RT = 0.50f;
 	private static final double DEFAULT_HALF_WINDOW_WIDTH_MZ = 1.0;
+	private static final int DEFAULT_TRAP_PER_TARGET = 1;
 
 	public static void main(String[] args) throws Throwable {
 
@@ -23,7 +24,7 @@ public class TargetedBootstrapperCLI {
 		int numberOfPeptides = DEFAULT_NUMBER_OF_PEPTIDES; // number of Peptides per assay
 		float halfWindowWidthRT = DEFAULT_WINDOW_WIDTH_RT;
 		double halfWindowWidthMz = DEFAULT_HALF_WINDOW_WIDTH_MZ;
-		boolean useTraps = false; // Default if there isn't a flag for using traps
+		int trapPerTarget = DEFAULT_TRAP_PER_TARGET; // Default if there isn't a flag for using traps
 
 		// Parameters as input
 		if (args.length >= 3) {
@@ -43,13 +44,13 @@ public class TargetedBootstrapperCLI {
 		}
 		
 		if (args.length >= 7) {
-			useTraps = Boolean.parseBoolean(args[6]);
+			trapPerTarget = Integer.parseInt(args[6]);
 		}
 	
 
 		TargetedBootstrapper bootstrapper = new TargetedBootstrapper();
 		bootstrapper.execute(libraryPath, rawFilePath, seed, numberOfPeptides, halfWindowWidthRT,
-				halfWindowWidthMz, useTraps);
+				halfWindowWidthMz, trapPerTarget);
 
 	}
 

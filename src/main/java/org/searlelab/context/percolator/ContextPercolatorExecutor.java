@@ -53,10 +53,20 @@ public class ContextPercolatorExecutor {
 
 	
 	public static PercolatorExecutionData runStandardPercolator(File features, File fasta, PyIsoPEPRunner pyIsoPEP, float fdr, File outputDirectory, String prefix, HashMap<String, String> encyclopediaArgs, String engineName, String workflowName) throws IOException, InterruptedException {
-		return runPercolator(features, fasta, pyIsoPEP, fdr, outputDirectory, prefix, encyclopediaArgs, STANDARD_ENGINE_NAME, "standard");
+		return runPercolator(features, fasta, pyIsoPEP, fdr, outputDirectory, prefix, encyclopediaArgs, engineName, workflowName, TrainingSeeds.DEFAULT_SEED);
+	}
+	
+	public static PercolatorExecutionData runStandardPercolator(File features, File fasta, PyIsoPEPRunner pyIsoPEP, float fdr, File outputDirectory, String prefix, HashMap<String, String> encyclopediaArgs, String engineName, String workflowName, int seed) throws IOException, InterruptedException {
+		return runPercolator(features, fasta, pyIsoPEP, fdr, outputDirectory, prefix, encyclopediaArgs, STANDARD_ENGINE_NAME, "standard", seed);
 	}
 	
 	public static PercolatorExecutionData runPercolator(File features, File fasta, PyIsoPEPRunner pyIsoPEP, float fdr, File outputDirectory, String prefix, HashMap<String, String> encyclopediaArgs, String engineName, String workflowName) throws IOException, InterruptedException {
+		return runPercolator(features, fasta, pyIsoPEP, fdr, outputDirectory, prefix, encyclopediaArgs, engineName, workflowName, TrainingSeeds.DEFAULT_SEED);
+		
+	}
+	public static PercolatorExecutionData runPercolator(File features, File fasta, PyIsoPEPRunner pyIsoPEP, float fdr, File outputDirectory, String prefix, HashMap<String, String> encyclopediaArgs, String engineName, String workflowName, int seed) throws IOException, InterruptedException {
+		
+		TrainingSeeds.requireValid(seed);
 
 		if (!features.exists() || !features.canRead()) {
 			throw new IOException("Feature file not found or is unreadable: " + features.getAbsolutePath());
@@ -85,13 +95,13 @@ public class ContextPercolatorExecutor {
 		File proteinTargets = new File(engineDirectory, prefix + ".protein.target.txt");
 		File proteinDecoys = new File(engineDirectory, prefix + ".protein.decoy.txt");
 
-		PercolatorExecutionData run = new PercolatorExecutionData(features, fasta, peptideTargets, peptideDecoys, proteinTargets, proteinDecoys, parameters);
+		ContextPercolatorExecutionData run = new ContextPercolatorExecutionData(features, fasta, peptideTargets, peptideDecoys, proteinTargets, proteinDecoys, parameters);
 
 		deletePercolatorOutputs(run, peptideTargets, peptideDecoys, proteinTargets, proteinDecoys);
 
 		Logger.logLine("Running " + workflowName + " standard Percolator cross-validation on " + features.getName());
 
-		Pair<ArrayList<PercolatorPeptide>, Float> result = PercolatorExecutor.executePercolatorTSV(parameters.getPercolatorVersionNumber(), run, fdr, parameters.getAAConstants(), FINAL_ROUND);
+		Pair<ArrayList<PercolatorPeptide>, Float> result = ContextPercolatorRunner.executePercolatorTSV(parameters.getPercolatorVersionNumber(), run, fdr, parameters.getAAConstants(), FINAL_ROUND, seed);
 
 		File workingDirectory = DirectoryOptions.subdirectory(engineDirectory, DirectoryOptions.WORK_DIRECTORY);	
 		Logger.logLine("Standard Percolator found " + result.x.size() + " peptides at " + (fdr * 100.0f)
@@ -104,7 +114,12 @@ public class ContextPercolatorExecutor {
 	
 	public static PercolatorExecutionData runTargetPercolator(File features, File fasta, PyIsoPEPRunner pyIsoPEP, float fdr, 
 			File outputDirectory, String prefix, HashMap<String, String> encyclopediaArgs, String engineName, String workflowName) throws IOException, InterruptedException {
-		return runPercolator(features, fasta, pyIsoPEP, fdr, outputDirectory, prefix, encyclopediaArgs, TARGET_ENGINE_NAME, "targeted");
+		return runPercolator(features, fasta, pyIsoPEP, fdr, outputDirectory, prefix, encyclopediaArgs, engineName, workflowName, TrainingSeeds.DEFAULT_SEED);
+	}
+
+	public static PercolatorExecutionData runTargetPercolator(File features, File fasta, PyIsoPEPRunner pyIsoPEP, float fdr, 
+			File outputDirectory, String prefix, HashMap<String, String> encyclopediaArgs, String engineName, String workflowName, int seed) throws IOException, InterruptedException {
+		return runPercolator(features, fasta, pyIsoPEP, fdr, outputDirectory, prefix, encyclopediaArgs, TARGET_ENGINE_NAME, "targeted", seed);
 	}
 
 	private static void deletePercolatorOutputs(PercolatorExecutionData commandData, File peptideTargets, File peptideDecoys, File proteinTargets, File proteinDecoys) throws IOException {

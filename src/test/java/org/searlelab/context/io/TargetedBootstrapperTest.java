@@ -33,7 +33,7 @@ public class TargetedBootstrapperTest {
 
 		Files.copy(sourceDIAPath, testDIAPath, StandardCopyOption.REPLACE_EXISTING);
 		TargetedBootstrapper bootstrapper = new TargetedBootstrapper();
-		bootstrapper.execute(library, testDIAPath.toString(), 1, 1, 0.5f, 1.0, false);
+		bootstrapper.execute(library, testDIAPath.toString(), 1, 1, 0.5f, 1.0, 1);
 		
 		Path expectedOutput = testDirectory.resolve("IL2A_GPFDIA_0combined_masked1_assay.txt");
 		assertTrue("The bootstrapper did not create the expected output.", Files.exists(expectedOutput));
