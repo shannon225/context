@@ -42,16 +42,17 @@
 					<groupId>org.searlelab</groupId>
 					<artifactId>jchronologer</artifactId>
 				</exclusion>
-				<exclusion>
-					<groupId>org.searlelab</groupId>
-					<artifactId>javapot</artifactId>
-				</exclusion>
 			</exclusions>
 		</dependency>
 		<dependency>
 			<groupId>org.searlelab</groupId>
 			<artifactId>msrawjava-core-nolice</artifactId>
 			<version>26.7.31</version>
+		</dependency>
+		<dependency>
+			<groupId>org.searlelab</groupId>
+			<artifactId>javapot</artifactId>
+			<version>1.0.5</version>
 		</dependency>
 		<dependency>
 			<groupId>junit</groupId>
@@ -68,6 +69,16 @@
 
 	<build>
 		<plugins>
+			<plugin>
+				<groupId>org.apache.maven.plugins</groupId>
+				<artifactId>maven-surefire-plugin</artifactId>
+				<version>3.2.5</version>
+				<configuration>
+					<systemPropertyVariables>
+						<java.awt.headless>true</java.awt.headless>
+					</systemPropertyVariables>
+				</configuration>
+			</plugin>
 			<plugin>
 				<groupId>org.apache.maven.plugins</groupId>
 				<artifactId>maven-jar-plugin</artifactId>
@@ -116,11 +127,13 @@
 										<transformer
 											implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">
 											<mainClass>${context.mainClass}</mainClass>
-											<!-- So the jar says which version it is even after it is
+											<!-- So the jar says which version
+											it is even after it is
 											     renamed to context.jar for the release. -->
 											<manifestEntries>
 												<Implementation-Title>Context</Implementation-Title>
-												<Implementation-Version>${project.version}</Implementation-Version>
+												<Implementation-Version>
+													${project.version}</Implementation-Version>
 											</manifestEntries>
 										</transformer>
 										<transformer
@@ -143,9 +156,12 @@
 								</goals>
 								<configuration>
 									<target>
-										<condition property="context.has.vendor.binaries">
-											<resourcecount when="greater" count="0">
-												<zipfileset src="${project.build.directory}/${project.build.finalName}.jar"
+										<condition
+											property="context.has.vendor.binaries">
+											<resourcecount when="greater"
+												count="0">
+												<zipfileset
+													src="${project.build.directory}/${project.build.finalName}.jar"
 													includes="msraw/**" />
 											</resourcecount>
 										</condition>
