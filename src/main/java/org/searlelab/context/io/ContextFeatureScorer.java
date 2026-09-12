@@ -12,7 +12,7 @@ import java.util.Comparator;
 import java.util.HashMap;
 import java.util.zip.DataFormatException;
 
-//import edu.washington.gs.maccoss.encyclopedia.algorithms.library.EncyclopediaScoringFactory;
+import edu.washington.gs.maccoss.encyclopedia.algorithms.library.EncyclopediaScoringFactory;
 import edu.washington.gs.maccoss.encyclopedia.algorithms.library.EncyclopediaTwoJobData;
 import edu.washington.gs.maccoss.encyclopedia.algorithms.library.LibraryScoringFactory;
 import edu.washington.gs.maccoss.encyclopedia.datastructures.SearchParameters;
@@ -29,8 +29,6 @@ import org.searlelab.context.datastructures.IsolationWindow;
 import org.searlelab.context.datastructures.ScoredFeature;
 import org.searlelab.context.encyclopedia.EncyclopediaTwo;
 import org.searlelab.context.encyclopedia.ContextEncyclopediaScoringFactory;
-import org.searlelab.context.encyclopedia.EncyclopediaTwoPointOneScoringTask;
-import org.searlelab.msrawjava.Main.CliArguments;
 
 public class ContextFeatureScorer {
 
@@ -49,18 +47,18 @@ public class ContextFeatureScorer {
 		String fastaPath = args[2];
 		String massListPath = args[3];
 		String seedForDecoys = args[7];
-		
+
 		String baseName = RawFiles.stripExtension(rawFilePath);
 		final File fasta = new File(fastaPath);
 		File rawFile = new File(rawFilePath);
 		File library = new File(libraryFilePath);
 		int shuffledSeed = Integer.parseInt(seedForDecoys);
-		
+
 
 		try {
 			ArrayList<ScoredFeature> partitionedFeatures = scoreFeaturesForContext(library, rawFile, fasta, baseName,
 					massListPath, shuffledSeed);
-			
+
 			Logger.logLine("Scored and partitioned " + partitionedFeatures.size() + " features.");
 		} catch (Exception e) {
 			Logger.logLine("Something did not work... see the error tace");
@@ -134,9 +132,7 @@ public class ContextFeatureScorer {
 		throw new IllegalArgumentException("Required column was not found in the feature file: " + columnName);
 	}
 
-	// Changed isFeatureOnMassList to only check for peptide sequence equivalence,
-	// not for mass, charge and RT equivalence. I don't think is needed, but keeping
-	// for now.
+	// Changed isFeatureOnMassList to only check for peptide sequence equivalence
 
 	@SuppressWarnings("unused")
 	public static ArrayList<ScoredFeature> scoreFeaturesForContext(File library, File rawFile, File fasta,
@@ -145,9 +141,9 @@ public class ContextFeatureScorer {
 
 		File effectiveMassList = prepareMassList(massListPath, baseName, shuffledSeed);
 
-		// Run an Encyclopedia job
+		// Set up the variables to run an Encyclopedia job
 		SearchParameters params = SearchParameterParser.getDefaultParametersObject();
-		LibraryScoringFactory scoringForLibrary = new ContextEncyclopediaScoringFactory(params);
+		LibraryScoringFactory scoringForLibrary = EncyclopediaScoringFactory.getDefaultScoringFactory(params);
 		LibraryInterface interfaceForLibrary = BlibToLibraryConverter.getFile(library, fasta, params);
 
 		File outputPrefix = new File(baseName);
@@ -169,57 +165,28 @@ public class ContextFeatureScorer {
 			EncyclopediaTwo.generateFeatureFile(progress, interfaceForLibrary, job, interfaceForStripeFile,
 					java.util.Optional.empty());
 		}
+		return 
+				partitionFeatures(featuresToSplit, params, baseName, effectiveMassList); 
+	}
 
-		ArrayList<ScoredFeature> uniqueFeatures = new ArrayList<>();
-		ArrayList<ScoredFeature> uniqueFeaturesList = uniqueFeatures;
+	// Partition on an already generated feature file
+	public static ArrayList<ScoredFeature> partitionFeatures(File featuresToSplit, SearchParameters params, String baseName, File effectiveMassList) throws IOException { 
+		FeatureTable table = readFeatures(featuresToSplit);
+		String header = table.header(); 
 		HashMap<String, ScoredFeature> bestFeatureByPeptide = new HashMap<>();
-		String header;
-
-		// Read all rows the feature file
-		try (BufferedReader br = new BufferedReader(new FileReader(featuresToSplit))) {
-			header = br.readLine();
-			if (header == null) {
-				throw new IOException("Feature file is empty, so no file could be read.");
-			}
-
-			String[] headerColumns = header.split("\t", -1);
-
-			int precursorMzIndex = findColumnIndex(headerColumns, "precursorMz");
-			int isDecoyIndex = findColumnIndex(headerColumns, "Label");
-			int retentionTimeIndex = findColumnIndex(headerColumns, "RTinMin");
-			int primaryScoreIndex = findColumnIndex(headerColumns, "primary");
-			int xCorrLibIndex = findColumnIndex(headerColumns, "xCorrLib");
-			int sequenceIndex = findColumnIndex(headerColumns, "sequence");
-			int proteinIndex = findColumnIndex(headerColumns, "Proteins");
-
-			String line;
-			while ((line = br.readLine()) != null) {
-				String columns[] = line.split("\t", -1);
-
-				double mz = Double.parseDouble(columns[precursorMzIndex]);
-				byte featureCharge = PercolatorPeptide.getCharge(columns[0]);
-				boolean isDecoy = Integer.parseInt(columns[isDecoyIndex]) == -1;
-				float primary = Float.parseFloat(columns[primaryScoreIndex]);
-				float retentionTime = Float.parseFloat(columns[retentionTimeIndex]);
-				String sequence = columns[sequenceIndex];
-				String protein = columns[proteinIndex];
-
-				ScoredFeature feature = new ScoredFeature(mz, featureCharge, isDecoy, primary, retentionTime, sequence,
-						protein, line);
-
-				uniqueFeaturesList.add(feature);
-
-				ScoredFeature currentBest = bestFeatureByPeptide.get(sequence);
-
-				// Take the peptide with a higher primary score and place it on a new list
-				if (currentBest == null || feature.getPrimary() > currentBest.getPrimary()) {
-					bestFeatureByPeptide.put(sequence, feature);
-				}
+		for (ScoredFeature feature : table.rows()) {
+			ScoredFeature previous = bestFeatureByPeptide.get(feature.getSequence());
+			if (previous == null || feature.getPrimary() > previous.getPrimary() || (feature.getPrimary() == previous.getPrimary() && feature.getOriginalLine().compareTo(previous.getOriginalLine()) < 0)) {
+				bestFeatureByPeptide.put(feature.getSequence(),  feature); 
 			}
 		}
-		
+
 		ArrayList<ScoredFeature> bestFeatures = new ArrayList<>(bestFeatureByPeptide.values());
-		bestFeatures.sort(Comparator.comparing(ScoredFeature::getPrimary).reversed());
+		bestFeatures.sort(Comparator.comparing(ScoredFeature::getPrimary).reversed().thenComparing(ScoredFeature::getSequence));
+
+		Logger.logLine(" ");
+
+		//		bestFeatures.sort(Comparator.comparing(ScoredFeature::getPrimary).reversed());
 
 		Logger.logLine("Selecting the betst feature per peptide..." + bestFeatures.size() + " peptides remain.");
 
@@ -248,9 +215,7 @@ public class ContextFeatureScorer {
 			boolean isOnMassList = matchingWindow != null;
 			boolean isBackground = !isOnMassList;
 
-			ScoredFeature annotatedFeature = new ScoredFeature(feature.getMz(), feature.isDecoy(), feature.getPrimary(),
-					feature.getRetentionTime(), cleanPeptideSequence(feature.getSequence()), feature.getProtein(),
-					feature.getOriginalLine(), isBackground);
+			ScoredFeature annotatedFeature = new ScoredFeature(feature.getMz(), feature.getCharge(), feature.isDecoy(), feature.getPrimary(), feature.getRetentionTime(), cleanPeptideSequence(feature.getSequence()), feature.getProtein(), feature.getOriginalLine(), isBackground);
 			partitionedFeatures.add(annotatedFeature);
 
 			if (isOnMassList) {
@@ -265,7 +230,6 @@ public class ContextFeatureScorer {
 		Logger.logLine("Reference target features: " + referenceFeatures.size());
 		return partitionedFeatures;
 	}
-
 
 	// Scores features from a global experiment
 	public static ArrayList<ScoredFeature> scoreFeatures(int shuffledSeed, File library, File rawFile, File fasta, String baseName,
@@ -296,56 +260,17 @@ public class ContextFeatureScorer {
 					java.util.Optional.empty());
 		}
 
-		String header;
-		ArrayList<ScoredFeature> allFeatures = new ArrayList<>();
-
-		// Read all rows the feature file
-		try (BufferedReader br = new BufferedReader(new FileReader(featuresToSplit))) {
-			header = br.readLine();
-			if (header == null) {
-				throw new IOException("Feature file is empty, so no file could be read.");
-			}
-
-			String[] headerColumns = header.split("\t", -1);
-
-			int precursorMzIndex = findColumnIndex(headerColumns, "precursorMz");
-			int isDecoyIndex = findColumnIndex(headerColumns, "Label");
-			int retentionTimeIndex = findColumnIndex(headerColumns, "RTinMin");
-			int primaryScoreIndex = findColumnIndex(headerColumns, "primary");
-			@SuppressWarnings("unused")
-			int xCorrLibIndex = findColumnIndex(headerColumns, "xCorrLib");
-			int sequenceIndex = findColumnIndex(headerColumns, "sequence");
-			int proteinIndex = findColumnIndex(headerColumns, "Proteins");
-
-			String line;
-			while ((line = br.readLine()) != null) {
-				String columns[] = line.split("\t", -1);
-
-				double mz = Double.parseDouble(columns[precursorMzIndex]);
-				byte featureCharge = PercolatorPeptide.getCharge(columns[0]);
-				boolean isDecoy = Integer.parseInt(columns[isDecoyIndex]) == -1;
-				float primary = Float.parseFloat(columns[primaryScoreIndex]);
-				float retentionTime = Float.parseFloat(columns[retentionTimeIndex]);
-				String sequence = columns[sequenceIndex];
-				String protein = columns[proteinIndex];
-
-				ScoredFeature feature = new ScoredFeature(mz, featureCharge, isDecoy, primary, retentionTime, sequence,
-						protein, line);
-				allFeatures.add(feature);
-
-			}
-		}
+		FeatureTable table = readFeatures(featuresToSplit);
+		String header = table.header();
+		ArrayList<ScoredFeature> allFeatures = table.rows();
 
 		// Output Paths
 		String featureOutputPath = baseName + ".features.txt";
-
-		// Output Files
 		File featureOutput = new File(featureOutputPath);
-
 		ArrayList<ScoredFeature> featuresList = new ArrayList<>();
-
 		ArrayList<ScoredFeature> partitionedFeatures = new ArrayList<>(); // so that the return is all of the features
 
+		// Loop through features 
 		for (ScoredFeature feature : allFeatures) {
 
 			ScoredFeature annotatedFeature = new ScoredFeature(feature.getMz(), feature.isDecoy(), feature.getPrimary(),
@@ -362,5 +287,53 @@ public class ContextFeatureScorer {
 
 		Logger.logLine("Target features: " + featuresList.size());
 		return partitionedFeatures;
+	}
+
+	public record FeatureTable(String header, ArrayList<ScoredFeature> rows) {}
+
+	public static FeatureTable readFeatures(File file) throws IOException {
+		try(BufferedReader reader = new BufferedReader(new FileReader(file))) {
+			String header = reader.readLine();
+			if(header == null) throw new IOException("Empty feature table: " + file);
+			String[] names = header.split("\t", -1);
+			int mz, label, rt, primary, sequence, proteins; 
+			try {
+				mz = findColumnIndex(names, "precursorMz");
+				label = findColumnIndex(names, "Label");
+				rt = findColumnIndex(names, "RTinMin");
+				primary = findColumnIndex(names, "primary");
+				sequence = findColumnIndex(names, "sequence");
+				proteins = findColumnIndex(names, "Proteins");
+			} catch (IllegalArgumentException e) {
+				throw new IOException(file + ": " + e.getMessage(), e);
+			}
+
+			ArrayList<ScoredFeature> rows = new ArrayList<>();
+			String line;
+			int row = 1;
+			while ((line = reader.readLine()) !=null) {
+				row++;
+				try {
+					String[] columns = line.split("\t", -1);
+					if (columns.length < names.length) throw new IllegalArgumentException("Truncated row");
+					int targetLabel = Integer.parseInt(columns[label]);
+					if (targetLabel != 1 && targetLabel != -1) throw new IllegalArgumentException("Label msut be 1 or -1");
+
+					double precursorMz = Double.parseDouble(columns[mz]);
+					float retentionTime = Float.parseFloat(columns[rt]);
+					float score = Float.parseFloat(columns[primary]);
+					if( !Double.isFinite(precursorMz) || !Float.isFinite(retentionTime) || !Float.isFinite(score))
+						throw new IllegalArgumentException("Non-finite required numeric value");
+					byte charge = PercolatorPeptide.getCharge(columns[0]);
+					
+					if (charge <=0) throw new IllegalArgumentException("Invalid precursor charge");
+					rows.add(new ScoredFeature(precursorMz, charge, targetLabel == -1, score, retentionTime, columns[sequence], columns[proteins], line));
+					
+				} catch (RuntimeException e) {
+						throw new IOException(file + ": row" + row + ": " + e.getMessage(), e);
+				}
+			}
+			return new FeatureTable(header, rows);
+		}
 	}
 }

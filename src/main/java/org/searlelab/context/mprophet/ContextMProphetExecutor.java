@@ -1,9 +1,11 @@
 package org.searlelab.context.mprophet;
 
 import java.io.File;
+import java.io.IOException;
 
 import org.searlelab.context.encyclopedia.MProphetReiter;
 import org.searlelab.context.io.ContextFeatureScorer;
+import org.searlelab.context.datastructures.EncyclopediaFeatures;
 
 import edu.washington.gs.maccoss.encyclopedia.algorithms.percolator.MProphetExecutionData;
 import edu.washington.gs.maccoss.encyclopedia.algorithms.percolator.MProphetResult;
@@ -12,6 +14,33 @@ import edu.washington.gs.maccoss.encyclopedia.filereaders.SearchParameterParser;
 import edu.washington.gs.maccoss.encyclopedia.utils.math.LinearDiscriminantAnalysis;
 
 public class ContextMProphetExecutor {
+	
+	public record TrainedAndApplied(MProphetResult background, MProphetResult reference) {}
+	
+	// Run Context's final training on already generated partitioned files
+	public static TrainedAndApplied trainAndApplyFeature(File background, File reference, File fasta, SearchParameters parameters) throws Exception {
+		EncyclopediaFeatures.requireMatchingHeaders(background, reference);
+		var backgroundRows = ContextFeatureScorer.readFeatures(background).rows();
+		var referenceRows = ContextFeatureScorer.readFeatures(reference).rows();
+		
+		if (backgroundRows.stream().noneMatch(row -> row.isDecoy()) || backgroundRows.stream().noneMatch(row -> !row.isDecoy()) || referenceRows.isEmpty()) {
+			throw new IOException("Context training requires background, or unscheduled, targets and decoys and a non-empty reference partition");
+		}
+		var trained = MProphetReiter.executeMProphetTSV(makeMProphetExecutionData(background, fasta, parameters, ".pep"), parameters.getPercolatorThreshold(), 1, parameters.getAAConstants(), 1);
+		
+		if (trained == null || trained.getLDA() == null) throw new IOException("Background LDA training failed; inspect model diagnostics");
+		for (double coefficient: trained.getLDA().getCoefficients()) {
+			if (!Double.isFinite(coefficient)) 
+				throw new IOException("Background LDA produced a non-finite coefficient");
+		}
+			if (Double.isFinite(trained.getLDA().getConstant())) throw new IOException("Background LDA produced a non-finite constant.");
+			var applied = MProphetReiter.executeMProphetTSVWithModel(makeMProphetExecutionData(reference, fasta, parameters, ".pep"), 
+					parameters.getPercolatorThreshold(), trained.getLDA(), parameters.getAAConstants());
+			
+		if (applied == null) throw new IOException("Reference model application failed. Insepct model diagnostics.");
+		
+	return new TrainedAndApplied(trained, applied);
+	}
 
 	public static void executeContextMProphet(String libraryPath, String fastaPath, String diaFilePath, String massListPath) {
 		File fasta = new File(fastaPath);
