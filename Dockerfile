@@ -4,6 +4,8 @@ WORKDIR /build
 
 COPY libs/ ./libs/
 COPY pom.xml ./
+COPY build.sh ./
+RUN CONTEXT_MAVEN_REPO=/root/.m2/repository ./build.sh javapot
 RUN mvn -B -Ppackage dependency:go-offline || true
 
 COPY src/ ./src/
