@@ -6,9 +6,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.TreeMap;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 public class ContextFeatureScorerCLI {
 
@@ -16,11 +13,8 @@ public class ContextFeatureScorerCLI {
 	private static final int DEFAULT_END_SEED = 100;
 	private static final int DEFAULT_SHUFFLED_SEED = 2;
 
-	private static final Pattern MASKED_SEED_PATTERN = Pattern.compile("_masked([0-9]+)(?=_|\\.)",
-			Pattern.CASE_INSENSITIVE);
-
 	private static final Set<String> ALLOWED_ARGUMENTS = Set.of("--library", "--fasta", "--dia-folder", "--start-seed",
-			"--end-seed");
+			"--end-seed", "--input-prefix");
 
 	public static void main(String[] args) {
 
@@ -42,36 +36,43 @@ public class ContextFeatureScorerCLI {
 
 			int endSeed = parseNonNegativeInteger(arguments.getOrDefault("--end-seed", Integer.toString(DEFAULT_END_SEED)), "--end-seed");
 
+			String inputPrefix = arguments.getOrDefault("--input-prefix",
+					AssaySchedulePairMatcher.DEFAULT_INPUT_PREFIX);
+
 			int shuffledSeed = parseNonNegativeInteger(arguments.getOrDefault("--shuffledSeed", Integer.toString(DEFAULT_SHUFFLED_SEED)), "--shuffled-seed");
 			
 			if (endSeed < startSeed) {
 				throw new IllegalArgumentException("--end-seed must be greater than or equal to --start-seed.");
 			}
 
-			List<InputPair> inputs = findInputPairs(diaFolder, startSeed, endSeed);
+			List<AssayScheduleInputPair> inputs = AssaySchedulePairMatcher.findInputPairs(diaFolder, inputPrefix,
+					startSeed, endSeed);
 
 			System.out.println("Found " + inputs.size() + " DIA/mass-list pairs covering seeds " + startSeed + " through " + endSeed + ".");
 
 			int completed = 0;
 			List<String> failures = new ArrayList<>();
 
-			for (InputPair input : inputs) {
+			for (AssayScheduleInputPair input : inputs) {
 				System.out.println();
-				System.out.println("Processing seed " + input.seed + ": " + input.diaFile.getName());
+				System.out.println("Processing seed " + input.seed() + ": " + input.acquisitionFile().getName());
 
-				String baseName = RawFiles.baseName(input.diaFile);
+				String baseName = RawFiles.baseName(input.acquisitionFile());
 
 				try {
-					int featureCount = ContextFeatureScorer.scoreFeaturesForContext(library, input.diaFile, fasta, baseName, input.massListFile.getAbsolutePath(), shuffledSeed).size();
+					int featureCount = ContextFeatureScorer.scoreFeaturesForContext(library, input.acquisitionFile(),
+							fasta, baseName, input.assayScheduleFile().getAbsolutePath(), shuffledSeed).size();
 
 					completed++;
 
-					System.out.println("Finished seed " + input.seed + ": " + featureCount + " features were scored and partitioned.");
+					System.out.println("Finished seed " + input.seed() + ": " + featureCount
+							+ " features were scored and partitioned.");
 
 				} catch (Exception e) {
-					failures.add("Seed " + input.seed + " (" + input.diaFile.getName() + "): " + e.getMessage());
+					failures.add("Seed " + input.seed() + " (" + input.acquisitionFile().getName() + "): "
+							+ e.getMessage());
 
-					System.err.println("Feature scoring failed for seed " + input.seed + ".");
+					System.err.println("Feature scoring failed for seed " + input.seed() + ".");
 
 					e.printStackTrace();
 				}
@@ -101,85 +102,7 @@ public class ContextFeatureScorerCLI {
 		}
 	}
 
-	private static List<InputPair> findInputPairs(File diaFolder, int startSeed, int endSeed) {
-
-		File[] folderContents = diaFolder.listFiles();
-
-		if (folderContents == null) {
-			throw new IllegalArgumentException("Could not list files in: " + diaFolder.getAbsolutePath());
-		}
-
-		Map<Integer, File> diaFileBySeed = new TreeMap<>();
-
-		for (File file : folderContents) {
-
-			if (!file.isFile()) {
-				continue;
-			}
-
-			if (!file.getName().toLowerCase().endsWith(".dia")) {
-				continue;
-			}
-
-			Matcher matcher = MASKED_SEED_PATTERN.matcher(file.getName());
-
-			if (!matcher.find()) {
-				continue;
-			}
-
-			int seed = Integer.parseInt(matcher.group(1));
-
-			if (seed < startSeed || seed > endSeed) {
-				continue;
-			}
-
-			File previousFile = diaFileBySeed.putIfAbsent(seed, file);
-
-			if (previousFile != null) {
-				throw new IllegalArgumentException("More than one DIA file was found for seed " + seed + ": "
-						+ previousFile.getName() + " and " + file.getName());
-			}
-		}
-
-		List<Integer> missingSeeds = new ArrayList<>();
-
-		for (int seed = startSeed; seed <= endSeed; seed++) {
-			if (!diaFileBySeed.containsKey(seed)) {
-				missingSeeds.add(seed);
-			}
-		}
-
-		if (!missingSeeds.isEmpty()) {
-			throw new IllegalArgumentException("No DIA file was found for seed(s): " + missingSeeds);
-		}
-
-		List<InputPair> inputs = new ArrayList<>();
-		List<String> missingMassLists = new ArrayList<>();
-
-		for (Map.Entry<Integer, File> entry : diaFileBySeed.entrySet()) {
-			int seed = entry.getKey();
-			File diaFile = entry.getValue();
-
-			String baseName = RawFiles.baseName(diaFile);
-			File massListFile = new File(baseName + ".txt");
-
-			if (!massListFile.isFile() || !massListFile.canRead()) {
-				missingMassLists.add("seed " + seed + ": " + massListFile.getAbsolutePath());
-				continue;
-			}
-
-			inputs.add(new InputPair(seed, diaFile, massListFile));
-		}
-
-		if (!missingMassLists.isEmpty()) {
-			throw new IllegalArgumentException(
-					"Mass-list files were not found for:\n  " + String.join("\n  ", missingMassLists));
-		}
-
-		return inputs;
-	}
-
-	private static Map<String, String> parseArguments(String[] args) {
+	static Map<String, String> parseArguments(String[] args) {
 
 		if (args.length == 0) {
 			throw new IllegalArgumentException("No arguments were provided.");
@@ -275,7 +198,8 @@ public class ContextFeatureScorerCLI {
 	private static void printUsage() {
 		System.out.println("Usage:");
 		System.out.println("  ContextFeatureScorerCLI " + "--library <library.elib> " + "--fasta <proteins.fasta> "
-				+ "--dia-folder <folder> " + "[--start-seed <integer>] " + "[--end-seed <integer>]");
+				+ "--dia-folder <folder> " + "[--start-seed <integer>] " + "[--end-seed <integer>] "
+				+ "[--input-prefix <literal>]");
 		System.out.println();
 		System.out.println("Required:");
 		System.out.println("  --library      Spectral library used for scoring.");
@@ -283,25 +207,14 @@ public class ContextFeatureScorerCLI {
 		System.out.println("  --dia-folder   Folder containing paired .dia and .txt files.");
 		System.out.println();
 		System.out.println("Optional:");
-		System.out.println("  --start-seed   First masked seed to process; default: " + DEFAULT_START_SEED);
-		System.out.println("  --end-seed     Last masked seed to process; default: " + DEFAULT_END_SEED);
+		System.out.println("  --start-seed   First seed to process; default: " + DEFAULT_START_SEED);
+		System.out.println("  --end-seed     Last seed to process; default: " + DEFAULT_END_SEED);
+		System.out.println("  --input-prefix Literal text immediately before the seed; default: "
+				+ AssaySchedulePairMatcher.DEFAULT_INPUT_PREFIX);
 		System.out.println();
 		System.out.println("Expected filename pairs:");
 		System.out.println("  example_masked1_assay.dia");
 		System.out.println("  example_masked1_assay.txt");
-	}
-
-	private static final class InputPair {
-
-		private final int seed;
-		private final File diaFile;
-		private final File massListFile;
-
-		private InputPair(int seed, File diaFile, File massListFile) {
-
-			this.seed = seed;
-			this.diaFile = diaFile;
-			this.massListFile = massListFile;
-		}
+		System.out.println("  Custom example: --input-prefix _bootstrap matches example_bootstrap1_assay.dia/.txt");
 	}
 }
