@@ -4,6 +4,7 @@ import java.util.Arrays;
 
 import org.searlelab.context.io.ContextFeatureScorer;
 import org.searlelab.context.io.MassListDecoyGenerator;
+import org.searlelab.context.io.ScribeTwoFeatureScorerCLI;
 import org.searlelab.context.io.TargetedBootstrapperCLI;
 import org.searlelab.context.percolator.ContextPercolatorExecutorCLI;
 import org.searlelab.context.io.ContextFeatureScorerCLI;
@@ -32,6 +33,12 @@ public class Context {
 			break;
 		case "features-folder":
 			ContextFeatureScorerCLI.main(remaining);
+			break;
+		case "scribe-features":
+			ScribeTwoFeatureScorerCLI.run(remaining, false);
+			break;
+		case "scribe-context":
+			ScribeTwoFeatureScorerCLI.run(remaining, true);
 			break;
 		case "bootstrap":
 			TargetedBootstrapperCLI.main(remaining);
@@ -65,6 +72,8 @@ public class Context {
 				.println("  mprophet     train an mProphet LDA on the background, apply it to the reference peptides");
 		System.out.println("  features     score an acquisition and split features into reference and background");
 		System.out.println("  features-folder  score paired _maskedN DIA and mass-list files in a folder");
+		System.out.println("  scribe-features  score and partition one ScribeTwo acquisition or a seeded folder");
+		System.out.println("  scribe-context   run scribe-features, then train and apply the Context LDA");
 		System.out.println("  bootstrap    build a targeted assay / mass list from a library");
 		System.out.println("  decoys       add entrapment decoys to an assay that only lists targets");
 		System.out.println();
