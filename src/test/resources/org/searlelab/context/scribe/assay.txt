@@ -1,0 +1,6 @@
+Compound	Formula	Adduct	m/z	z	RT Time (min)	Window (min)	isDecoy
+LEAAIAEAEER		(no adduct)	601.3065928730629	2	48.25	1	false
+QDYMDAMAEK		(no adduct)	601.2468394550941	2	49.0	1	false
+ALYEQSLHIK		(no adduct)	601.3324107441566	2	50.27	1	false
+AAELQAQWER		(no adduct)	601.3016490254066	2	50.58	1	false
+LGEGTYATVYK		(no adduct)	601.3086070332191	2	49.12	1	false

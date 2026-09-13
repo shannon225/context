@@ -4,6 +4,7 @@
 #
 #   ./build.sh maven      download Apache Maven into build-cache/
 #   ./build.sh pyisopep   create a pyIsoPEP virtualenv under tools/
+#	./build.sh javapot 	  build the pinned Scribe prealignment runtime
 #   ./build.sh jar        build the self-contained jar
 #   ./build.sh sif        build the Apptainer image (needs the jar)
 #   ./build.sh            maven + jar + sif
@@ -40,6 +41,7 @@ export SINGULARITY_CACHEDIR="${APPTAINER_CACHEDIR}"
 export PIP_CACHE_DIR="${CACHE_DIR}/pip"
 export XDG_CACHE_HOME="${CACHE_DIR}/xdg"
 readonly MAVEN_REPO="${CACHE_DIR}/m2-repository"
+readonly MAVEN_REPO="${CONTEXT_MAVEN_REPO:-${CACHE_DIR}/m2-repository}"
 
 log()  { printf '\n==> %s\n' "$*"; }
 fail() { printf '\nERROR: %s\n' "$*" >&2; exit 1; }
@@ -114,12 +116,32 @@ check_libs() {
     [ "${missing}" -eq 0 ] \
         || fail "These jars come from the EncyclopeDIA maintainer and are too large for git. Copy them into place and run again."
 }
+setup_javapot() {
+	local revision = "84a59af82c9258cdf8f9774ed0dbc2b648421631"
+	local source = "${CACHE_DIR}/JavaPot-${revision}"
+	local artifact = "${MAVEN_REPO}/org/searlelab/javapot/1.0.5/javapot-1.0.5.jar"	
+	if [ -f "${artifact}" } && { -f "${artifact}.context-source-revision" ] \
+	&& [ "$(cat "${artifact}.context-source-revision")" = "${revision}" ]; then
+	log "Using JavaPot 1.0.5 from the local Maven cache"
+	return 
+	fi 
+	setup_maven 
+	load_module_if_needed javac "${JAVA_MODULE}"
+	if [ ! -d "${source}/.git" ]; then 
+	git clone	https://github.com/searlelab/JavaPot.git "${source}"
+	fi
+	git -C "${source}" checkout --detach "${revision}"
+	"${MVN}" -B -f- "${source}/pom.xml" "-Dmaven.repo.local=${MAVEN_REPO}" \
+	-DskipTests -Dmaven.javac.skip=true install
+	printf '%s\n' "${revision}" > "${artifact}.context-source-revision"	
+}
 
 build_jar() {
     load_module_if_needed javac "${JAVA_MODULE}"
     command -v javac > /dev/null 2>&1 || fail "Need a JDK, not just a JRE (javac is missing)."
     check_libs
     setup_maven
+    setup_javapot
     cd "${REPO_ROOT}"
 
     log "Building the jar (the first run downloads ~90 dependencies)"
@@ -150,8 +172,9 @@ build_sif() {
 case "${1:-all}" in
     maven)    setup_maven ;;
     pyisopep) setup_pyisopep ;;
+    javapot)  setup_javapot ;;
     jar)      build_jar ;;
     sif)      build_sif ;;
     all)      build_jar; build_sif ;;
-    *)        fail "Usage: $0 [maven|pyisopep|jar|sif|all]" ;;
+    *)        fail "Usage: $0 [maven|pyisopep|javapot|jar|sif|all]" ;;
 esac

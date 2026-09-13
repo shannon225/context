@@ -210,6 +210,46 @@ apptainer exec -B "$(mktemp -d /dev/shm/wineXXXX)":/mywineprefix \
 
 Then run Context on `run01.mzML`.
 
+## ScribeTwo feature scoring over a folder
+
+`scribe-features` keeps its positional single-acquisition syntax and also accepts a named folder mode:
+
+```bash
+java -jar context.jar scribe-features \
+  --dia-folder input_runs \
+  --library library.elib \
+  --fasta database.fasta \
+  --output-directory scribe_results \
+  --start-seed 1 \
+  --end-seed 10
+```
+
+Folder mode looks only at immediate `.dia` files. By default it matches `_masked` followed by the seed and
+pairs each acquisition with a readable `.txt` file having the same basename. For example,
+`sample_masked1_assay.dia` pairs with `sample_masked1_assay.txt`. The seed range is inclusive and defaults
+to 1 through 100.
+
+Use `--input-prefix` to replace `_masked` with literal text. Regular-expression characters are not special:
+
+```bash
+java -jar context.jar scribe-features \
+  --dia-folder input_runs \
+  --library library.elib \
+  --fasta database.fasta \
+  --output-directory scribe_results \
+  --start-seed 1 --end-seed 10 \
+  --input-prefix _bootstrap
+```
+
+This matches names such as `sample_bootstrap1_assay.dia`. Context validates the complete seed range and
+all assay schedules before starting Scribe. Each acquisition writes under
+`scribe_results/<acquisition-basename>/`. Processing continues after an individual scoring failure, retains
+successful outputs, prints an ordered summary, and makes the overall command fail if any seed failed.
+
+Scribe settings can be appended as normal single-dash property/value pairs, for example
+`-numberOfThreadsUsed 2 -adjustTolerances true`. Use `scribe-context` with the same arguments to additionally
+train the final background LDA and apply it to the reference features.
+
 ## All commands
 
 ```text
@@ -222,5 +262,7 @@ java -jar context.jar <command> -h
 | `mprophet` | train an mProphet LDA on the background, apply it to the reference |
 | `decoys` | add entrapment decoys to a mass list |
 | `features` | score an acquisition and split the features, without running an engine |
+| `features-folder` | score paired seeded DIA and assay-schedule files in a folder |
+| `scribe-features` | run ScribeTwo feature scoring for one acquisition or a seeded folder |
+| `scribe-context` | run ScribeTwo feature scoring plus final Context LDA training |
 | `bootstrap` | build a simulated targeted assay from a library |
-
