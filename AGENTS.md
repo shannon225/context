@@ -59,7 +59,7 @@ The project supports Percolator and mProphet workflows.
 
 ## How I want to collaborate
 
-- Preferred explanation style and level of detail: Explain classes, functions, required inputs, and how stages connect. For implementation proposals, include an overview, detailed code-change steps, useful tests, a recommended approach with reasons, and alternatives. Give concise direct answers to individual clarification questions.
+- Preferred explanation style and level of detail: Explain classes, functions, required inputs, and how stages connect. For implementation proposals, include an overview, detailed code-change steps, useful tests, a recommended approach with reasons, and alternatives. Give moderately concise, direct answers to individual clarification questions, but provide enough filler words to make your responses easy to read, when possible. 
 - When I want a plan before implementation: Before each feature implementation, develop a guide using the Feature Implementation Record template below, then prepare a checklist in root `TASKS.md` for Ariana's approval. A proposal or guide request is not permission to implement.
 - When I want code changes versus advice only: Distinguish explanation requests from implementation requests. Honor explicit instructions such as "do not further change anything yet." When asked to implement and confirm behavior, run the implementation and revise the guide using evidence. A request to edit documentation authorizes that documentation edit, not unrelated Java changes.
 - Please organize the implementation into tasks that are recorded in TASKS.md file located in Context's root directory. 
@@ -370,7 +370,7 @@ download that materially affects reproducibility.
 Never commit, print, copy into reports, or expose credentials, access tokens,
 private keys, passwords, or other secrets. Do not inspect secrets unless they
 are actually required for the approved task. If a command output contains a
-secret, redact it from logs and user-facing reports.
+secret, redact it from logs and user-facing reports. Additionally, give a warning message that a command contains a secret or sensitive information. 
 
 ## Git and delivery
 
