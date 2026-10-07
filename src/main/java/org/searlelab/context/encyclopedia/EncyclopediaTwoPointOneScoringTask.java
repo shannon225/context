@@ -5,6 +5,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.Optional;
 import java.util.concurrent.BlockingQueue;
+import java.util.function.Consumer;
 
 import org.searlelab.msrawjava.model.FragmentScan;
 import org.searlelab.msrawjava.model.Range;
@@ -17,6 +18,7 @@ import edu.washington.gs.maccoss.encyclopedia.algorithms.AuxillaryPSMScorer;
 import edu.washington.gs.maccoss.encyclopedia.algorithms.EValueCalculator;
 import edu.washington.gs.maccoss.encyclopedia.algorithms.IsotopicDistributionCalculator;
 import edu.washington.gs.maccoss.encyclopedia.algorithms.PSMScorer;
+import edu.washington.gs.maccoss.encyclopedia.algorithms.ScoredPSM;
 import edu.washington.gs.maccoss.encyclopedia.algorithms.TDCPeptideScoringResult;
 import edu.washington.gs.maccoss.encyclopedia.algorithms.alignment.TargeteDecoyPSMFilter;
 import edu.washington.gs.maccoss.encyclopedia.algorithms.library.EncyclopediaScorer;
@@ -52,6 +54,7 @@ import gnu.trove.set.hash.TIntHashSet;
 public class EncyclopediaTwoPointOneScoringTask extends AbstractLibraryScoringTask {
 	private final float dutyCycle;
 	private final Range precursorIsolationRange;
+	private final Consumer<java.util.List<ScoredPSM>> diagnosticSink;
 	
 	/**
 	 * NOTE: Entries now compete (target/decoy competition). Make sure all entries are appropriate to compete against each other!
@@ -66,9 +69,17 @@ public class EncyclopediaTwoPointOneScoringTask extends AbstractLibraryScoringTa
 	 */
 	public EncyclopediaTwoPointOneScoringTask(PSMScorer scorer, ArrayList<LibraryEntry> entries, ArrayList<FragmentScan> stripes, Range precursorIsolationRange, float dutyCycle, PrecursorScanMap precursors, BlockingQueue<AbstractScoringResult> resultsQueue,
 			SearchParameters parameters) {
+		this(scorer, entries, stripes, precursorIsolationRange, dutyCycle, precursors, resultsQueue, parameters, null);
+	}
+
+	public EncyclopediaTwoPointOneScoringTask(PSMScorer scorer, ArrayList<LibraryEntry> entries, ArrayList<FragmentScan> stripes,
+			Range precursorIsolationRange, float dutyCycle, PrecursorScanMap precursors,
+			BlockingQueue<AbstractScoringResult> resultsQueue, SearchParameters parameters,
+			Consumer<java.util.List<ScoredPSM>> diagnosticSink) {
 		super(scorer, entries, stripes, precursors, resultsQueue, parameters);
 		this.dutyCycle=dutyCycle;
 		this.precursorIsolationRange=new Range(precursorIsolationRange.getStart(), precursorIsolationRange.getStop());
+		this.diagnosticSink=diagnosticSink;
 	}
 	
 	private static final int peaksKept=12;
@@ -502,6 +513,7 @@ public class EncyclopediaTwoPointOneScoringTask extends AbstractLibraryScoringTa
 //			}
 			
 		}
+		if (diagnosticSink!=null) diagnosticSink.accept(result.getGoodMSMSCandidates());
 		result.trim(1);
 		resultsQueue.add(result);
 		return Nothing.NOTHING;
