@@ -160,12 +160,11 @@ results_run01/percolator/
   model/                         the model learned on the background
   work/                          intermediate tables and files from pyIsoPEP
 
-results_run01/mprophet/
-  run01.peptide.reference.txt          target reference peptides
-  run01.peptide.reference.decoy.txt    decoy reference peptides
-  run01.peptide.background.txt         target background peptides
-  run01.peptide.background.decoy.txt   decoy background peptides
-  model/, work/
+results_run01/context-mprophet/
+  run01.peptide.reference.target.txt     target reference peptides
+  run01.peptide.reference.decoy.txt      decoy reference peptides
+  run01.peptide.background.target.txt    target background peptides
+  run01.peptide.background.decoy.txt     decoy background peptides
 ```
 
 ### Re-running without re-scoring
@@ -191,10 +190,11 @@ java -jar context.jar mprophet \
 | `-o` | next to the input | output directory |
 | `-prefix` | the acquisition's name | base name for the output files |
 | `-fdr` | `0.01` | peptide FDR threshold used for reporting |
-| `-seed` | `1` | random seed (`mprophet` only) |
 | `-pyisopep` | look on `PATH` | path to the `pyisopep` executable (`percolator` only) |
+| `--allow-legacy-features` | `false` | accept older direct split files without pair sidecars (`percolator` and `mprophet`) |
 
-Any other flag is passed straight through to EncyclopeDIA.
+The `mprophet` command accepts only the flags shown in its `-h` output; `-generateDecoys`
+is accepted on raw runs because CTX-016 scoring supplies assay decoys when needed.
 
 ## Thermo .raw files
 
@@ -209,6 +209,61 @@ apptainer exec -B "$(mktemp -d /dev/shm/wineXXXX)":/mywineprefix \
 ```
 
 Then run Context on `run01.mzML`.
+
+## CTX-016 matched-decoy feature scoring
+
+`features-folder` scores paired `.dia` and assay-schedule `.txt` files. It builds a run-local
+predicted library from the source `.elib`, chooses EncyclopeDIA 6.9.23's predicted or shuffled
+decoy mode, and writes only the best scored peak group per search candidate set to the feature
+TSV. A target with no predicted spectrum is excluded; a target with no predicted decoy is
+reported as target-only and can be searched alone when predicted mode is selected. The
+prediction report records both cases and the selected search mode appears in the pair sidecar.
+
+```bash
+java -jar context.jar features-folder \
+  --library library.elib --fasta database.fasta --dia-folder input_runs \
+  --start-seed 1 --end-seed 10
+```
+
+The defaults Ariana selected are `--prediction-nce 27`, `--prediction-default-charge 2`, and
+`--adjust-nce-for-dia true`. The charge setting is the NCE reference charge; each prediction
+request still uses the source precursor's actual charge. Use `--candidate-diagnostics true` to
+write a separate ranked pre-trim candidate TSV. It does not send losing candidates to the
+feature TSV or confidence engines.
+
+For a run named `run`, Context writes `run_ctx016_<identity>.elib` and
+`run_ctx016_<identity>_predictions.tsv`, the raw `run.features.txt` with
+`run.features.txt.pairs.tsv` and `run.features.txt.ctx016.sha256`, and
+`run_reference.features.txt` / `run_background.features.txt` with matching `.pairs.tsv` files.
+The pair sidecar is keyed by the existing feature `id`; it records target and decoy modified
+sequence/charge keys, relation, prediction or shuffle method, eligibility, mode, and winner
+status. Empirical assay entrapment assignments from `bootstrap` are a separate relationship.
+Pair fields do not become numeric model features.
+
+The `mprophet` command accepts the raw `-i/-l/-f/-massList` form above or direct
+`-background/-reference/-f` split feature files. It trains on background rows and applies
+that model to reference rows through the existing Context mProphet runner. Both engines
+require the `.pairs.tsv` companions for direct CTX-016 split files; for older split files
+without either companion, pass `--allow-legacy-features true`. mProphet output goes to a fresh
+`<output-root>/context-mprophet/` directory (`-o` selects the root), so an earlier result
+is never overwritten by the CLI.
+
+Existing raw feature caches require a matching pair sidecar and SHA-256 manifest. To reuse an
+older raw feature file without CTX-016 metadata, pass `--allow-legacy-features true` explicitly;
+legacy reference/background classification then uses the prior sequence rules. An interrupted
+CTX-016 scoring attempt is marked while it runs; on retry, Context preserves its incomplete
+outputs, including the prediction report, in a nearby `.failed-*` directory before generating
+new outputs. A lock beside the feature file prevents another invocation from archiving an active
+run. Bruker `.d` acquisitions are accepted as directories, and the cache identity hashes their
+relative paths and file contents in a stable order.
+An unmarked partial or stale cache is rejected. Partitioning retains the best
+feature per modified sequence and charge before assigning reference/background populations.
+Keep each `.pairs.tsv` beside its feature file when handing
+split features to a downstream workflow.
+
+JChronologer 1.0.10 bundles PyTorch 2.7.1 native libraries for macOS Apple Silicon, Linux
+x86_64, and Windows x86_64. Live prediction is unavailable on Intel macOS with this pinned
+dependency; Context reports the model-load error rather than substituting another predictor.
 
 ## ScribeTwo feature scoring over a folder
 
