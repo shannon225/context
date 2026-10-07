@@ -14,7 +14,8 @@ public class ContextFeatureScorerCLI {
 	private static final int DEFAULT_SHUFFLED_SEED = 2;
 
 	private static final Set<String> ALLOWED_ARGUMENTS = Set.of("--library", "--fasta", "--dia-folder", "--start-seed",
-			"--end-seed", "--input-prefix");
+			"--end-seed", "--input-prefix", "--prediction-nce", "--prediction-default-charge",
+			"--adjust-nce-for-dia", "--candidate-diagnostics", "--allow-legacy-features");
 
 	public static void main(String[] args) {
 
@@ -38,6 +39,14 @@ public class ContextFeatureScorerCLI {
 
 			String inputPrefix = arguments.getOrDefault("--input-prefix",
 					AssaySchedulePairMatcher.DEFAULT_INPUT_PREFIX);
+			int predictionNce = parsePositiveInteger(arguments.getOrDefault("--prediction-nce", "27"), "--prediction-nce");
+			int defaultCharge = parsePositiveInteger(arguments.getOrDefault("--prediction-default-charge", "2"),
+					"--prediction-default-charge");
+			if (defaultCharge > Byte.MAX_VALUE) throw new IllegalArgumentException("--prediction-default-charge is too large.");
+			ContextFeatureScorer.Options options = new ContextFeatureScorer.Options(predictionNce, (byte) defaultCharge,
+					parseBoolean(arguments.getOrDefault("--adjust-nce-for-dia", "true"), "--adjust-nce-for-dia"),
+					parseBoolean(arguments.getOrDefault("--candidate-diagnostics", "false"), "--candidate-diagnostics"),
+					parseBoolean(arguments.getOrDefault("--allow-legacy-features", "false"), "--allow-legacy-features"));
 
 			int shuffledSeed = parseNonNegativeInteger(arguments.getOrDefault("--shuffledSeed", Integer.toString(DEFAULT_SHUFFLED_SEED)), "--shuffled-seed");
 			
@@ -61,7 +70,7 @@ public class ContextFeatureScorerCLI {
 
 				try {
 					int featureCount = ContextFeatureScorer.scoreFeaturesForContext(library, input.acquisitionFile(),
-							fasta, baseName, input.assayScheduleFile().getAbsolutePath(), shuffledSeed).size();
+						fasta, baseName, input.assayScheduleFile().getAbsolutePath(), shuffledSeed, options).size();
 
 					completed++;
 
@@ -185,6 +194,18 @@ public class ContextFeatureScorerCLI {
 		}
 	}
 
+	private static int parsePositiveInteger(String value, String flag) {
+		int parsed = parseNonNegativeInteger(value, flag);
+		if (parsed == 0) throw new IllegalArgumentException(flag + " must be positive.");
+		return parsed;
+	}
+
+	private static boolean parseBoolean(String value, String flag) {
+		if ("true".equalsIgnoreCase(value)) return true;
+		if ("false".equalsIgnoreCase(value)) return false;
+		throw new IllegalArgumentException(flag + " must be true or false.");
+	}
+
 	private static boolean containsHelpFlag(String[] args) {
 		for (String argument : args) {
 			if ("-h".equals(argument) || "--help".equals(argument)) {
@@ -199,7 +220,9 @@ public class ContextFeatureScorerCLI {
 		System.out.println("Usage:");
 		System.out.println("  ContextFeatureScorerCLI " + "--library <library.elib> " + "--fasta <proteins.fasta> "
 				+ "--dia-folder <folder> " + "[--start-seed <integer>] " + "[--end-seed <integer>] "
-				+ "[--input-prefix <literal>]");
+				+ "[--input-prefix <literal>] [--prediction-nce <integer>] "
+				+ "[--prediction-default-charge <integer>] [--adjust-nce-for-dia <true|false>] "
+				+ "[--candidate-diagnostics <true|false>] [--allow-legacy-features <true|false>]");
 		System.out.println();
 		System.out.println("Required:");
 		System.out.println("  --library      Spectral library used for scoring.");
@@ -211,6 +234,11 @@ public class ContextFeatureScorerCLI {
 		System.out.println("  --end-seed     Last seed to process; default: " + DEFAULT_END_SEED);
 		System.out.println("  --input-prefix Literal text immediately before the seed; default: "
 				+ AssaySchedulePairMatcher.DEFAULT_INPUT_PREFIX);
+		System.out.println("  --prediction-nce NCE for exact target/decoy predictions; default: 27.");
+		System.out.println("  --prediction-default-charge NCE reference charge; default: 2.");
+		System.out.println("  --adjust-nce-for-dia Apply DIA NCE conversion; default: true.");
+		System.out.println("  --candidate-diagnostics Write optional scored candidates before winner trimming; default: false.");
+		System.out.println("  --allow-legacy-features Reuse an old feature file without pair metadata; default: false.");
 		System.out.println();
 		System.out.println("Expected filename pairs:");
 		System.out.println("  example_masked1_assay.dia");

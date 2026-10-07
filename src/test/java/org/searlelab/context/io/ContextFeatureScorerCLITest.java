@@ -25,4 +25,5 @@ public class ContextFeatureScorerCLITest {
 
 		assertEquals("Argument was supplied more than once: --input-prefix", error.getMessage());
 	}
+
 }

@@ -8,6 +8,7 @@ import org.searlelab.context.io.ScribeTwoFeatureScorerCLI;
 import org.searlelab.context.io.TargetedBootstrapperCLI;
 import org.searlelab.context.percolator.ContextPercolatorExecutorCLI;
 import org.searlelab.context.io.ContextFeatureScorerCLI;
+import org.searlelab.context.io.ContextMProphetCLI;
 
 public class Context {
 
@@ -26,7 +27,7 @@ public class Context {
 			ContextPercolatorExecutorCLI.main(remaining);
 			break;
 		case "mprophet":
-//				ContextMProphetExecutor.main(remaining);
+			ContextMProphetCLI.run(remaining);
 			break;
 		case "features":
 			ContextFeatureScorer.execute(remaining);
@@ -77,9 +78,8 @@ public class Context {
 		System.out.println("  bootstrap    build a targeted assay / mass list from a library");
 		System.out.println("  decoys       add entrapment decoys to an assay that only lists targets");
 		System.out.println();
-		System.out.println("Both engines take the same arguments and write into <-o>/<engine>/, so");
-		System.out.println("running them with the same -o leaves their results side by side. Add");
-		System.out.println("-generateDecoys and an assay without decoys gets them built along the way.");
+		System.out.println("Raw Percolator and mProphet runs accept -i, -l, -f, and -massList.");
+		System.out.println("mProphet writes into <-o>/context-mprophet/; see its -h for direct feature inputs.");
 		System.out.println();
 		System.out.println("Run a command with -h for its own options, for example:");
 		System.out.println("  java -jar context.jar percolator -h");

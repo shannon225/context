@@ -311,7 +311,7 @@ public final class AllWorkflowExecutorCLI {
 		for (int seed: seeds) SeedExperiment.requireFresh(output, prefix, seed);
 	}
 	
-	private static MProphetResult runContextMProphet(File backgroundFeatures, File referenceFeatures, File fasta,
+	public static MProphetResult runContextMProphet(File backgroundFeatures, File referenceFeatures, File fasta,
 			SearchParameters parameters, float fdr, File outputDirectory, String prefix, int seed) throws Exception {
 
 		File engineDirectory = DirectoryOptions.engineDirectory(outputDirectory, CONTEXT_MPROPHET_ENGINE_NAME);
@@ -329,10 +329,14 @@ public final class AllWorkflowExecutorCLI {
 
 		MProphetResult backgroundResult = MProphetReiter.executeMProphetTSV(backgroundData, fdr, seed,
 				parameters.getAAConstants(), MPROPHET_ROUND);
+		if (backgroundResult == null || backgroundResult.getLDA() == null) {
+			throw new IOException("Context mProphet could not train a background model");
+		}
 		LinearDiscriminantAnalysis backgroundModel = backgroundResult.getLDA();
 
 		MProphetResult referenceResult = MProphetReiter.executeMProphetTSVWithModel(referenceData, fdr, backgroundModel,
 				parameters.getAAConstants());
+		if (referenceResult == null) throw new IOException("Context mProphet could not score the reference features");
 
 		Logger.logLine("Context mProphet found " + referenceResult.getPassingPeptides().size()
 				+ " reference peptides at " + (fdr * 100.0f) + "% FDR");
