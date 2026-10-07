@@ -47,7 +47,7 @@ public final class ScribeTwoFeatureGenerator {
 			
 			metadata.setProperty("status", "complete");
 			metadata.setProperty("engine", "scribe2");
-			metadata.setProperty("dependency", "encyclopedia-6.6.24");
+			metadata.setProperty("dependency", "encyclopedia-6.9.23");
 			metadata.setProperty("prealignment.trainingScope", "ALL");
 			metadata.setProperty("prealignment.calibrated", "true");
 			metadata.setProperty("massToleranceAdjusted", Boolean.toString(result.massTolerancesAdjusted()));
@@ -75,7 +75,7 @@ public final class ScribeTwoFeatureGenerator {
 			Class.forName("org.searlelab.javapot.cli.JavaPotOptions",false, loader);
 			
 		} catch (ClassNotFoundException | LinkageError e) {
-			throw new IOException("Scribe prealingment requires JavaPot runtime compatible with Encyclopedia 6.6.24."
+			throw new IOException("Scribe prealingment requires JavaPot runtime compatible with Encyclopedia 6.9.23."
 					+ "JavaPotOptions is missing or cannot load. Add the maintainer's compatible JavaPot JAR and depenency to the classPath. No uncalibrated fallback was run.", e);
 		}
 	}

@@ -32,7 +32,7 @@ readonly JAVA_MODULE="${CONTEXT_JAVA_MODULE:-Java/17.0.19-bdist}"
 readonly PYTHON_MODULE="${CONTEXT_PYTHON_MODULE:-Python/3.13.5-bare-gcc-2025b-eb}"
 
 readonly PYISOPEP_ENV="${TOOLS_DIR}/pyisopep"
-readonly ENCYCLOPEDIA_JAR="libs/maccoss/encyclopedia/6.6.24/encyclopedia-6.6.24.jar"
+readonly ENCYCLOPEDIA_JAR="libs/maccoss/encyclopedia/6.9.23/encyclopedia-6.9.23.jar"
 readonly MSRAWJAVA_JAR="libs/org/searlelab/msrawjava-core-nolice/26.7.31/msrawjava-core-nolice-26.7.31.jar"
 
 export MAVEN_USER_HOME="${CACHE_DIR}/maven-home"

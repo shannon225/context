@@ -36,13 +36,7 @@
 		<dependency>
 			<groupId>maccoss</groupId>
 			<artifactId>encyclopedia</artifactId>
-			<version>6.6.24</version>
-			<exclusions>
-				<exclusion>
-					<groupId>org.searlelab</groupId>
-					<artifactId>jchronologer</artifactId>
-				</exclusion>
-			</exclusions>
+			<version>6.9.23</version>
 		</dependency>
 		<dependency>
 			<groupId>org.searlelab</groupId>

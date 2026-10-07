@@ -22,7 +22,7 @@ jobs:
       - name: Check the jars are present
         run: |
           missing=0
-          for jar in libs/maccoss/encyclopedia/6.6.24/encyclopedia-6.6.24.jar \
+          for jar in libs/maccoss/encyclopedia/6.9.23/encyclopedia-6.9.23.jar \
                      libs/org/searlelab/msrawjava-core-nolice/26.7.31/msrawjava-core-nolice-26.7.31.jar; do
             if [ ! -s "$jar" ]; then echo "missing or empty: $jar"; missing=1; fi
           done
