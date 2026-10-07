@@ -9,6 +9,7 @@ import edu.washington.gs.maccoss.encyclopedia.utils.Logger;
 
 import org.searlelab.context.io.DirectoryOptions;
 import org.searlelab.context.io.RawFiles;
+import org.searlelab.context.encyclopedia.SearchPairSidecar;
 
 public class ContextPercolatorExecutorCLI {
 	private static final float DEFAULT_FDR = ContextPercolator.DEFAULT_FDR;
@@ -46,6 +47,7 @@ public class ContextPercolatorExecutorCLI {
 				File background = requiredFile(arguments, "-background");
 				File reference = requiredFile(arguments, "-reference");
 				File fasta = requiredFile(arguments, "-f");
+				requirePairMetadata(background, reference, arguments);
 				File outputDirectory = DirectoryOptions.outputDirectory(arguments,
 						background.getAbsoluteFile().getParentFile());
 				String prefix = arguments.getOrDefault("-prefix", DirectoryOptions.stripSplitSuffix(background));
@@ -79,11 +81,19 @@ public class ContextPercolatorExecutorCLI {
 	private static HashMap<String, String> encyclopediaArguments(HashMap<String, String> arguments) {
 		HashMap<String, String> parameters = SearchParameterParser.getDefaultParameters();
 		for (String contextFlag : new String[] { "-i", "-l", "-f", "-massList", "-fdr", "-o", "-outdir", "-prefix",
-				"-background", "-reference", "-features", "-standardPercolator", "-pyisopep", "-generateDecoys", "-h", "-help", "--help" }) {
+					"-background", "-reference", "-features", "-standardPercolator", "-pyisopep", "-generateDecoys", "--allow-legacy-features", "-h", "-help", "--help" }) {
 			arguments.remove(contextFlag);
 		}
 		parameters.putAll(arguments);
 		return parameters;
+	}
+
+	static void requirePairMetadata(File background, File reference, HashMap<String, String> arguments) throws java.io.IOException {
+		String value = arguments.getOrDefault("--allow-legacy-features", "false");
+		if (!"true".equalsIgnoreCase(value) && !"false".equalsIgnoreCase(value)) {
+			throw new IllegalArgumentException("--allow-legacy-features must be true or false");
+		}
+		SearchPairSidecar.requirePairMetadata(background, reference, Boolean.parseBoolean(value));
 	}
 
 	private static String stripFeatureSuffix(File featureFile) {
@@ -124,6 +134,7 @@ public class ContextPercolatorExecutorCLI {
 		Logger.timelessLogLine("  -background <file> background feature TSV");
 		Logger.timelessLogLine("  -reference  <file> reference feature TSV");
 		Logger.timelessLogLine("  -f          <file> FASTA protein database");
+		Logger.timelessLogLine("  --allow-legacy-features true  accept older split files without either pair sidecar");
 		Logger.timelessLogLine("");
 		Logger.timelessLogLine("Optional:");
 		Logger.timelessLogLine("  -fdr      <float>  peptide FDR threshold (default: " + DEFAULT_FDR + ")");
