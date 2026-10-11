@@ -20,7 +20,7 @@ public class ContextFeatureScorerCLI {
 			Pattern.CASE_INSENSITIVE);
 
 	private static final Set<String> ALLOWED_ARGUMENTS = Set.of("--library", "--fasta", "--dia-folder", "--start-seed",
-			"--end-seed");
+			"--end-seed", "--shuffled-seed");
 
 	public static void main(String[] args) {
 
@@ -42,7 +42,7 @@ public class ContextFeatureScorerCLI {
 
 			int endSeed = parseNonNegativeInteger(arguments.getOrDefault("--end-seed", Integer.toString(DEFAULT_END_SEED)), "--end-seed");
 
-			int shuffledSeed = parseNonNegativeInteger(arguments.getOrDefault("--shuffledSeed", Integer.toString(DEFAULT_SHUFFLED_SEED)), "--shuffled-seed");
+			int shuffledSeed = parseNonNegativeInteger(arguments.getOrDefault("--shuffled-seed", Integer.toString(DEFAULT_SHUFFLED_SEED)), "--shuffled-seed");
 			
 			if (endSeed < startSeed) {
 				throw new IllegalArgumentException("--end-seed must be greater than or equal to --start-seed.");
@@ -275,7 +275,7 @@ public class ContextFeatureScorerCLI {
 	private static void printUsage() {
 		System.out.println("Usage:");
 		System.out.println("  ContextFeatureScorerCLI " + "--library <library.elib> " + "--fasta <proteins.fasta> "
-				+ "--dia-folder <folder> " + "[--start-seed <integer>] " + "[--end-seed <integer>]");
+				+ "--dia-folder <folder> " + "[--start-seed <integer>] " + "[--end-seed <integer>] " + "[--shuffled-seed <integer>]");
 		System.out.println();
 		System.out.println("Required:");
 		System.out.println("  --library      Spectral library used for scoring.");
@@ -285,6 +285,7 @@ public class ContextFeatureScorerCLI {
 		System.out.println("Optional:");
 		System.out.println("  --start-seed   First masked seed to process; default: " + DEFAULT_START_SEED);
 		System.out.println("  --end-seed     Last masked seed to process; default: " + DEFAULT_END_SEED);
+		System.out.println("  --shuffled-seed  Seed for shuffled entrapment decoys; default: " + DEFAULT_SHUFFLED_SEED);
 		System.out.println();
 		System.out.println("Expected filename pairs:");
 		System.out.println("  example_masked1_assay.dia");
