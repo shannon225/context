@@ -14,6 +14,7 @@ import java.util.Map.Entry;
 import java.util.Optional;
 import java.util.OptionalInt;
 import java.util.TreeMap;
+import java.util.function.Consumer;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
@@ -44,6 +45,7 @@ import edu.washington.gs.maccoss.encyclopedia.algorithms.PSMScorer;
 import edu.washington.gs.maccoss.encyclopedia.algorithms.alignment.TargeteDecoyPSMFilter;
 import edu.washington.gs.maccoss.encyclopedia.algorithms.library.EncyclopediaScoringFactory;
 import edu.washington.gs.maccoss.encyclopedia.algorithms.library.EncyclopediaTwoJobData;
+import edu.washington.gs.maccoss.encyclopedia.algorithms.library.EncyclopediaTwoDecoyStrategy;
 import edu.washington.gs.maccoss.encyclopedia.algorithms.library.EncyclopediaTwoLDAScorer;
 import edu.washington.gs.maccoss.encyclopedia.algorithms.library.EncyclopediaTwoScorer;
 import edu.washington.gs.maccoss.encyclopedia.algorithms.library.EncyclopediaTwoScoringFactory;
@@ -60,6 +62,9 @@ import edu.washington.gs.maccoss.encyclopedia.datastructures.SearchParameters;
 import edu.washington.gs.maccoss.encyclopedia.datastructures.parameters.InstrumentSpecificSearchParameters;
 import edu.washington.gs.maccoss.encyclopedia.filereaders.BlibToLibraryConverter;
 import edu.washington.gs.maccoss.encyclopedia.filereaders.LibraryInterface;
+import edu.washington.gs.maccoss.encyclopedia.filereaders.MatchedDecoyAssessment;
+import edu.washington.gs.maccoss.encyclopedia.filereaders.MatchedDecoyKey;
+import edu.washington.gs.maccoss.encyclopedia.filereaders.MatchedDecoyLibrary;
 import edu.washington.gs.maccoss.encyclopedia.filereaders.OverlappingDiaPreprocessor;
 import edu.washington.gs.maccoss.encyclopedia.filereaders.PercolatorReader;
 import edu.washington.gs.maccoss.encyclopedia.filereaders.SearchParameterParser;
@@ -363,9 +368,26 @@ public class EncyclopediaTwo {
 	}
 
 	public static PSMConsumer generateFeatureFile(ProgressIndicator progress, LibraryInterface library, EncyclopediaTwoJobData job, StripeFileInterface stripefile, Optional<Pair<MProphetResult, TargeteDecoyPSMFilter>> prelimAnalysis, OptionalInt shuffledSeed) throws IOException, SQLException, DataFormatException, InterruptedException {
+		return generateFeatureFile(progress, library, job, stripefile, prelimAnalysis, shuffledSeed, ignored -> {});
+	}
+
+	public record SearchSelection(LibraryEntry target, java.util.List<LibraryEntry> candidates,
+			EncyclopediaTwoDecoyStrategy.Mode mode) {
+		public boolean targetOnly() { return candidates.size() == 1; }
+	}
+
+	public static PSMConsumer generateFeatureFile(ProgressIndicator progress, LibraryInterface library, EncyclopediaTwoJobData job,
+			StripeFileInterface stripefile, Optional<Pair<MProphetResult, TargeteDecoyPSMFilter>> prelimAnalysis,
+			OptionalInt shuffledSeed, Consumer<SearchSelection> selectionConsumer)
+			throws IOException, SQLException, DataFormatException, InterruptedException {
 
 		LibraryScoringFactory taskFactory=job.getTaskFactory();
 		SearchParameters parameters=taskFactory.getParameters();
+		EncyclopediaTwoDecoyStrategy decoyStrategy=EncyclopediaTwoDecoyStrategy.resolve(library, parameters);
+		MatchedDecoyAssessment assessment=decoyStrategy.getAssessment();
+		Logger.logLine("EncyclopeDIATwo decoy strategy: "+decoyStrategy.getMode()+" ("+decoyStrategy.getReason()
+				+"; mapped="+assessment.getUniquelyMappedTargetCount()+"/"+assessment.getTargetCount()
+				+", missing="+assessment.getMissingTargetCount()+", ambiguous="+assessment.getAmbiguousTargetCount()+")");
 		File featureFile=job.getPercolatorFiles().getInputTSV();
 
 		int cores=parameters.getNumberOfThreadsUsed();
@@ -418,8 +440,12 @@ public class EncyclopediaTwo {
 
 			for (int rangeIndex = 0; rangeIndex < ranges.size(); rangeIndex++) {
 				Range range=ranges.get(rangeIndex);
-				ArrayList<LibraryEntry> entries=nextEntries;
-				ArrayList<FragmentScan> stripes=nextStripes;
+			ArrayList<LibraryEntry> entries=nextEntries;
+			ArrayList<FragmentScan> stripes=nextStripes;
+			HashMap<MatchedDecoyKey, LibraryEntry> mappedDecoys=new HashMap<>();
+			if (decoyStrategy.usesPredictedDecoys()) {
+				mappedDecoys=((MatchedDecoyLibrary)library).getMappedDecoyEntries(range, useSqrt, parameters.getAAConstants());
+			}
 
 				String baseMessage = "Working on " + range + " m/z";
 				float baseIncrement = 1.0f / numberOfTasks;
@@ -460,9 +486,7 @@ public class EncyclopediaTwo {
 
 					for (LibraryEntry entry : entries) {
 						count++;
-						ArrayList<LibraryEntry> tasks = new ArrayList<LibraryEntry>();
-						tasks.add(entry);
-						tasks.add(entry.getDecoy(parameters));
+						ArrayList<LibraryEntry> tasks = getTargetAndPrimaryDecoy(entry, decoyStrategy, mappedDecoys, parameters);
 
 						if (shuffledSeed.isPresent()) {
 							int seed = shuffledSeed.getAsInt();
@@ -470,7 +494,7 @@ public class EncyclopediaTwo {
 
 							tasks.add(shuffle);
 							tasks.add(shuffle.getDecoy(parameters)); 
-						} else {
+						} else if (!decoyStrategy.usesPredictedDecoys()) {
 							float extraDecoys = parameters.getNumberOfExtraDecoyLibrariesSearched();
 							while (extraDecoys > 0.0f) {
 								if (extraDecoys < 1.0f) { 
@@ -488,6 +512,7 @@ public class EncyclopediaTwo {
 
 						}
 					}
+					selectionConsumer.accept(new SearchSelection(entry, java.util.List.copyOf(tasks), decoyStrategy.getMode()));
 					ArrayList<FragmentScan> localStripes;
 					if (prelimAnalysis.isPresent()) {
 						localStripes = getScanSubsetFromStripes(entry, prelimAnalysis.get().getY(), stripes, rts);
@@ -536,6 +561,19 @@ public class EncyclopediaTwo {
 	Logger.logLine(writeResultsConsumer.getNumberProcessed()+" total peptides processed.");
 
 	return saveResultsConsumer;
+}
+
+static ArrayList<LibraryEntry> getTargetAndPrimaryDecoy(LibraryEntry target, EncyclopediaTwoDecoyStrategy strategy,
+		HashMap<MatchedDecoyKey, LibraryEntry> mappedDecoys, SearchParameters parameters) {
+	ArrayList<LibraryEntry> candidates=new ArrayList<>();
+	candidates.add(target);
+	if (strategy.usesPredictedDecoys()) {
+		LibraryEntry decoy=mappedDecoys.get(new MatchedDecoyKey(target));
+		if (decoy!=null) candidates.add(decoy);
+	} else {
+		candidates.add(target.getDecoy(parameters));
+	}
+	return candidates;
 }
 
 static ArrayList<FragmentScan> getScanSubsetFromStripes(LibraryEntry entry, TargeteDecoyPSMFilter filter, ArrayList<FragmentScan> allScansInStripe, float[] rts) {

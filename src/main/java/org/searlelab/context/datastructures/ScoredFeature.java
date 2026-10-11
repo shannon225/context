@@ -45,6 +45,19 @@ public class ScoredFeature {
 		this.originalLine=originalLine;
 	}
 
+	public ScoredFeature(double mz, byte charge, boolean isDecoy, float primary, float retentionTime,
+			String sequence, String protein, String originalLine, boolean isBackground) {
+		this.mz = mz;
+		this.charge = charge;
+		this.isDecoy = isDecoy;
+		this.primary = primary;
+		this.retentionTime = retentionTime;
+		this.sequence = sequence;
+		this.protein = protein;
+		this.originalLine = originalLine;
+		this.isBackground = isBackground;
+	}
+
 	public double getMz() {
 		return mz;
 	}

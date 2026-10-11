@@ -28,6 +28,14 @@ public class ContextPercolatorExecutor {
 	public static ContextPercolatorResult runContextPercolator(File library, File fasta, File dia, File massList,
 			PyIsoPEPRunner pyIsoPEP, float fdr, File outputDirectory, String prefix, boolean generateDecoys,
 			HashMap<String, String> encyclopediaArgs, int shuffledSeed) throws Exception {
+		return runContextPercolator(library, fasta, dia, massList, pyIsoPEP, fdr, outputDirectory, prefix, generateDecoys,
+				encyclopediaArgs, shuffledSeed, ContextFeatureScorer.Options.defaults());
+	}
+
+	public static ContextPercolatorResult runContextPercolator(File library, File fasta, File dia, File massList,
+			PyIsoPEPRunner pyIsoPEP, float fdr, File outputDirectory, String prefix, boolean generateDecoys,
+			HashMap<String, String> encyclopediaArgs, int shuffledSeed, ContextFeatureScorer.Options scoringOptions)
+					throws Exception {
 
 		if (!dia.exists()) throw new IOException("Input file not found: " + dia);
 		if (!library.exists()) throw new IOException("Library file not found: " + library);
@@ -42,7 +50,8 @@ public class ContextPercolatorExecutor {
 				generateDecoys);
 
 		Logger.logLine("Scoring " + dia.getName() + " against " + library.getName());
-		ContextFeatureScorer.scoreFeaturesForContext(library, dia, fasta, baseName, splitOn.getAbsolutePath(), shuffledSeed);
+		ContextFeatureScorer.scoreFeaturesForContext(library, dia, fasta, baseName, splitOn.getAbsolutePath(), shuffledSeed,
+				scoringOptions);
 
 		File backgroundFeatures = new File(baseName + "_background.features.txt");
 		File referenceFeatures = new File(baseName + "_reference.features.txt");
