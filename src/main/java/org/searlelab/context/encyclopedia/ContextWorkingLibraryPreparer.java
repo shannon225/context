@@ -13,6 +13,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.zip.DataFormatException;
 
 import edu.washington.gs.maccoss.encyclopedia.algorithms.prediction.AminoAcidEncoding;
 import edu.washington.gs.maccoss.encyclopedia.algorithms.prediction.NonstandardAminoAcidException;
@@ -20,11 +21,13 @@ import edu.washington.gs.maccoss.encyclopedia.datastructures.AminoAcidConstants;
 import edu.washington.gs.maccoss.encyclopedia.datastructures.LibraryEntry;
 import edu.washington.gs.maccoss.encyclopedia.datastructures.LibraryPrecursorMetadata;
 import edu.washington.gs.maccoss.encyclopedia.datastructures.SearchParameters;
+import edu.washington.gs.maccoss.encyclopedia.datastructures.SimplePeptidePrecursor;
 import edu.washington.gs.maccoss.encyclopedia.filereaders.LibraryFile;
 import edu.washington.gs.maccoss.encyclopedia.filewriters.web.DecoyPeptideGenerator;
 import edu.washington.gs.maccoss.encyclopedia.filewriters.web.JChronologerLibraryPredictionClient;
 import edu.washington.gs.maccoss.encyclopedia.filewriters.web.JChronologerLibraryPredictionClient.ScribeTwoPrecursorPredictionRequest;
 import edu.washington.gs.maccoss.encyclopedia.filewriters.web.JChronologerLibraryPredictionClient.ScribeTwoPredictionSession;
+import edu.washington.gs.maccoss.encyclopedia.utils.Logger;
 import edu.washington.gs.maccoss.encyclopedia.utils.massspec.PeptideUtils;
 
 /** Builds a run-local predicted library without changing Encyclopedia's preparation code. */
@@ -52,6 +55,44 @@ public final class ContextWorkingLibraryPreparer {
 	@FunctionalInterface
 	interface Predictor {
 		ArrayList<LibraryEntry> predict(List<ScribeTwoPrecursorPredictionRequest> requests) throws RuntimeException;
+
+		/** Called once before the first prediction; a failure here is a failed prerequisite, not a per-request failure. */
+		default void start() throws IOException {}
+	}
+
+	/** Opens the prediction runtime only when a request is missing from the store. */
+	private static final class LazySessionPredictor implements Predictor, AutoCloseable {
+		private final Settings settings;
+		private final SearchParameters parameters;
+		private ContextPredictionRuntime runtime;
+		private ScribeTwoPredictionSession session;
+
+		LazySessionPredictor(Settings settings, SearchParameters parameters) {
+			this.settings = settings;
+			this.parameters = parameters;
+		}
+
+		@Override
+		public void start() throws IOException {
+			if (session != null) return;
+			ContextPredictionRuntime.requirePredictionPlatform();
+			runtime = new ContextPredictionRuntime();
+			session = JChronologerLibraryPredictionClient.createScribeTwoPredictionSession();
+		}
+
+		@Override
+		public ArrayList<LibraryEntry> predict(List<ScribeTwoPrecursorPredictionRequest> requests) {
+			return session.predictPrecursors(requests, settings.nce(), settings.defaultCharge(), settings.adjustNceForDia(), parameters);
+		}
+
+		@Override
+		public void close() {
+			try {
+				if (session != null) session.close();
+			} finally {
+				if (runtime != null) runtime.close();
+			}
+		}
 	}
 
 	public static Result prepare(LibraryFile source, SearchParameters parameters, Settings settings,
@@ -69,8 +110,29 @@ public final class ContextWorkingLibraryPreparer {
 		}
 	}
 
+	/**
+	 * Builds the working library from the prediction store, predicting and storing only precursors the store lacks.
+	 * Decoy selection, target retention, exclusion reasons, and the assignment report are the same as without a store.
+	 */
+	public static Result prepare(LibraryFile source, SearchParameters parameters, Settings settings,
+			File outputLibrary, File assignmentFile, ContextPredictionStore store) throws IOException, SQLException {
+		if (outputLibrary.exists() || assignmentFile.exists()) {
+			throw new IOException("Working-library output already exists; choose a fresh run path: " + outputLibrary);
+		}
+		ContextPredictionRuntime.requireLibraryApi();
+		try (LazySessionPredictor predictor = new LazySessionPredictor(settings, parameters)) {
+			return prepare(source, parameters, settings, outputLibrary, assignmentFile, predictor, store);
+		}
+	}
+
 	static Result prepare(LibraryFile source, SearchParameters parameters, Settings settings,
 			File outputLibrary, File assignmentFile, Predictor predictor) throws IOException, SQLException {
+		return prepare(source, parameters, settings, outputLibrary, assignmentFile, predictor, null);
+	}
+
+	/** {@code store} may be null, in which case every request is predicted and nothing is stored. */
+	static Result prepare(LibraryFile source, SearchParameters parameters, Settings settings,
+			File outputLibrary, File assignmentFile, Predictor predictor, ContextPredictionStore store) throws IOException, SQLException {
 		if (outputLibrary.exists() || assignmentFile.exists()) {
 			throw new IOException("Working-library output already exists; choose a fresh run path: " + outputLibrary);
 		}
@@ -88,6 +150,8 @@ public final class ContextWorkingLibraryPreparer {
 			working.createDecoyEntriesTable();
 			long retainedTargets = 0;
 			long retainedDecoys = 0;
+			long storedHits = 0;
+			long predictionRequests = 0;
 			for (int start = 0; start < targets.size(); start += PAIRS_PER_BATCH) {
 				List<LibraryPrecursorMetadata> batch = targets.subList(start, Math.min(start + PAIRS_PER_BATCH, targets.size()));
 				LinkedHashMap<String, LibraryPrecursorMetadata> requestedTargets = new LinkedHashMap<>();
@@ -115,7 +179,23 @@ public final class ContextWorkingLibraryPreparer {
 				}
 				HashMap<String, LibraryEntry> predictions = new HashMap<>();
 				HashMap<String, String> failures = new HashMap<>();
-				predictWithIsolation(requests, predictor, constants, predictions, failures);
+				List<ScribeTwoPrecursorPredictionRequest> missing = store == null ? requests
+						: addStoredPredictions(store, requests, constants, predictions);
+				storedHits += requests.size() - missing.size();
+				predictionRequests += missing.size();
+				if (!missing.isEmpty()) {
+					predictor.start();
+					int storedCount = predictions.size();
+					predictWithIsolation(missing, predictor, constants, predictions, failures);
+					if (store != null && predictions.size() > storedCount) {
+						ArrayList<LibraryEntry> newlyPredicted = new ArrayList<>();
+						for (ScribeTwoPrecursorPredictionRequest request : missing) {
+							LibraryEntry predicted = predictions.get(key(request.getPeptideModSeq(), request.getPrecursorCharge(), constants));
+							if (predicted != null) newlyPredicted.add(predicted);
+						}
+						store.add(newlyPredicted);
+					}
+				}
 				ArrayList<LibraryEntry> targetEntries = new ArrayList<>();
 				ArrayList<LibraryEntry> decoyEntries = new ArrayList<>();
 				HashMap<String, String> targetByDecoyKey = new HashMap<>();
@@ -154,6 +234,10 @@ public final class ContextWorkingLibraryPreparer {
 				working.addDecoyEntriesToExistingTable(decoyEntries, targetByDecoyKey, false);
 				working.addDecoyProteinsFromEntries(decoyEntries);
 			}
+			if (store != null) {
+				Logger.logLine("Prediction store " + store.cacheFile().getName() + ": " + storedHits + " precursors reused, "
+						+ predictionRequests + " sent for prediction");
+			}
 			if (retainedTargets == 0) {
 				writeAssignments(assignmentFile, assignments, settings, source.getFile());
 				completeExclusionReport = true;
@@ -177,6 +261,32 @@ public final class ContextWorkingLibraryPreparer {
 			}
 			throw e;
 		}
+	}
+
+	/** Adds stored spectra for these requests to {@code predictions} and returns the requests the store lacks. */
+	private static List<ScribeTwoPrecursorPredictionRequest> addStoredPredictions(ContextPredictionStore store,
+			List<ScribeTwoPrecursorPredictionRequest> requests, AminoAcidConstants constants,
+			HashMap<String, LibraryEntry> predictions) throws IOException, SQLException {
+		ArrayList<SimplePeptidePrecursor> precursors = new ArrayList<>();
+		for (ScribeTwoPrecursorPredictionRequest request : requests) {
+			precursors.add(new SimplePeptidePrecursor(request.getPeptideModSeq(), request.getPrecursorCharge(), constants));
+		}
+		Map<String, LibraryEntry> stored;
+		try {
+			stored = store.find(precursors, constants);
+		} catch (DataFormatException e) {
+			throw new IOException("Cannot read stored predictions from " + store.cacheFile(), e);
+		}
+		ArrayList<ScribeTwoPrecursorPredictionRequest> missing = new ArrayList<>();
+		for (ScribeTwoPrecursorPredictionRequest request : requests) {
+			LibraryEntry entry = stored.get(ContextPredictionStore.key(request.getPeptideModSeq(), request.getPrecursorCharge()));
+			if (entry == null) {
+				missing.add(request);
+			} else {
+				predictions.put(key(request.getPeptideModSeq(), request.getPrecursorCharge(), constants), entry);
+			}
+		}
+		return missing;
 	}
 
 	private static void predictWithIsolation(List<ScribeTwoPrecursorPredictionRequest> requests, Predictor predictor,
