@@ -149,6 +149,6 @@ public class ContextPercolatorExecutorCLI {
 		Logger.timelessLogLine("  work/<prefix>.*.pyisopep.txt            pyIsoPEP's unedited reports");
 		Logger.timelessLogLine("");
 		Logger.timelessLogLine("and, when -generateDecoys had work to do, in <-o> itself:");
-		Logger.timelessLogLine("  <prefix>.assay.with_decoys.txt          the assay it built");
+		Logger.timelessLogLine("  <assay>_td_assay.txt                    the assay it built");
 	}
 }

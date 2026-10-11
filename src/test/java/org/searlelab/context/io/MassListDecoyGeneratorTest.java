@@ -10,7 +10,6 @@ import java.io.PrintWriter;
 import java.util.ArrayList;
 import java.util.HashMap;
 
-import org.junit.Ignore;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
@@ -90,7 +89,6 @@ public class MassListDecoyGeneratorTest {
 		assertEquals(1, decoys);
 	}
 
-	@Ignore("resolveDecoysMessage is not implemented -- MassListDecoyGenerator:173")
 	@Test
 	public void anAssayThatAlreadyHasDecoysIsUsedUnchanged() throws IOException {
 		File assay = write("ready_assay.txt",
@@ -102,7 +100,6 @@ public class MassListDecoyGeneratorTest {
 		assertEquals(assay, MassListDecoyGenerator.resolveDecoysMessage(assay, folder.getRoot(), "run", true));
 	}
 
-	@Ignore("resolveDecoysMessage is not implemented -- MassListDecoyGenerator:173")
 	@Test
 	public void withoutTheFlagTheListIsNotTouched() throws IOException {
 		File assay = targetsOnly();
