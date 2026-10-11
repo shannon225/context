@@ -436,3 +436,37 @@ Ariana supplied ten matched DIA/assay pairs, the library and FASTA, then authori
 
 - Docker installation and offline Linux smoke validation are complete. Full supplied-data run remains active in local container `context-ten-file-validation` (exec session 52329), still on seed 1 with 8 completed 1,024-request prediction batches at the latest check and no logged errors. The source library has 99,147 distinct modified-sequence/charge entries. Observed container memory was approximately 872 MiB of 3.82 GiB. No seed is complete yet; full analysis remains unverified.
 - The container has networking disabled; only the current jar (read-only) and isolated validation workspace are mounted. Output log: `tmp/compatibility/ten-file-20261010/features-folder.log`. Keep the machine awake and Docker running for execution to continue. No background notification automation or completion claim was created. Resume by checking this container/log and validating final artifacts against `input-manifest.json`; do not start a duplicate run.
+
+
+### CTX-016 — supplied seed-1 all-workflow analysis (2026-10-11)
+
+- [x] `CTX016-R3-07` Run AllWorkflowExecutorCLI on the three supplied seed-1 feature tables with the matching FASTA, default 1% FDR and training seed 1. Validate pair sidecars before all six workflows, preserve source data through snapshots/checksums, record completion/failures and outputs. Ariana explicitly requested this analysis; no engine edits or Git delivery authorized.
+
+#### 2026-10-11 — `CTX016-R3-07` started
+
+- Inspected CLI: six workflows (Context/discovery/targeted Percolator and mProphet). Prepared immutable-source copies and SHA-256 manifest under `tmp/compatibility/all-workflows-20261011/inputs`. Use native Java 17 and existing project-local pyIsoPEP 0.1.4; this feature-only stage does not require predictor natives. Explicit `--seeds 1` supplies fresh-directory protection and experiment provenance.
+
+#### 2026-10-11 — `CTX016-R3-07` six workflows completed
+
+- Packaged AllWorkflowExecutorCLI exited 0; run.properties records COMPLETE. Java 17, native Intel macOS, pyIsoPEP 0.1.4, training seed 1, FDR 0.01. Sidecar preflights passed for all three input tables. Copied input checksums remained unchanged, and all six target peptide reports contain finite q-values/PEPs in [0,1].
+- Target peptide report rows with q <= 0.01: Context Percolator 89/200 reference; targeted Percolator 86/200 reference; Context mProphet 95/200 reference; targeted mProphet 98/200 reference; standard Percolator 1180/6210 combined; standard mProphet 1350/6210 combined. Combined-population counts must not be compared directly with reference-only counts as sensitivity evidence. These are reported q-value thresholds, not independently measured error rates.
+- Outputs: `tmp/compatibility/all-workflows-20261011/results/cd8_2mz_gpf_masked1_assay/seed_1/`. Root also contains exact command, input/artifact SHA-256 manifest, workflow log, exit code, summary.json, and summary.tsv. Processed only the seed-1 file set requested in the preceding message; no prediction rerun, source-code edit, Git delivery, or final feature-acceptance claim.
+
+
+### CTX-016 — ten-dataset non-entrapment PEP comparison (2026-10-11)
+
+- [x] `CTX016-R3-08` Ariana requested and clarified: process all ten datasets through all six workflows, then draw a violin of dataset-level counts of non-entrapment reference peptides at PEP <= 0.01. Fix training seed 1, reuse completed dataset 1, snapshot/preflight remaining datasets, and preserve input data. Define non-entrapments using assay isDecoy=false joined to reference target keys; count unique modified peptide sequences, collapsing charge states. Deliver PNG/PDF/SVG, source and counts; do not claim independent biological replication or calibrated FDR from the plot.
+
+#### 2026-10-11 — `CTX016-R3-08` started
+
+- All ten feature trios are present. Exact modified-sequence/charge matching accounts for every reference target; 98–100 non-entrapment reference feature rows per dataset. Sequential batch for datasets 2–10 started under `tmp/compatibility/reference-pep-20261011/`, with explicit training seed 1 and fresh output directories. Dataset 1 reuses the completed six-workflow analysis. Plotting script will require all ten COMPLETE manifests before rendering.
+
+#### 2026-10-11 — `CTX016-R3-08` scope reduced by Ariana
+
+- Ariana requested only three datasets instead of ten. Supersedes the ten-dataset scope above: use datasets 1–3 only, with identical PEP/non-entrapment/counting definitions. Stopped only the Python batch supervisor while dataset-2 Java continued; this prevents datasets 4–10 from starting. Dataset 2 completion will be verified through its COMPLETE experiment manifest and final log because its supervisor can no longer record process exit. Dataset 3 uses a separate single-dataset script. Plot will show all three observations and explicitly note the limited sample size.
+
+#### 2026-10-11 — `CTX016-R3-08` three-dataset plot completed
+
+- Dataset 2 completed with exit 0 before supervisor termination; dataset 3 was prepared/preflighted but not launched. An initial dataset-3 restart safely refused its existing directory; resumed using its checksum-verified copies, then all six workflows completed with exit 0. No dataset 4–10 directory was created. Dataset 1 reused existing complete results. All copied input checksums passed.
+- Exact reference ID and assay modified-sequence/charge joins passed across all 18 comparisons; eligible non-entrapment unique modified peptides = 98, 98, 99. Counts at PEP <= 0.01 by dataset 1/2/3: Context Percolator 75/80/85; standard Percolator 79/81/78; targeted Percolator 34/76/41; Context mProphet 90/95/90; standard mProphet 90/92/89; targeted mProphet 91/95/83. Counts collapse charge states and use PEP, not q-values.
+- Created and visually inspected PNG violin with all three observations shown, plus PDF/SVG, counts.tsv, peptide-level PEP evidence, reproducible Python and methodology README under `tmp/compatibility/reference-pep-20261011`. Installed matplotlib/seaborn only in the existing project-local Python environment; initial bundled Python lacked matplotlib. Font-cache warnings did not prevent successful rendering. These are descriptive masked-dataset results, not independent biological replicates or scientific calibration proof. No source-code changes or Git delivery.
