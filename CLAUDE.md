@@ -239,12 +239,13 @@ Don't claim Docker or GitHub Actions behavior was validated unless actually exer
   `git reset --hard`, `git clean`, or anything that discards uncommitted work; do not delete or
   overwrite sources, datasets, reports, or unknown untracked files; do not revert changes outside
   the current approved task. If unrelated edits interfere, preserve them and report the conflict.
-- Commit grouping (workflow step 7) applies only once Ariana starts the git delivery stage. Include
-  local tracking files (`TASKS.md`) in the code commits whose work they record; keep Reports out of
-  commits.
+- Commit grouping (workflow step 7) applies only once Ariana starts the git delivery stage. Keep
+  local tracking and Reports out of code commits.
 - **Ask before committing.** Plan approval approves scope, not `git commit`. Present the actual
   scope and validation results and get explicit authorization (don't re-ask if she already
-  authorized that exact action). Log the authorization and commit hash.
+  authorized that exact action). Log the authorization and commit hash in the Google
+  implementation record, not in `TASKS.md`: Git already tracks hashes, and recording them in a
+  versioned file would need another commit.
 - **Push, PRs, and releases need separate explicit instructions.** One does not imply another;
   don't infer permission from "implement," "finish," or "looks good." Never merge, rebase, or
   rewrite history unprompted. `APPROVE` from review is not permission to commit or publish.

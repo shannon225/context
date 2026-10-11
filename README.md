@@ -38,6 +38,34 @@ Download `context.jar` from the [latest release](https://github.com/shannon225/c
 java -jar context.jar --help
 ```
 
+Use Java 17 with the architecture listed below. The Context prediction libraries are
+bundled; Context preserves each platform's native metadata in the executable jar.
+
+| Platform | Execution and prerequisites |
+|----------|----------------------------|
+| Windows x86_64 | x64 Java 17; the Microsoft Visual C++ runtime required by PyTorch. See [DJL's Windows setup guidance](https://docs.djl.ai/master/engines/pytorch/pytorch-engine/index.html#windows). |
+| Linux x86_64 | x64 Java 17 on a compatible glibc distribution, or the Linux container. |
+| macOS Apple Silicon | ARM64 Java 17 for prediction. The bundled Percolator executable is Intel-only and also requires [Rosetta](https://support.apple.com/en-euro/102527) on macOS versions that support it. |
+| macOS Intel | Use the `linux/amd64` container. The pinned predictor cannot run in an Intel macOS JVM. |
+
+Windows ARM and Linux ARM do not have bundled native prediction libraries. These
+architecture requirements apply to raw Context prediction; direct mProphet feature
+input does not load the predictor. Platform CI exercises the packaged artifact on
+Windows x86_64, Linux x86_64, and macOS ARM; a configured CI job is not evidence of a
+passing run until its results are available.
+
+On an Intel Mac, install Docker with Linux-container support, then run:
+
+```bash
+docker run --rm --platform linux/amd64 \
+  -v "$PWD:/data" -w /data ghcr.io/shannon225/context:latest --help
+```
+
+Replace `--help` with the Context command and use `/data/...` paths for mounted inputs.
+Use an image built from the revision you intend to validate; `latest` is a published
+image and does not include uncommitted changes. To validate a local checkout, build
+`docker build --platform linux/amd64 -t context-local .` and use `context-local` above.
+
 The `mprophet` engine needs nothing else. The `percolator` engine also needs pyIsoPEP to derive
 q-values and PEPs. We recommend to create an environment for it.
 
@@ -57,6 +85,17 @@ Then, tell Context where it is:
 ```bash
 java -jar context.jar percolator ... -pyisopep ~/context-env/bin/pyisopep
 ```
+
+On Windows, use PowerShell and the virtual environment's `Scripts` directory:
+
+```powershell
+py -3 -m venv "$HOME\context-env"
+& "$HOME\context-env\Scripts\python.exe" -m pip install --no-cache-dir pyIsoPEP
+& "$HOME\context-env\Scripts\pyisopep.exe" --help
+```
+
+Pass `-pyisopep "$HOME\context-env\Scripts\pyisopep.exe"` to the Percolator command.
+Quote paths containing spaces. The jar already includes the native Percolator executable.
 
 #### Or a conda / mamba environment
 
@@ -160,12 +199,11 @@ results_run01/percolator/
   model/                         the model learned on the background
   work/                          intermediate tables and files from pyIsoPEP
 
-results_run01/mprophet/
-  run01.peptide.reference.txt          target reference peptides
-  run01.peptide.reference.decoy.txt    decoy reference peptides
-  run01.peptide.background.txt         target background peptides
-  run01.peptide.background.decoy.txt   decoy background peptides
-  model/, work/
+results_run01/context-mprophet/
+  run01.peptide.reference.target.txt     target reference peptides
+  run01.peptide.reference.decoy.txt      decoy reference peptides
+  run01.peptide.background.target.txt    target background peptides
+  run01.peptide.background.decoy.txt     decoy background peptides
 ```
 
 ### Re-running without re-scoring
@@ -191,10 +229,13 @@ java -jar context.jar mprophet \
 | `-o` | next to the input | output directory |
 | `-prefix` | the acquisition's name | base name for the output files |
 | `-fdr` | `0.01` | peptide FDR threshold used for reporting |
-| `-seed` | `1` | random seed (`mprophet` only) |
 | `-pyisopep` | look on `PATH` | path to the `pyisopep` executable (`percolator` only) |
+| `--allow-legacy-features` | `false` | accept older direct split files without pair sidecars (`percolator` and `mprophet`) |
+| `--prediction-store` | `prediction-cache` beside the acquisition | folder for stored predictions and shared working libraries (`features`, `features-folder`, and raw `percolator` and `mprophet` runs) |
+| `--clear-stale-store-lock` | `false` | clear a prediction store lock left by an interrupted run (same commands) |
 
-Any other flag is passed straight through to EncyclopeDIA.
+The `mprophet` command accepts only the flags shown in its `-h` output; `-generateDecoys`
+is accepted on raw runs because Context scoring supplies assay decoys when needed.
 
 ## Thermo .raw files
 
@@ -210,6 +251,137 @@ apptainer exec -B "$(mktemp -d /dev/shm/wineXXXX)":/mywineprefix \
 
 Then run Context on `run01.mzML`.
 
+## Context matched-decoy feature scoring
+
+`features-folder` scores paired `.dia` and assay-schedule `.txt` files. It builds a predicted
+working library from the source `.elib` (shared by every run of that library; see below), chooses EncyclopeDIA 6.9.23's predicted or shuffled
+decoy mode, and writes only the best scored peak group per search candidate set to the feature
+TSV. A target with no predicted spectrum is excluded; a target with no predicted decoy is
+reported as target-only and can be searched alone when predicted mode is selected. The
+prediction report records both cases and the selected search mode appears in the pair sidecar.
+
+```bash
+java -jar context.jar features-folder \
+  --library library.elib --fasta database.fasta --dia-folder input_runs \
+  --start-seed 1 --end-seed 10
+```
+
+The defaults Ariana selected are `--prediction-nce 27`, `--prediction-default-charge 2`, and
+`--adjust-nce-for-dia true`. The charge setting is the NCE reference charge; each prediction
+request still uses the source precursor's actual charge. Use `--candidate-diagnostics true` to
+write a separate ranked pre-trim candidate TSV. It does not send losing candidates to the
+feature TSV or confidence engines.
+
+Predictions are stored and reused. By default Context keeps them in a `prediction-cache` folder
+beside the acquisition; `--prediction-store <folder>` points several folders at one store.
+
+- `prediction-cache/scribetwo-jchronologer-nce<NCE>-z<charge>-<dia|dda>.dlib` holds one predicted
+  spectrum per modified sequence and charge, for targets and decoys, with a `.context-profile`
+  file recording the prediction settings and Encyclopedia/JChronologer versions. A store written
+  under a different profile is refused. Only precursors not already stored are predicted, so a
+  library that overlaps an earlier one predicts only its new peptides. Expect roughly 0.7 GB per
+  million stored spectra.
+- `prediction-cache/working-libraries/<library>_<identity>.elib` and its `_predictions.tsv`
+  report are built once per source library, FASTA, search parameters, and prediction settings,
+  and every run that uses them reuses them. They are kept after the runs. Concurrent runs wait
+  for one build. If a build is interrupted, the next run moves the partial files to a
+  `.failed-*` folder beside them and rebuilds.
+- A store write lock left by an interrupted run stops later runs with the lock's host, process
+  ID, and age. If no other Context run is using the store, rerun with
+  `--clear-stale-store-lock true`. Context never clears a lock on its own.
+- A spectrum read from the store can differ slightly from a fresh prediction of the same precursor,
+  because JChronologer's output depends on how requests are batched. Measured differences were at
+  most 1.7e-5 in relative intensity, 6e-5 in ion mobility, and 2.4e-4 s in retention time (one
+  single-precision rounding step); fragment and precursor m/z were identical. Assignments and decoy
+  choices are unaffected.
+
+For a run named `run`, Context writes the raw `run.features.txt` with
+`run.features.txt.pairs.tsv` and `run.features.txt.context.sha256`, and
+`run_reference.features.txt` / `run_background.features.txt` with matching `.pairs.tsv` files.
+The feature manifest records the run's inputs and the SHA-256 of the shared working library it
+was searched against.
+The pair sidecar is keyed by the existing feature `id`; it records target and decoy modified
+sequence/charge keys, relation, prediction or shuffle method, eligibility, mode, and winner
+status. Empirical assay entrapment assignments from `bootstrap` are a separate relationship.
+Pair fields do not become numeric model features.
+
+The `mprophet` command accepts the raw `-i/-l/-f/-massList` form above or direct
+`-background/-reference/-f` split feature files. It trains on background rows and applies
+that model to reference rows through the existing Context mProphet runner. Both engines
+require the `.pairs.tsv` companions for direct Context split files; for older split files
+without either companion, pass `--allow-legacy-features true`. mProphet output goes to a fresh
+`<output-root>/context-mprophet/` directory (`-o` selects the root), so an earlier result
+is never overwritten by the CLI.
+
+Existing raw feature caches require a matching pair sidecar and SHA-256 manifest. To reuse an
+older raw feature file without Context metadata, pass `--allow-legacy-features true` explicitly;
+legacy reference/background classification then uses the prior sequence rules. An interrupted
+Context scoring attempt is marked while it runs; on retry, Context preserves its incomplete
+outputs, including the prediction report, in a nearby `.failed-*` directory before generating
+new outputs. A lock beside the feature file prevents another invocation from archiving an active
+run. Bruker `.d` acquisitions are accepted as directories, and the cache identity hashes their
+relative paths and file contents in a stable order.
+An unmarked partial or stale cache is rejected. Partitioning retains the best
+feature per modified sequence and charge before assigning reference/background populations.
+Keep each `.pairs.tsv` beside its feature file when handing
+split features to a downstream workflow.
+
+JChronologer 1.0.10 bundles PyTorch 2.7.1 native libraries for macOS Apple Silicon, Linux
+x86_64, and Windows x86_64. Intel Mac users run raw prediction through the Linux container
+described above. Context reports that requirement before loading the prediction model.
+
+If a source/IDE run reports `NoSuchMethodError` for
+`LibraryFile.getUniqueTargetPrecursorMetadata()`, its runtime Encyclopedia API differs
+from the one Context requires. Context now checks the required methods before prediction
+and reports the loaded class's artifact location. Reconcile that runtime/IDE classpath
+with `libs/maccoss/encyclopedia/6.9.23/encyclopedia-6.9.23.jar`, then rebuild and relaunch.
+The bundled jar's SHA-256 is
+`06534c08bfc37f0c954272c09279e8d6f1426399bf74100899f7954ea059087d`.
+A version string alone does not establish that two jars have identical APIs. On Windows,
+`Get-FileHash <path-to-loaded-jar> -Algorithm SHA256` checks the artifact; Java 17's
+`-Xlog:class+load=info` option also reports class origins. Keep the original failure log
+when diagnosing a different jar; no predictor fallback can repair this API mismatch.
+
+## ScribeTwo feature scoring over a folder
+
+`scribe-features` keeps its positional single-acquisition syntax and also accepts a named folder mode:
+
+```bash
+java -jar context.jar scribe-features \
+  --dia-folder input_runs \
+  --library library.elib \
+  --fasta database.fasta \
+  --output-directory scribe_results \
+  --start-seed 1 \
+  --end-seed 10
+```
+
+Folder mode looks only at immediate `.dia` files. By default it matches `_masked` followed by the seed and
+pairs each acquisition with a readable `.txt` file having the same basename. For example,
+`sample_masked1_assay.dia` pairs with `sample_masked1_assay.txt`. The seed range is inclusive and defaults
+to 1 through 100.
+
+Use `--input-prefix` to replace `_masked` with literal text. Regular-expression characters are not special:
+
+```bash
+java -jar context.jar scribe-features \
+  --dia-folder input_runs \
+  --library library.elib \
+  --fasta database.fasta \
+  --output-directory scribe_results \
+  --start-seed 1 --end-seed 10 \
+  --input-prefix _bootstrap
+```
+
+This matches names such as `sample_bootstrap1_assay.dia`. Context validates the complete seed range and
+all assay schedules before starting Scribe. Each acquisition writes under
+`scribe_results/<acquisition-basename>/`. Processing continues after an individual scoring failure, retains
+successful outputs, prints an ordered summary, and makes the overall command fail if any seed failed.
+
+Scribe settings can be appended as normal single-dash property/value pairs, for example
+`-numberOfThreadsUsed 2 -adjustTolerances true`. Use `scribe-context` with the same arguments to additionally
+train the final background LDA and apply it to the reference features.
+
 ## All commands
 
 ```text
@@ -222,5 +394,17 @@ java -jar context.jar <command> -h
 | `mprophet` | train an mProphet LDA on the background, apply it to the reference |
 | `decoys` | add entrapment decoys to a mass list |
 | `features` | score an acquisition and split the features, without running an engine |
+| `features-folder` | score paired seeded DIA and assay-schedule files in a folder |
+| `scribe-features` | run ScribeTwo feature scoring for one acquisition or a seeded folder |
+| `scribe-context` | run ScribeTwo feature scoring plus final Context LDA training |
 | `bootstrap` | build a simulated targeted assay from a library |
 
+Cache naming migration: new raw runs use `.context.sha256`, `.context.inprogress`,
+and `.context.lock`. Raw runs no longer write a per-run `run_context_<identity>.elib`; the
+working library is shared under `prediction-cache/working-libraries/`. A raw feature cache made
+before the shared working library fails with "identity differs" and is not moved or deleted; move
+its feature outputs aside to regenerate. Older caches are not renamed or reused automatically. Keep older outputs intact and regenerate
+raw features in a fresh workspace (including a separate acquisition copy). Existing
+split feature files with valid `.pairs.tsv` companions remain accepted. Do not run
+older and newer versions against the same acquisition concurrently: their output
+locks have different names.

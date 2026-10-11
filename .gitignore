@@ -44,3 +44,4 @@ tmp/
 /test/
 *.sif
 README_dev.md
+docs/CTX-008-seed-implementation.patch

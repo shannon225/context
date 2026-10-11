@@ -43,10 +43,12 @@ public class TargetedBootstrapper {
 
 			Path maskedFileOutputPath = rawFile.getParent().resolve(baseName + "_masked" + seed + "_assay.dia");
 			Path assayOutputPath = rawFile.getParent().resolve(baseName + "_masked" + seed + "_assay.txt");
+			Path assignmentOutputPath = rawFile.getParent().resolve(baseName + "_masked" + seed + "_entrapment_assignments.tsv");
 
 			writeMaskedFile(isolationWindows, seed, rawFilePath, maskedFileOutputPath, halfWindowWidthMz);
 
 			writeAssayList(isolationWindows, assayOutputPath);
+			writeEntrapmentAssignments(isolationWindows, trapsPerTarget, assignmentOutputPath);
 		}
 	}
 
@@ -491,6 +493,41 @@ public class TargetedBootstrapper {
 			}
 		} catch (Exception e) {
 			throw e;
+		}
+	}
+
+	void writeEntrapmentAssignments(ArrayList<IsolationWindow> isolationWindows, int trapsPerTarget, Path outputPath)
+			throws IOException {
+		int expectedPerTarget = Math.max(0, trapsPerTarget);
+		IsolationWindow target = null;
+		int assigned = 0;
+		ArrayList<String> rows = new ArrayList<>();
+		for (IsolationWindow window : isolationWindows) {
+			if (!window.isDecoy()) {
+				if (target != null && assigned != expectedPerTarget) {
+					throw new IOException("Incomplete entrapment assignments for " + target.getCompound());
+				}
+				target = window;
+				assigned = 0;
+			} else {
+				if (target == null || assigned >= expectedPerTarget) {
+					throw new IOException("Entrapment assignment has no matching assay target: " + window.getCompound());
+				}
+				rows.add("EMPIRICAL_ASSAY_ENTRAPMENT\t" + target.getCompound() + "\t" + target.getCharge() + "\t"
+						+ window.getCompound() + "\t" + window.getCharge());
+				assigned++;
+			}
+		}
+		if (target != null && assigned != expectedPerTarget) {
+			throw new IOException("Incomplete entrapment assignments for " + target.getCompound());
+		}
+		try (BufferedWriter writer = Files.newBufferedWriter(outputPath)) {
+			writer.write("relationType\ttargetPeptideModSeq\ttargetCharge\tentrapmentPeptideModSeq\tentrapmentCharge");
+			writer.newLine();
+			for (String row : rows) {
+				writer.write(row);
+				writer.newLine();
+			}
 		}
 	}
 
