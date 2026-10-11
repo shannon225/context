@@ -120,6 +120,6 @@ public final class ContextMProphetCLI {
 		System.out.println("Usage: context.jar mprophet -i <run.dia> -l <library.elib> -f <proteins.fasta> -massList <assay.txt> [-o <results>] [-fdr <fraction>]");
 		System.out.println("   or: context.jar mprophet -background <background.features.txt> -reference <reference.features.txt> -f <proteins.fasta> [-o <results>] [-fdr <fraction>]");
 		System.out.println("Options: -prefix <name>; --allow-legacy-features true for old split files without pair sidecars.");
-		System.out.println("-generateDecoys is accepted for raw runs; CTX-016 scoring ensures assay decoys when needed.");
+		System.out.println("-generateDecoys is accepted for raw runs; Context scoring ensures assay decoys when needed.");
 	}
 }

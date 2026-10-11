@@ -168,32 +168,32 @@ public class ContextFeatureScorer {
 		File featuresToSplit = job.getPercolatorFiles().getInputTSV();
 		try (ContextFeatureCacheIdentity.OutputLock outputLock = ContextFeatureCacheIdentity.acquireOutputLock(featuresToSplit)) {
 			File pairSidecar = new File(featuresToSplit.getAbsolutePath() + ".pairs.tsv");
-			File identityManifest = new File(featuresToSplit.getAbsolutePath() + ".ctx016.sha256");
-			File inProgress = new File(featuresToSplit.getAbsolutePath() + ".ctx016.inprogress");
+			File identityManifest = new File(featuresToSplit.getAbsolutePath() + ".context.sha256");
+			File inProgress = new File(featuresToSplit.getAbsolutePath() + ".context.inprogress");
 			String identity = ContextFeatureCacheIdentity.inputs(library, rawFile, fasta, effectiveMassList, params, options);
 			File diagnosticFile = options.candidateDiagnostics()
-					? new File(baseName + "_ctx016_" + identity.substring(0, 12) + "_candidates.tsv") : null;
+					? new File(baseName + "_context_" + identity.substring(0, 12) + "_candidates.tsv") : null;
 			File incompleteArchive = ContextFeatureCacheIdentity.archiveIncomplete(inProgress, featuresToSplit,
 					pairSidecar, identityManifest, baseName);
-			if (incompleteArchive != null) Logger.logLine("Preserved incomplete CTX-016 output in " + incompleteArchive);
+			if (incompleteArchive != null) Logger.logLine("Preserved incomplete Context output in " + incompleteArchive);
 
 			if (featuresToSplit.exists() && featuresToSplit.canRead()) {
 				if (options.allowLegacyFeatures() && !pairSidecar.exists() && !identityManifest.exists()) {
-					Logger.logLine("Using an explicitly accepted legacy feature file without CTX-016 pairing: " + featuresToSplit);
+					Logger.logLine("Using an explicitly accepted legacy feature file without Context pairing: " + featuresToSplit);
 				} else {
 					ContextFeatureCacheIdentity.requireMatch(identityManifest, identity, featuresToSplit, pairSidecar, diagnosticFile);
 					java.nio.file.Files.deleteIfExists(inProgress.toPath());
-					Logger.logLine("Reusing verified CTX-016 feature and pair sidecar: " + featuresToSplit);
+					Logger.logLine("Reusing verified Context feature and pair sidecar: " + featuresToSplit);
 				}
 			} else {
 				if (!(interfaceForLibrary instanceof LibraryFile)) {
-					throw new IOException("CTX-016 requires an Encyclopedia LibraryFile source for exact target metadata");
+					throw new IOException("Context requires an Encyclopedia LibraryFile source for exact target metadata");
 				}
-				File workingLibrary = new File(baseName + "_ctx016_" + identity.substring(0, 12) + ".elib");
-				File predictions = new File(baseName + "_ctx016_" + identity.substring(0, 12) + "_predictions.tsv");
+				File workingLibrary = new File(baseName + "_context_" + identity.substring(0, 12) + ".elib");
+				File predictions = new File(baseName + "_context_" + identity.substring(0, 12) + "_predictions.tsv");
 				if (pairSidecar.exists() || identityManifest.exists() || workingLibrary.exists()
 						|| predictions.exists() || (diagnosticFile != null && diagnosticFile.exists())) {
-					throw new IOException("CTX-016 output already exists without a reusable feature cache: " + featuresToSplit);
+					throw new IOException("Context output already exists without a reusable feature cache: " + featuresToSplit);
 				}
 				ContextFeatureCacheIdentity.markInProgress(inProgress, identity, options.candidateDiagnostics());
 				Logger.logLine("Calculating features...");
@@ -236,7 +236,7 @@ public class ContextFeatureScorer {
 		File referenceSidecar = new File(baseName + "_reference.features.txt.pairs.tsv");
 		File backgroundSidecar = new File(baseName + "_background.features.txt.pairs.tsv");
 		if (!sourceSidecar.isFile() && (referenceSidecar.exists() || backgroundSidecar.exists())) {
-			throw new IOException("Legacy feature source has stale CTX-016 partition pair sidecars");
+			throw new IOException("Legacy feature source has stale Context partition pair sidecars");
 		}
 		if (sourceSidecar.isFile()) SearchPairSidecar.requireMatches(featuresToSplit, sourceSidecar);
 		Map<String, String> targetKeys = sourceSidecar.isFile()

@@ -31,7 +31,7 @@ public class ContextWorkingLibraryLiveTest {
 		AminoAcidConstants constants = parameters.getAAConstants();
 		byte charge = 2;
 		String sequence = "PEPTIDEK";
-		LibraryEntry target = new LibraryEntry("synthetic CTX-016 integration test", new HashSet<>(),
+		LibraryEntry target = new LibraryEntry("synthetic Context integration test", new HashSet<>(),
 				constants.getChargedMass(sequence, charge), charge, sequence, 1, 10f, 1f,
 				new double[] {250, 350}, new float[] {10, 5}, Optional.empty(), constants);
 		LibraryFile source = new LibraryFile();

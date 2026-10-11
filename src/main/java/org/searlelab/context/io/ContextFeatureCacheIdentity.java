@@ -19,7 +19,7 @@ import java.util.stream.Stream;
 
 import edu.washington.gs.maccoss.encyclopedia.datastructures.SearchParameters;
 
-/** Content identity for CTX-016 feature reuse and its companion pair sidecar. */
+/** Content identity for Context feature reuse and its companion pair sidecar. */
 final class ContextFeatureCacheIdentity {
 	private ContextFeatureCacheIdentity() {}
 
@@ -42,15 +42,15 @@ final class ContextFeatureCacheIdentity {
 	}
 
 	static OutputLock acquireOutputLock(File features) throws IOException {
-		File lockFile = new File(features.getAbsolutePath() + ".ctx016.lock");
+		File lockFile = new File(features.getAbsolutePath() + ".context.lock");
 		FileChannel channel = FileChannel.open(lockFile.toPath(), StandardOpenOption.CREATE, StandardOpenOption.WRITE);
 		try {
 			FileLock lock = channel.tryLock();
-			if (lock == null) throw new IOException("CTX-016 feature output is in use: " + features);
+			if (lock == null) throw new IOException("Context feature output is in use: " + features);
 			return new OutputLock(channel, lock);
 		} catch (OverlappingFileLockException e) {
 			channel.close();
-			throw new IOException("CTX-016 feature output is in use: " + features, e);
+			throw new IOException("Context feature output is in use: " + features, e);
 		} catch (IOException | RuntimeException e) {
 			channel.close();
 			throw e;
@@ -60,7 +60,7 @@ final class ContextFeatureCacheIdentity {
 	static String inputs(File library, File run, File fasta, File massList, SearchParameters parameters,
 			ContextFeatureScorer.Options options) throws IOException {
 		MessageDigest digest = sha256();
-		update(digest, "CTX-016|Encyclopedia-6.9.23|JChronologer-1.0.10");
+		update(digest, "Context-matched-decoys-v1|Encyclopedia-6.9.23|JChronologer-1.0.10");
 		update(digest, parameters.toString());
 		update(digest, options.predictionNce() + "|" + options.predictionDefaultCharge() + "|"
 				+ options.adjustNceForDia() + "|" + options.candidateDiagnostics());
@@ -87,9 +87,9 @@ final class ContextFeatureCacheIdentity {
 		List<String> lines = Files.readAllLines(marker.toPath(), StandardCharsets.UTF_8);
 		if (lines.size() != 2 || !lines.get(0).matches("[0-9a-f]{64}")
 				|| !("true".equals(lines.get(1)) || "false".equals(lines.get(1)))) {
-			throw new IOException("Invalid CTX-016 in-progress marker: " + marker);
+			throw new IOException("Invalid Context in-progress marker: " + marker);
 		}
-		String prefix = baseName + "_ctx016_" + lines.get(0).substring(0, 12);
+		String prefix = baseName + "_context_" + lines.get(0).substring(0, 12);
 		File archive = Files.createTempDirectory(features.getAbsoluteFile().getParentFile().toPath(),
 				features.getName() + ".failed-").toFile();
 		for (File file : new File[] {features, sidecar, new File(prefix + ".elib"),
@@ -116,13 +116,13 @@ final class ContextFeatureCacheIdentity {
 
 	static void requireMatch(File manifest, String inputIdentity, File features, File sidecar, File diagnostic) throws IOException {
 		if (!manifest.isFile() || !sidecar.isFile()) {
-			throw new IOException("CTX-016 feature cache lacks its pair sidecar or identity manifest: " + features);
+			throw new IOException("Context feature cache lacks its pair sidecar or identity manifest: " + features);
 		}
 		if (diagnostic != null && !diagnostic.isFile()) {
-			throw new IOException("CTX-016 feature cache lacks its candidate diagnostic: " + diagnostic);
+			throw new IOException("Context feature cache lacks its candidate diagnostic: " + diagnostic);
 		}
 		if (!expected(inputIdentity, features, sidecar, diagnostic).equals(Files.readString(manifest.toPath(), StandardCharsets.UTF_8))) {
-			throw new IOException("CTX-016 feature cache input or artifact identity differs: " + features);
+			throw new IOException("Context feature cache input or artifact identity differs: " + features);
 		}
 	}
 

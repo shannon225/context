@@ -30,7 +30,7 @@ public class CandidateDiagnosticWriterTest {
 		SearchParameters parameters = SearchParameterParser.getDefaultParametersObject();
 		AminoAcidConstants constants = parameters.getAAConstants();
 		String sequence = "PEPTIDEK";
-		LibraryEntry target = new LibraryEntry("synthetic CTX-016 diagnostic test", new HashSet<>(),
+		LibraryEntry target = new LibraryEntry("synthetic Context diagnostic test", new HashSet<>(),
 				constants.getChargedMass(sequence, (byte) 2), (byte) 2, sequence, 1, 10f, 1f,
 				new double[] {250, 350}, new float[] {10, 5}, Optional.empty(), constants);
 		LibraryEntry decoy = target.getDecoy(parameters);

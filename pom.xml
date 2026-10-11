@@ -143,6 +143,28 @@
 						<version>3.1.0</version>
 						<executions>
 							<execution>
+								<id>preserve-pytorch-platform-metadata</id>
+								<phase>process-resources</phase>
+								<goals><goal>run</goal></goals>
+								<configuration>
+									<target>
+										<!-- Shade otherwise keeps only one native/lib/pytorch.properties. -->
+										<unzip src="${ai.djl.pytorch:pytorch-native-cpu:jar:osx-aarch64}"
+											dest="${project.build.outputDirectory}/context/pytorch/osx-aarch64">
+											<patternset><include name="native/lib/pytorch.properties" /></patternset>
+										</unzip>
+										<unzip src="${ai.djl.pytorch:pytorch-native-cpu:jar:linux-x86_64}"
+											dest="${project.build.outputDirectory}/context/pytorch/linux-x86_64">
+											<patternset><include name="native/lib/pytorch.properties" /></patternset>
+										</unzip>
+										<unzip src="${ai.djl.pytorch:pytorch-native-cpu:jar:win-x86_64}"
+											dest="${project.build.outputDirectory}/context/pytorch/win-x86_64">
+											<patternset><include name="native/lib/pytorch.properties" /></patternset>
+										</unzip>
+									</target>
+								</configuration>
+							</execution>
+							<execution>
 								<id>verify-no-vendor-binaries</id>
 								<phase>verify</phase>
 								<goals>
@@ -161,6 +183,12 @@
 										</condition>
 										<fail if="context.has.vendor.binaries"
 											message="The shaded jar packages msraw/** vendor binaries, which must not be published. Are you depending on msrawjava-core instead of msrawjava-core-nolice?" />
+										<exec executable="${java.home}/bin/java" failonerror="true">
+											<arg value="-cp" />
+											<arg value="${project.build.directory}/${project.build.finalName}.jar" />
+											<arg value="${project.basedir}/src/test/java/org/searlelab/context/encyclopedia/ContextPackagedRuntimeCheck.java" />
+											<arg value="metadata" />
+										</exec>
 									</target>
 								</configuration>
 							</execution>

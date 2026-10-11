@@ -59,7 +59,10 @@ public final class ContextWorkingLibraryPreparer {
 		if (outputLibrary.exists() || assignmentFile.exists()) {
 			throw new IOException("Working-library output already exists; choose a fresh run path: " + outputLibrary);
 		}
-		try (ScribeTwoPredictionSession session = JChronologerLibraryPredictionClient.createScribeTwoPredictionSession()) {
+		ContextPredictionRuntime.requireLibraryApi();
+		ContextPredictionRuntime.requirePredictionPlatform();
+		try (ContextPredictionRuntime runtime = new ContextPredictionRuntime();
+				ScribeTwoPredictionSession session = JChronologerLibraryPredictionClient.createScribeTwoPredictionSession()) {
 			return prepare(source, parameters, settings, outputLibrary, assignmentFile,
 					requests -> session.predictPrecursors(requests, settings.nce(), settings.defaultCharge(),
 							settings.adjustNceForDia(), parameters));

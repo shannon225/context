@@ -64,7 +64,7 @@ public final class SearchPairSidecar {
 
 	public void write(File featureFile, File sidecarFile, File sourceLibrary, File run) throws IOException {
 		if (sidecarFile.exists()) throw new IOException("Search-pair sidecar already exists: " + sidecarFile);
-		File temporary = File.createTempFile("ctx016-pairs-", ".tmp", sidecarFile.getAbsoluteFile().getParentFile());
+		File temporary = File.createTempFile("context-pairs-", ".tmp", sidecarFile.getAbsoluteFile().getParentFile());
 		try {
 		try (BufferedReader reader = Files.newBufferedReader(featureFile.toPath(), StandardCharsets.UTF_8);
 				BufferedWriter writer = Files.newBufferedWriter(temporary.toPath(), StandardCharsets.UTF_8)) {
@@ -123,12 +123,12 @@ public final class SearchPairSidecar {
 
 	public static void partition(File sourceSidecar, File outputSidecar, Set<String> selectedIds) throws IOException {
 		HashSet<String> found = new HashSet<>();
-		File temporary = File.createTempFile("ctx016-partition-", ".tmp", outputSidecar.getAbsoluteFile().getParentFile());
+		File temporary = File.createTempFile("context-partition-", ".tmp", outputSidecar.getAbsoluteFile().getParentFile());
 		try {
 		try (BufferedReader reader = Files.newBufferedReader(sourceSidecar.toPath(), StandardCharsets.UTF_8);
 				BufferedWriter writer = Files.newBufferedWriter(temporary.toPath(), StandardCharsets.UTF_8)) {
 			String header = reader.readLine();
-			if (!HEADER.equals(header)) throw new IOException("Unexpected CTX-016 pair sidecar schema: " + sourceSidecar);
+			if (!HEADER.equals(header)) throw new IOException("Unexpected Context pair sidecar schema: " + sourceSidecar);
 			writer.write(header);
 			writer.newLine();
 			String line;
@@ -159,13 +159,13 @@ public final class SearchPairSidecar {
 		HashMap<String, String> targetKeys = new HashMap<>();
 		try (BufferedReader reader = Files.newBufferedReader(sidecar.toPath(), StandardCharsets.UTF_8)) {
 			String header = reader.readLine();
-			if (!HEADER.equals(header)) throw new IOException("Unexpected CTX-016 pair sidecar schema: " + sidecar);
+			if (!HEADER.equals(header)) throw new IOException("Unexpected Context pair sidecar schema: " + sidecar);
 			String line;
 			while ((line = reader.readLine()) != null) {
 				String[] cells = line.split("\t", -1);
 				validateRelation(cells, sidecar);
 				if (targetKeys.putIfAbsent(cells[0], cells[4]) != null) {
-					throw new IOException("Duplicate CTX-016 pair sidecar id: " + cells[0]);
+					throw new IOException("Duplicate Context pair sidecar id: " + cells[0]);
 				}
 			}
 		}
@@ -190,7 +190,7 @@ public final class SearchPairSidecar {
 	public static void requireMatches(File features, File sidecar) throws IOException {
 		HashMap<String, String[]> metadata = new HashMap<>();
 		try (BufferedReader reader = Files.newBufferedReader(sidecar.toPath(), StandardCharsets.UTF_8)) {
-			if (!HEADER.equals(reader.readLine())) throw new IOException("Unexpected CTX-016 pair sidecar schema: " + sidecar);
+			if (!HEADER.equals(reader.readLine())) throw new IOException("Unexpected Context pair sidecar schema: " + sidecar);
 			String line;
 			while ((line = reader.readLine()) != null) {
 				String[] cells = line.split("\t", -1);
@@ -235,14 +235,14 @@ public final class SearchPairSidecar {
 	private static void validateRelation(String[] cells, File sidecar) throws IOException {
 		if (cells.length != HEADER.split("\t", -1).length || !"WINNER".equals(cells[10])
 				|| !("1".equals(cells[1]) || "-1".equals(cells[1]))) {
-			throw new IOException("Invalid CTX-016 pair relation or winner outcome: " + sidecar);
+			throw new IOException("Invalid Context pair relation or winner outcome: " + sidecar);
 		}
 		String candidate = cells[2] + "|" + cells[3];
 		String target = cells[4];
 		String decoy = cells[5];
 		if (!validKey(target, cells[3]) || ("1".equals(cells[1]) ? !candidate.equals(target)
 				: !candidate.equals(decoy) || !validKey(decoy, cells[3]))) {
-			throw new IOException("Feature candidate and CTX-016 pair relation disagree: " + sidecar);
+			throw new IOException("Feature candidate and Context pair relation disagree: " + sidecar);
 		}
 		boolean targetOnly = "SEARCH_TARGET_ONLY".equals(cells[6]);
 		boolean paired = "SEARCH_TARGET_DECOY".equals(cells[6]) || "SEARCH_EXTRA_SHUFFLE".equals(cells[6]);
@@ -256,7 +256,7 @@ public final class SearchPairSidecar {
 				|| ("SEARCH_EXTRA_SHUFFLE".equals(cells[6]) && !"shuffle".equals(cells[8]))
 				|| (!"SEARCH_EXTRA_SHUFFLE".equals(cells[6])
 						&& !(predicted ? "JChronologer".equals(cells[8]) : "shuffle".equals(cells[8])))) {
-			throw new IOException("Invalid CTX-016 pair relation: " + sidecar);
+			throw new IOException("Invalid Context pair relation: " + sidecar);
 		}
 	}
 

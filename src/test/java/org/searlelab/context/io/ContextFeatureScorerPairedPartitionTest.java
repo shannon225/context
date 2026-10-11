@@ -32,10 +32,10 @@ public class ContextFeatureScorerPairedPartitionTest {
 		SearchParameters parameters = SearchParameterParser.getDefaultParametersObject();
 		AminoAcidConstants constants = parameters.getAAConstants();
 		byte charge = 2;
-		LibraryEntry target = new LibraryEntry("synthetic CTX-016 test", new HashSet<>(),
+		LibraryEntry target = new LibraryEntry("synthetic Context test", new HashSet<>(),
 				constants.getChargedMass("PEPTIDEK", charge), charge, "PEPTIDEK", 1, 10f, 1f,
 				new double[] {250, 350}, new float[] {10, 5}, Optional.empty(), constants);
-		LibraryEntry predictedDecoy = new ReverseLibraryEntry("synthetic CTX-016 test", new HashSet<>(),
+		LibraryEntry predictedDecoy = new ReverseLibraryEntry("synthetic Context test", new HashSet<>(),
 				constants.getChargedMass("PEDITPEK", charge), charge, "PEDITPEK", 1, 10f, 1f,
 				new double[] {250, 350}, new float[] {10, 5}, new float[] {1, 1}, new boolean[] {true, true},
 				Optional.empty(), constants);
@@ -75,10 +75,10 @@ public class ContextFeatureScorerPairedPartitionTest {
 	public void assayedChargeSurvivesHigherScoringUnassayedCharge() throws Exception {
 		SearchParameters parameters = SearchParameterParser.getDefaultParametersObject();
 		AminoAcidConstants constants = parameters.getAAConstants();
-		LibraryEntry assayed = new LibraryEntry("synthetic CTX-016 test", new HashSet<>(),
+		LibraryEntry assayed = new LibraryEntry("synthetic Context test", new HashSet<>(),
 				constants.getChargedMass("PEPTIDEK", (byte) 2), (byte) 2, "PEPTIDEK", 1, 10f, 1f,
 				new double[] {250, 350}, new float[] {10, 5}, Optional.empty(), constants);
-		LibraryEntry unassayed = new LibraryEntry("synthetic CTX-016 test", new HashSet<>(),
+		LibraryEntry unassayed = new LibraryEntry("synthetic Context test", new HashSet<>(),
 				constants.getChargedMass("PEPTIDEK", (byte) 3), (byte) 3, "PEPTIDEK", 1, 10f, 1f,
 				new double[] {250, 350}, new float[] {10, 5}, Optional.empty(), constants);
 		File features = new File(temporaryFolder.getRoot(), "raw.features.tsv");

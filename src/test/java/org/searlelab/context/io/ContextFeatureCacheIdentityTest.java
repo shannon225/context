@@ -49,10 +49,10 @@ public class ContextFeatureCacheIdentityTest {
 		String base = new File(temporaryFolder.getRoot(), "run").getAbsolutePath();
 		File features = file("run.features.txt", "partial feature\n");
 		File sidecar = file("run.features.txt.pairs.tsv", "partial pair\n");
-		File report = file("run_ctx016_0123456789ab_predictions.tsv", "excluded target\n");
-		File working = file("run_ctx016_0123456789ab.elib", "partial library\n");
-		File marker = new File(features + ".ctx016.inprogress");
-		File manifest = new File(features + ".ctx016.sha256");
+		File report = file("run_context_0123456789ab_predictions.tsv", "excluded target\n");
+		File working = file("run_context_0123456789ab.elib", "partial library\n");
+		File marker = new File(features + ".context.inprogress");
+		File manifest = new File(features + ".context.sha256");
 		String identity = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
 		ContextFeatureCacheIdentity.markInProgress(marker, identity, false);
 		File archive = ContextFeatureCacheIdentity.archiveIncomplete(marker, features, sidecar, manifest, base);
@@ -68,9 +68,9 @@ public class ContextFeatureCacheIdentityTest {
 	@Test
 	public void overlappingInvocationCannotArchiveActiveOutput() throws Exception {
 		File features = file("active.features.tsv", "being written\n");
-		File marker = new File(features + ".ctx016.inprogress");
+		File marker = new File(features + ".context.inprogress");
 		File sidecar = new File(features + ".pairs.tsv");
-		File manifest = new File(features + ".ctx016.sha256");
+		File manifest = new File(features + ".context.sha256");
 		ContextFeatureCacheIdentity.markInProgress(marker,
 				"0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef", false);
 		AtomicReference<Exception> failure = new AtomicReference<>();

@@ -15,6 +15,32 @@ import edu.washington.gs.maccoss.encyclopedia.algorithms.percolator.PercolatorVe
 import edu.washington.gs.maccoss.encyclopedia.filereaders.SearchParameterParser;
 
 public class ContextPercolatorRunnerTest {
+	@Test
+	public void buildsCommandOutsideRepositoryWithoutCreatingDebugOutput() throws Exception {
+		File directory = temp.newFolder("clean launch with spaces");
+		File log = new File(directory, "launch.log");
+		String javaExecutable = new File(System.getProperty("java.home"), "bin/java").getAbsolutePath();
+		String classpath = System.getProperty("surefire.test.class.path", System.getProperty("java.class.path"));
+		Process process = new ProcessBuilder(javaExecutable, "-cp", classpath, CleanDirectoryCommand.class.getName())
+				.directory(directory).redirectErrorStream(true).redirectOutput(log).start();
+		assertTrue("Command probe timed out", process.waitFor(30, java.util.concurrent.TimeUnit.SECONDS));
+		assertEquals(Files.readString(log.toPath()), 0, process.exitValue());
+		assertFalse(new File(directory, "target").exists());
+	}
+
+	public static class CleanDirectoryCommand {
+		public static void main(String[] args) {
+			File executable = new File("executable with spaces").getAbsoluteFile();
+			PercolatorVersion version = new PercolatorVersion() {
+				public int getMajorVersion() { return 3; }
+				public File getPercolator() { return executable; }
+			};
+			ContextPercolatorExecutionData data = new ContextPercolatorRunnerTest().data(new File("."));
+			String[] command = ContextPercolatorRunner.generateCommand(version, data, 1, 1);
+			if (!command[0].equals(executable.getAbsolutePath())) throw new AssertionError("Executable path changed");
+		}
+	}
+
 	@Rule
 	public TemporaryFolder temp = new TemporaryFolder();
 
@@ -71,4 +97,3 @@ public class ContextPercolatorRunnerTest {
 			assertFalse(data.getModelFile().exists()); 
 			} 
 	}
-	

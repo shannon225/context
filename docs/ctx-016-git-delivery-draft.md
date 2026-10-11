@@ -1,6 +1,6 @@
 # CTX-016 Git delivery draft — 2026-10-06
 
-Status: **delivery record in progress**. Base was `ariana/scoring` at `4cccfc7b5b10e63d33360bdec23d89494be2b13c`. Ariana explicitly authorized the first commit, then the remaining commits and push. Commits 1–5 are listed below; the documentation commit and push are pending. `CTX016-010` and final review remain open.
+Status: **six CTX-016 commits delivered to `origin/ariana/scoring`**. Base was `ariana/scoring` at `4cccfc7b5b10e63d33360bdec23d89494be2b13c`. Ariana explicitly authorized the first commit, then the remaining commits and push. Remote HEAD was verified at `891b1f4` on 2026-10-07. `CTX016-010` and final review remain open.
 
 ## Proposed commit sequence
 
@@ -20,6 +20,7 @@ Each scope below was checked in the staged index before its commit. The approved
 3. `860d728` — `Score matched decoys through Context feature path` (3 focused tests passed).
 4. `7b06e33` — `Track search pair identity through Context features` (12 focused tests passed).
 5. `16275b1` — `Expose Context feature and mProphet CLI paths` (6 focused tests passed).
+6. `891b1f4` — `Document CTX-016 implementation and review evidence` (six-file staged diff check passed).
 
 These commits include descriptive message bodies. The positional `features` correction in `ContextFeatureScorer.java` was committed with group 4 because it shares that file; group 5 contains the CLI routing and tests. The focused runs used Java 17 and Maven 3.9.9. Group 3's run recompiled 44 production and 30 test sources while resolving dependencies through this checkout's `build-cache/m2-repository`. The later groups used those compiled classes. Each staged diff passed `git diff --cached --check`.
 
@@ -36,3 +37,7 @@ These commits include descriptive message bodies. The positional `features` corr
 - **Validation:** the second correction pass rebuilt Java 17 source/tests and passed 24 affected tests with no failures/errors/skips; offline `-Ppackage -Dmaven.test.skip=true verify` passed shaded jar and vendor-binary checks; `git diff --check` passed. The earlier full test-inclusive run reached 103 tests with 4 failures, 2 errors, and 9 skips, including five baseline cases and one Intel-macOS JChronologer native-library failure. It was not rerun after the reviewer corrections. Live prediction/search, Percolator with pyIsoPEP, and representative calibration remain unverified.
 - **Version-alignment check:** Java 17 recompiled 44 source files and 30 test files. `ScribeFeatureTableTest#packagedDependencyIsOnTestClasspath` passed, while `#missingRuntimeHasActionableError` retained its known failure at line 75 because the test expects lowercase `no uncalibrated fallback` and the existing error uses uppercase `No`. This failure is unrelated to the 6.9.23 substitution. The selected two-test Maven invocation therefore failed 1 of 2 tests. The new 6.9.23 jar paths exist locally; fresh-checkout CI has not been run.
 - **Review gate:** independent re-review of Reviewer #2 corrections, supported-host prediction/search, Percolator with pyIsoPEP, and representative calibration remain pending. Ariana explicitly authorized the remaining commits and a push; no pull request or release was requested.
+
+## Push status
+
+The initial push attempts failed: default HTTP returned 400 or disconnected, and a buffered HTTP attempt reached GitHub but was rejected because the then-configured Personal Access Token lacked `workflow` scope. The available SSH identity was denied. Ariana added the token permission and retried; her terminal still showed an HTTP 400 disconnect. A buffered HTTP/1.1 retry then returned `Everything up-to-date`, and a fresh `git ls-remote --heads origin ariana/scoring` independently showed `891b1f4652cecf1a4f19c2f8e6d663138b8f535d`, matching local HEAD. The six commits are on the remote. This status correction is being committed separately; no PR or release was attempted.

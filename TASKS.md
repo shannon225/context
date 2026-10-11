@@ -341,3 +341,98 @@
 - Commit `860d728` (`Score matched decoys through Context feature path`) contains Context's copied scoring adaptations and diagnostic writer. `EncyclopediaTwoMatchedDecoyTest,CandidateDiagnosticWriterTest` passed 3 tests. This Maven run recompiled 44 production and 30 test classes using Java 17; missing dependencies were resolved into this checkout's Maven repository.
 - Commit `7b06e33` (`Track search pair identity through Context features`) contains sidecar validation, charge-aware partitioning, directory-content cache identity, exclusive output locking/recovery, Percolator direct-input preflight, and focused regressions. `SearchPairSidecarTest,ContextFeatureCacheIdentityTest,ContextFeatureScorerPairedPartitionTest,ContextFeatureScorerTest,ContextPercolatorExecutorCLITest` passed 12 tests. The positional `features` fix shares `ContextFeatureScorer.java` and is in this commit.
 - Commit `16275b1` (`Expose Context feature and mProphet CLI paths`) contains CLI dispatch, raw and split mProphet input validation, and CLI tests. `ContextFeatureScorerCLITest,ContextMProphetCLITest` passed 6 tests. No pull request or release is authorized. Next action: commit the documentation and task log, then push `ariana/scoring` to `origin` as requested. `CTX016-010`, supported-host live prediction/search, Percolator/pyIsoPEP, representative calibration, completion Report, and final human review remain open.
+
+#### 2026-10-06 — `CTX016-010` documentation commit and push credential blocker
+
+- Created documentation commit `891b1f4` (`Document CTX-016 implementation and review evidence`) with README, local guide, frozen canonical plan, first-review handoff, Git delivery record, and this task log. Its six-file staged diff passed `git diff --cached --check`. The unrelated `.gitignore` edit and local CTX-015/R-history files remain excluded.
+- `git push -u origin ariana/scoring` failed with HTTP 400; an HTTP/1.1 retry disconnected. A buffered HTTP/1.1 retry reached GitHub and returned the definitive rejection: the current Personal Access Token cannot update `.github/workflows/image.yml` without `workflow` scope. The remote `ariana/scoring` head remained `138e34f`; local HEAD is `891b1f4`. A read-only SSH check using GitHub's verified host key failed `Permission denied (publickey)`. No push succeeded. Next action: use a GitHub credential with workflow-file write permission and retry the same non-force push; do not remove the version-alignment workflow changes merely to bypass the rejection. No PR or release was attempted.
+
+#### 2026-10-07 — `CTX016-010` Git delivery verified
+
+- Ariana added the token's `workflow` permission and retried the push; her terminal still reported HTTP 400 and a disconnect. A buffered HTTP/1.1 retry returned `Everything up-to-date` and set the upstream tracking branch. A fresh `git ls-remote --heads origin ariana/scoring` independently confirmed remote HEAD `891b1f4652cecf1a4f19c2f8e6d663138b8f535d`, matching local HEAD. The six CTX-016 commits are therefore present on `origin/ariana/scoring`. The earlier failed-push entry remains as history. No PR or release was attempted. `CTX016-010`, supported-host live prediction/search, Percolator/pyIsoPEP, representative calibration, completion Report, and Ariana's final review remain open.
+
+#### 2026-10-10 — `CTX016-010` Reviewer 3 compatibility review
+
+- Ariana requested Reviewer 3 review of latest `ariana/scoring`, prioritizing Windows/macOS/Linux compatibility and required libraries. Authorized fast-forward pull returned already up to date at `891b1f4652cecf1a4f19c2f8e6d663138b8f535d`; preserved existing changes. Read current Google record, local guide, canonical revision 2, and source/dependency APIs. Review outcome: **REQUEST CHANGES**, detailed in `docs/ctx-016-reviewer-3.md`.
+- Findings: shaded PyTorch platform metadata collision triggers download fallback on Windows/Linux despite bundled binaries; Intel macOS prediction unsupported; Apple Silicon Percolator needs x86_64 translation or a compatible executable; packaged platform runtime validation/setup guidance incomplete. Metadata-only JVM probe confirmed Windows/Linux placeholder detection against the existing shaded artifact. No Windows/Linux native execution or Maven rebuild was performed.
+- Java 17 manual compilation of current production/test sources passed. Focused JUnitCore run reported `OK (19 tests)` with the live prediction test assumption-skipped on Intel macOS. Logs are under `/private/tmp/ctx016-reviewer3/`. Maven verification unrun because the documented Maven executable and system Maven are absent. Initial manual harness classpath errors were corrected; they are not repository defects.
+- Ariana supplied Windows console log `Downloads/Untitled.tsv`: PyTorch initializes, then `LibraryFile.getUniqueTargetPrecursorMetadata()` raises `NoSuchMethodError`. Verified that bundled/local cached 6.9.23 jars contain the API and have identical SHA-256; the Windows loaded jar remains unidentified. Requested launch command/IDE configuration to identify its runtime dependency origin. No fixes were implemented. Next: identify Windows class origin and prepare approved compatibility corrections; live engines/scientific validation and final human review remain open. Canonical plan unchanged; `CTX016-010` remains unchecked.
+
+
+### CTX-016 — uu-revise #3 corrective checklist (2026-10-10)
+
+Scope authorization: Ariana requested implementation of Reviewer 3 corrections through `uu-revise #3`, and approved the Linux container route for Intel Macs. Guide: r7, correction addendum R3; canonical revision 2 remains unchanged. No predictor version change or Git delivery is authorized. Acceptance: preserve the single-jar CLI and scientific behavior, expose each bundled native descriptor to DJL, identify incompatible Encyclopedia APIs, and provide platform setup and packaged validation.
+
+- [x] `CTX016-R3-01` Preserve native metadata during packaging and narrowly adapt discovery in Context. Files: POM, runtime helper, prediction entry point/tests. Check: packaged Windows x86_64, Linux x86_64, and macOS ARM metadata selection needs no download.
+- [x] `CTX016-R3-02` Check required Encyclopedia APIs before prediction and report the loaded artifact on mismatch. Files: runtime helper/tests and README. Check: incompatible API regression preserves cause/location; pinned API passes.
+- [ ] `CTX016-R3-03` Document Windows/macOS prerequisites and the approved Intel Mac container route; add packaged runtime platform checks. Files: README, CI, test helpers. Check: local checks pass; unavailable platform execution stays unrun.
+- [ ] `CTX016-R3-04` Review corrections, record dispositions/validation, and hand off for independent re-review. Files: guide/review/log. Check: canonical plan and unrelated work preserved; no claim of final acceptance or scientific validation.
+
+Proposed commit groups (scope only; no staging/commits): R3-A (`CTX016-R3-01`, `CTX016-R3-02`), `Preserve native discovery and diagnose incompatible prediction runtimes`; R3-B (`CTX016-R3-03`, `CTX016-R3-04`), `Validate and document Context platform prerequisites`.
+
+#### 2026-10-10 — `CTX016-R3-01`–`CTX016-R3-04` started
+
+- Read the conversation, invoked `uu-revise`, and inspected instructions, canonical plan, guide, review, source, and tests. Accepted the metadata collision and API mismatch. Intel native support is replaced by Ariana's approved Linux-container route. Reuse the Ant packaging plugin to retain classifier-specific descriptors and a narrow Context classloader adapter for DJL discovery, retaining a self-contained jar and pinned dependencies.
+- Downloaded repository-documented Maven 3.9.9 locally for validation. Existing build.sh syntax/setup defects remain outside this correction. The Windows log's exact loaded jar remains unidentified; diagnostics can improve but its environment cannot be claimed repaired.
+
+
+#### 2026-10-10 — `CTX016-R3-01`, `CTX016-R3-02` checks and approved engine-launch correction
+
+- Maven package verification passed 25 tests (0 failures/errors, 1 Intel-Mac live-prediction skip) and verified the rebuilt jar's three native descriptors and all listed native libraries. Four runtime-helper regressions passed after adding partial-metadata and Intel-route checks. Logs: `tmp/ctx016/revise3/package.log`, `runtime-tests.log`.
+- Reproduced a pre-existing clean-directory Percolator launch failure: `NoSuchFileException: target/debug-percolator.exe`. Ariana explicitly approved removing the unconditional debug copy and adding a clean-directory regression. This narrowly expands R3-A / `CTX016-R3-03` to ContextPercolatorRunner and its tests without changing engine parameters or scoring. The Docker JavaPot setup-step correction remains separately pending. Preserve all prior plan/history.
+
+
+### CTX-016 — runtime naming correction (2026-10-10)
+
+Approval: Ariana explicitly requested removal of tracking codes from all Context code, including CLI messages and internal strings. Tracking IDs remain in planning/history documents only. This extends the current corrective scope; canonical revision 2 remains unchanged.
+
+- [x] `CTX016-R3-05` Replace tracking-code messages, temporary names, cache names, and identity namespace with functional Context names in source, tests, and active CI. Update README migration guidance; verify sidecar/cache and CLI regressions plus a source scan. Proposed separate commit scope: `Use functional names in Context runtime code` (execution not authorized).
+
+#### 2026-10-10 — `CTX016-R3-05` started
+
+- Replaced tracking-code strings in runtime source and tests, including cache filenames and identity salt. Existing outputs are preserved; older raw caches require fresh generation, while valid split sidecars retain their unchanged schema. README documents naming and lock compatibility. No historical planning record or frozen canonical plan was renamed.
+
+#### 2026-10-10 — `CTX016-R3-05` regression results
+
+- Java 17 rebuilt production/test sources and ran 31 focused tests: 0 failures, 0 errors, 1 expected Intel-macOS live-prediction skip. This includes cache recovery/locking, sidecar validation, CLI parsing, runtime API/platform checks, and clean-directory Percolator command construction. Package verification is still running. `git diff --check` and the tracking-code scan of source/tests/build configuration pass. No classes were relocated.
+
+#### 2026-10-10 — `CTX016-R3-01`, `CTX016-R3-05` package verification
+
+- Java 17 targeted `-Ppackage verify` passed (31 tests, 0 failures/errors, 1 platform skip); shaded-artifact-only checks selected Windows x86_64, Linux x86_64, and macOS ARM descriptors without placeholders and verified all named native resources. Log: `tmp/ctx016/revise3/final-package.log`. These metadata checks do not execute the three native platforms. Naming scan and diff whitespace checks pass; canonical plan is unchanged.
+- Initial packaged mProphet execution completed but the new test helper rejected the established `pi_0` footer and FASTA I/L expansion. Corrected the helper to ignore the summary footer and compare peptide IDs within I/L equivalence; no analysis code changed. Engine rerun evidence is recorded separately below. Docker build-step approval remains pending and Docker is unavailable locally.
+
+#### 2026-10-10 — `CTX016-R3-03`, `CTX016-R3-04` packaged engine evidence and handoff
+
+- Both packaged engines completed on this Intel Mac from a fresh directory outside the repository root using the existing 1,000-row fixture split into 500 background/500 reference rows. mProphet's four peptide reports passed population-ID checks accounting for established I/L expansion and the summary footer. Percolator trained, rescored 500 reference rows, and completed both pyIsoPEP calls; reference-ID checks passed. Java 17, project-local pyIsoPEP 0.1.4; logs: `tmp/ctx016/revise3/final-engine-check-2.log` and `tmp/compatibility/platform-engines/run-_4vx35bj/`. This proves local launch/runtime integration, not representative calibration or cross-platform execution.
+- Reviewed the correction diff and added evidence to the Reviewer 3 handoff. No dependency version change, canonical-plan edit, class relocation, staging, commit, push, or remote CI execution occurred. Native Windows/Linux/Apple-Silicon prediction checks, full raw search and scientific validation remain unrun. Docker setup correction remains pending Ariana's earlier decision and cannot be tested locally without Docker. R3-03/R3-04 and final independent/human review remain open; no completed-feature Report is claimed.
+
+### Follow-up — functional class guide
+
+Requested by Ariana on 2026-10-10; documentation task only, with no class relocation authorized.
+
+- [ ] `CLASS-GUIDE-001` Create a concise document explaining every Context production class, grouped by function (CLI/input, library preparation/prediction, search/features, identity/cache, scoring/confidence, outputs), rather than by directory. Describe each class's responsibility and major collaborators, emphasizing classes added or changed in the implementation delivered through `891b1f4`. That exact commit changes documentation only; identify the preceding implementation commits explicitly. Include a function-to-current-package map and evidence-based restructuring observations for Ariana's review. Check completeness against production source inventory and Git history. Proposed documentation-only commit: `Document Context classes by responsibility`; no implementation or Git delivery is authorized by this follow-up task.
+
+
+### CTX-016 — supplied ten-file Linux validation (2026-10-10)
+
+Ariana supplied ten matched DIA/assay pairs, the library and FASTA, then authorized installing Docker and proceeding after freeing storage. Scope: local installation and validation only; no Git delivery or unrelated build-script repair.
+
+- [ ] `CTX016-R3-06` Install Intel Docker Desktop and validate the rebuilt Java 17 artifact in a Linux container using copied supplied inputs, seeds 1–10. Record runtime/image identity, input checksums, commands, outputs, and failures. Keep source inputs intact. This validates Linux-container execution, not native Windows/macOS prediction or general FDR calibration.
+
+#### 2026-10-10 — `CTX016-R3-06` started
+
+- Confirmed 70 GiB available on macOS 15.7.9 Intel. Downloading the official Intel Docker installer. Prepared isolated copies under `tmp/compatibility/ten-file-20261010` with SHA-256 input manifest. Test the current jar in a Java 17 Linux runtime directly; repository Dockerfile JavaPot correction remains separately pending.
+
+#### 2026-10-10 — `CTX016-R3-06` Docker installed; Linux check started
+
+- Installed verified official Intel Docker Desktop 4.94.0 (CLI/engine 29.8.2). Silent command-line installer was terminated before installation; documented app-copy method succeeded and Desktop initialized Linux x86_64 with approximately 4 GB RAM. Downloaded official `eclipse-temurin:17-jdk`, digest `sha256:5d6042fb8cdc14d614e4e421f52e3211fc5aeadddce44cbf9de8ed37c791f824`.
+- Started packaged live prediction/native executable smoke check with Java heap capped at 2 GB, fresh temporary native caches, networking disabled and read-only artifact/source mounts. Log: `tmp/compatibility/ten-file-20261010/linux-smoke.log`. Task-focus check: work remains the authorized supplied-data validation; no repository Dockerfile or scientific code changes.
+
+#### 2026-10-10 — `CTX016-R3-06` Linux smoke passed; supplied-data run launched
+
+- Offline Linux smoke exited 0: all native resources loaded from the jar, one target/decoy prediction persisted, and bundled Percolator launched. First dataset command mistakenly selected positional `features`; it exited 1 with usage before analysis (`features.log`). Corrected the harness to the source-verified `features-folder` dispatch and retained the first log. Current full run uses seeds 1–10, Java `-Xmx2g`, networking disabled, the pinned image digest and copied inputs. Log: `features-folder.log`; command: `test-command.txt`.
+
+#### 2026-10-10 — `CTX016-R3-06` long-running dataset status
+
+- Docker installation and offline Linux smoke validation are complete. Full supplied-data run remains active in local container `context-ten-file-validation` (exec session 52329), still on seed 1 with 8 completed 1,024-request prediction batches at the latest check and no logged errors. The source library has 99,147 distinct modified-sequence/charge entries. Observed container memory was approximately 872 MiB of 3.82 GiB. No seed is complete yet; full analysis remains unverified.
+- The container has networking disabled; only the current jar (read-only) and isolated validation workspace are mounted. Output log: `tmp/compatibility/ten-file-20261010/features-folder.log`. Keep the machine awake and Docker running for execution to continue. No background notification automation or completion claim was created. Resume by checking this container/log and validating final artifacts against `input-manifest.json`; do not start a duplicate run.

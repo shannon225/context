@@ -114,7 +114,7 @@ public class ContextWorkingLibraryPreparerTest {
 	}
 
 	private static LibraryEntry entry(String sequence, byte charge, AminoAcidConstants constants) {
-		return new LibraryEntry("synthetic CTX-016 test", new HashSet<>(), constants.getChargedMass(sequence, charge),
+		return new LibraryEntry("synthetic Context test", new HashSet<>(), constants.getChargedMass(sequence, charge),
 				charge, sequence, 1, 10.0f, 1.0f, new double[] {250.0, 350.0},
 				new float[] {10.0f, 5.0f}, Optional.of(1.0f), constants);
 	}
