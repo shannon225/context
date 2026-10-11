@@ -231,6 +231,8 @@ java -jar context.jar mprophet \
 | `-fdr` | `0.01` | peptide FDR threshold used for reporting |
 | `-pyisopep` | look on `PATH` | path to the `pyisopep` executable (`percolator` only) |
 | `--allow-legacy-features` | `false` | accept older direct split files without pair sidecars (`percolator` and `mprophet`) |
+| `--prediction-store` | `prediction-cache` beside the acquisition | folder for stored predictions and shared working libraries (`features`, `features-folder`, and raw `percolator` and `mprophet` runs) |
+| `--clear-stale-store-lock` | `false` | clear a prediction store lock left by an interrupted run (same commands) |
 
 The `mprophet` command accepts only the flags shown in its `-h` output; `-generateDecoys`
 is accepted on raw runs because Context scoring supplies assay decoys when needed.
@@ -251,8 +253,8 @@ Then run Context on `run01.mzML`.
 
 ## Context matched-decoy feature scoring
 
-`features-folder` scores paired `.dia` and assay-schedule `.txt` files. It builds a run-local
-predicted library from the source `.elib`, chooses EncyclopeDIA 6.9.23's predicted or shuffled
+`features-folder` scores paired `.dia` and assay-schedule `.txt` files. It builds a predicted
+working library from the source `.elib` (shared by every run of that library; see below), chooses EncyclopeDIA 6.9.23's predicted or shuffled
 decoy mode, and writes only the best scored peak group per search candidate set to the feature
 TSV. A target with no predicted spectrum is excluded; a target with no predicted decoy is
 reported as target-only and can be searched alone when predicted mode is selected. The
@@ -270,10 +272,34 @@ request still uses the source precursor's actual charge. Use `--candidate-diagno
 write a separate ranked pre-trim candidate TSV. It does not send losing candidates to the
 feature TSV or confidence engines.
 
-For a run named `run`, Context writes `run_context_<identity>.elib` and
-`run_context_<identity>_predictions.tsv`, the raw `run.features.txt` with
+Predictions are stored and reused. By default Context keeps them in a `prediction-cache` folder
+beside the acquisition; `--prediction-store <folder>` points several folders at one store.
+
+- `prediction-cache/scribetwo-jchronologer-nce<NCE>-z<charge>-<dia|dda>.dlib` holds one predicted
+  spectrum per modified sequence and charge, for targets and decoys, with a `.context-profile`
+  file recording the prediction settings and Encyclopedia/JChronologer versions. A store written
+  under a different profile is refused. Only precursors not already stored are predicted, so a
+  library that overlaps an earlier one predicts only its new peptides. Expect roughly 0.7 GB per
+  million stored spectra.
+- `prediction-cache/working-libraries/<library>_<identity>.elib` and its `_predictions.tsv`
+  report are built once per source library, FASTA, search parameters, and prediction settings,
+  and every run that uses them reuses them. They are kept after the runs. Concurrent runs wait
+  for one build. If a build is interrupted, the next run moves the partial files to a
+  `.failed-*` folder beside them and rebuilds.
+- A store write lock left by an interrupted run stops later runs with the lock's host, process
+  ID, and age. If no other Context run is using the store, rerun with
+  `--clear-stale-store-lock true`. Context never clears a lock on its own.
+- A spectrum read from the store can differ slightly from a fresh prediction of the same precursor,
+  because JChronologer's output depends on how requests are batched. Measured differences were at
+  most 1.7e-5 in relative intensity, 6e-5 in ion mobility, and 2.4e-4 s in retention time (one
+  single-precision rounding step); fragment and precursor m/z were identical. Assignments and decoy
+  choices are unaffected.
+
+For a run named `run`, Context writes the raw `run.features.txt` with
 `run.features.txt.pairs.tsv` and `run.features.txt.context.sha256`, and
 `run_reference.features.txt` / `run_background.features.txt` with matching `.pairs.tsv` files.
+The feature manifest records the run's inputs and the SHA-256 of the shared working library it
+was searched against.
 The pair sidecar is keyed by the existing feature `id`; it records target and decoy modified
 sequence/charge keys, relation, prediction or shuffle method, eligibility, mode, and winner
 status. Empirical assay entrapment assignments from `bootstrap` are a separate relationship.
@@ -374,8 +400,10 @@ java -jar context.jar <command> -h
 | `bootstrap` | build a simulated targeted assay from a library |
 
 Cache naming migration: new raw runs use `.context.sha256`, `.context.inprogress`,
-and `.context.lock`, with `_context_` working-library/report names. Older caches
-are not renamed or reused automatically. Keep older outputs intact and regenerate
+and `.context.lock`. Raw runs no longer write a per-run `run_context_<identity>.elib`; the
+working library is shared under `prediction-cache/working-libraries/`. A raw feature cache made
+before the shared working library fails with "identity differs" and is not moved or deleted; move
+its feature outputs aside to regenerate. Older caches are not renamed or reused automatically. Keep older outputs intact and regenerate
 raw features in a fresh workspace (including a separate acquisition copy). Existing
 split feature files with valid `.pairs.tsv` companions remain accepted. Do not run
 older and newer versions against the same acquisition concurrently: their output
