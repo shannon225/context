@@ -7,8 +7,11 @@ import edu.washington.gs.maccoss.encyclopedia.filereaders.SearchParameterParser;
 import edu.washington.gs.maccoss.encyclopedia.utils.CommandLineParser;
 import edu.washington.gs.maccoss.encyclopedia.utils.Logger;
 
+import org.searlelab.context.io.ContextFeatureScorer;
+import org.searlelab.context.io.ContextFeatureScorerCLI;
 import org.searlelab.context.io.DirectoryOptions;
 import org.searlelab.context.io.RawFiles;
+import org.searlelab.context.encyclopedia.SearchPairSidecar;
 
 public class ContextPercolatorExecutorCLI {
 	private static final float DEFAULT_FDR = ContextPercolator.DEFAULT_FDR;
@@ -29,6 +32,7 @@ public class ContextPercolatorExecutorCLI {
 			boolean standardPercolator = DirectoryOptions.isEnabled(arguments, "-standardPercolator");
 			
 			if (standardPercolator) {
+				rejectStoreOptionsWithoutRawInput(arguments);
 				File features = requiredFile(arguments, "-features");
 				File fasta = requiredFile(arguments, "-f");
 				
@@ -43,9 +47,11 @@ public class ContextPercolatorExecutorCLI {
 			
 
 			if (arguments.containsKey("-background") && arguments.containsKey("-reference")) {
+				rejectStoreOptionsWithoutRawInput(arguments);
 				File background = requiredFile(arguments, "-background");
 				File reference = requiredFile(arguments, "-reference");
 				File fasta = requiredFile(arguments, "-f");
+				requirePairMetadata(background, reference, arguments);
 				File outputDirectory = DirectoryOptions.outputDirectory(arguments,
 						background.getAbsoluteFile().getParentFile());
 				String prefix = arguments.getOrDefault("-prefix", DirectoryOptions.stripSplitSuffix(background));
@@ -63,11 +69,12 @@ public class ContextPercolatorExecutorCLI {
 						dia.getAbsoluteFile().getParentFile());
 				String prefix = arguments.get("-prefix");
 				boolean generateDecoys = DirectoryOptions.isEnabled(arguments, "-generateDecoys");
+				ContextFeatureScorer.Options scoringOptions = rawScoringOptions(arguments);
 
 				HashMap<String, String> encyclopediaArgs = encyclopediaArguments(arguments);
 
 				ContextPercolatorExecutor.runContextPercolator(library, fasta, dia, massList, pyIsoPEP, fdr, outputDirectory, prefix, generateDecoys,
-						encyclopediaArgs, 0);
+						encyclopediaArgs, 0, scoringOptions);
 			}
 		} catch (Exception e) {
 			Logger.errorLine("ContextPercolatorExecutor failed: " + e.getMessage());
@@ -79,11 +86,41 @@ public class ContextPercolatorExecutorCLI {
 	private static HashMap<String, String> encyclopediaArguments(HashMap<String, String> arguments) {
 		HashMap<String, String> parameters = SearchParameterParser.getDefaultParameters();
 		for (String contextFlag : new String[] { "-i", "-l", "-f", "-massList", "-fdr", "-o", "-outdir", "-prefix",
-				"-background", "-reference", "-features", "-standardPercolator", "-pyisopep", "-generateDecoys", "-h", "-help", "--help" }) {
+					"-background", "-reference", "-features", "-standardPercolator", "-pyisopep", "-generateDecoys", "--allow-legacy-features",
+					"--prediction-store", "--clear-stale-store-lock", "-h", "-help", "--help" }) {
 			arguments.remove(contextFlag);
 		}
 		parameters.putAll(arguments);
 		return parameters;
+	}
+
+	/** Prediction store options for the raw -i/-l/-f/-massList route; other settings keep the Context defaults. */
+	static ContextFeatureScorer.Options rawScoringOptions(HashMap<String, String> arguments) {
+		String clear = arguments.getOrDefault("--clear-stale-store-lock", "false");
+		if (!"true".equalsIgnoreCase(clear) && !"false".equalsIgnoreCase(clear)) {
+			throw new IllegalArgumentException("--clear-stale-store-lock must be true or false");
+		}
+		ContextFeatureScorer.Options defaults = ContextFeatureScorer.Options.defaults();
+		return new ContextFeatureScorer.Options(defaults.predictionNce(), defaults.predictionDefaultCharge(),
+				defaults.adjustNceForDia(), defaults.candidateDiagnostics(), defaults.allowLegacyFeatures(),
+				ContextFeatureScorerCLI.predictionStore(arguments.get("--prediction-store")), Boolean.parseBoolean(clear));
+	}
+
+	/** Split and standard routes do not score features, so the prediction store options would have no effect. */
+	static void rejectStoreOptionsWithoutRawInput(HashMap<String, String> arguments) {
+		for (String flag : new String[] {"--prediction-store", "--clear-stale-store-lock"}) {
+			if (arguments.containsKey(flag)) {
+				throw new IllegalArgumentException(flag + " applies only to raw -i/-l/-f/-massList runs");
+			}
+		}
+	}
+
+	static void requirePairMetadata(File background, File reference, HashMap<String, String> arguments) throws java.io.IOException {
+		String value = arguments.getOrDefault("--allow-legacy-features", "false");
+		if (!"true".equalsIgnoreCase(value) && !"false".equalsIgnoreCase(value)) {
+			throw new IllegalArgumentException("--allow-legacy-features must be true or false");
+		}
+		SearchPairSidecar.requirePairMetadata(background, reference, Boolean.parseBoolean(value));
 	}
 
 	private static String stripFeatureSuffix(File featureFile) {
@@ -119,11 +156,14 @@ public class ContextPercolatorExecutorCLI {
 		Logger.timelessLogLine("  -l        <file>   library (.elib preferred, .dlib accepted)");
 		Logger.timelessLogLine("  -f        <file>   FASTA protein database");
 		Logger.timelessLogLine("  -massList <file>   assay / mass-list .txt or .csv");
+		Logger.timelessLogLine("  --prediction-store <folder>  stored predictions and shared working libraries (default: prediction-cache beside the acquisition)");
+		Logger.timelessLogLine("  --clear-stale-store-lock true  clear a prediction store lock left by an interrupted run");
 		Logger.timelessLogLine("");
 		Logger.timelessLogLine("Or from feature files that were already split:");
 		Logger.timelessLogLine("  -background <file> background feature TSV");
 		Logger.timelessLogLine("  -reference  <file> reference feature TSV");
 		Logger.timelessLogLine("  -f          <file> FASTA protein database");
+		Logger.timelessLogLine("  --allow-legacy-features true  accept older split files without either pair sidecar");
 		Logger.timelessLogLine("");
 		Logger.timelessLogLine("Optional:");
 		Logger.timelessLogLine("  -fdr      <float>  peptide FDR threshold (default: " + DEFAULT_FDR + ")");

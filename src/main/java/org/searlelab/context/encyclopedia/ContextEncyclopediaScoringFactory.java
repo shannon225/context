@@ -16,16 +16,24 @@ import edu.washington.gs.maccoss.encyclopedia.datastructures.SearchParameters;
 public class ContextEncyclopediaScoringFactory extends EncyclopediaTwoScoringFactory {
 	
 	private final SearchParameters parameters;
+	private final CandidateDiagnosticWriter diagnosticWriter;
 
 	public ContextEncyclopediaScoringFactory(SearchParameters parameters) {
+		this(parameters, null);
+	}
+
+	public ContextEncyclopediaScoringFactory(SearchParameters parameters, CandidateDiagnosticWriter diagnosticWriter) {
 		super(parameters);
 		this.parameters = parameters;
+		this.diagnosticWriter = diagnosticWriter;
 	}
 	
 	@Override
 	public AbstractLibraryScoringTask getScoringTask(PSMScorer scorer, ArrayList<LibraryEntry> entries, ArrayList<FragmentScan> stripes, org.searlelab.msrawjava.model.Range precursorIsolationRange, float dutyCycle, PrecursorScanMap precursors, BlockingQueue<AbstractScoringResult> resultsQueue) {
 		
-		return new org.searlelab.context.encyclopedia.EncyclopediaTwoPointOneScoringTask(scorer, entries, stripes, precursorIsolationRange, dutyCycle, precursors, resultsQueue, parameters);
+		return new org.searlelab.context.encyclopedia.EncyclopediaTwoPointOneScoringTask(scorer, entries, stripes,
+				precursorIsolationRange, dutyCycle, precursors, resultsQueue, parameters,
+				diagnosticWriter == null ? null : diagnosticWriter::accept);
 	}
 
 }

@@ -22,7 +22,7 @@ jobs:
       - name: Check the jars are present
         run: |
           missing=0
-          for jar in libs/maccoss/encyclopedia/6.6.24/encyclopedia-6.6.24.jar \
+          for jar in libs/maccoss/encyclopedia/6.9.23/encyclopedia-6.9.23.jar \
                      libs/org/searlelab/msrawjava-core-nolice/26.7.31/msrawjava-core-nolice-26.7.31.jar; do
             if [ ! -s "$jar" ]; then echo "missing or empty: $jar"; missing=1; fi
           done
@@ -62,3 +62,48 @@ jobs:
 
       - name: Check the jar runs
         run: java -jar target/context-*.jar --help
+
+  compatibility:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-22.04, windows-latest, macos-14]
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+          cache: maven
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install the confidence-estimation runtime
+        run: python -m pip install --no-cache-dir pyIsoPEP
+      - name: Build and verify the platform package
+        run: >-
+          mvn -B -Ppackage
+          -Dtest=ContextPredictionRuntimeTest,ContextWorkingLibraryPreparerTest,SearchPairSidecarTest,ContextFeatureCacheIdentityTest,ContextFeatureScorerPairedPartitionTest,ContextMProphetCLITest,ContextPercolatorExecutorCLITest
+          verify
+      - name: Exercise packaged prediction and the native Percolator executable
+        env:
+          DJL_OFFLINE: "true"
+          DJL_CACHE_DIR: ${{ runner.temp }}/context-djl-fresh
+          ENGINE_CACHE_DIR: ${{ runner.temp }}/context-engines-fresh
+        run: >-
+          java -Djava.awt.headless=true -cp target/context-0.0.2-SNAPSHOT.jar
+          src/test/java/org/searlelab/context/encyclopedia/ContextPackagedRuntimeCheck.java live
+      - name: Exercise both packaged confidence engines and check population IDs
+        run: python src/test/python/check_packaged_engines.py target/context-0.0.2-SNAPSHOT.jar
+      - name: Keep compatibility evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: compatibility-${{ matrix.os }}
+          path: |
+            target/surefire-reports/
+            tmp/compatibility/platform-engines/
