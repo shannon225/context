@@ -32,6 +32,7 @@ import org.searlelab.context.datastructures.IsolationWindow;
 import org.searlelab.context.datastructures.ScoredFeature;
 import org.searlelab.context.encyclopedia.EncyclopediaTwo;
 import org.searlelab.context.encyclopedia.ContextEncyclopediaScoringFactory;
+import org.searlelab.context.encyclopedia.ContextPredictionStore;
 import org.searlelab.context.encyclopedia.ContextWorkingLibraryPreparer;
 import org.searlelab.context.encyclopedia.CandidateDiagnosticWriter;
 import org.searlelab.context.encyclopedia.SearchPairSidecar;
@@ -39,25 +40,46 @@ import org.searlelab.context.encyclopedia.SearchPairSidecar;
 public class ContextFeatureScorer {
 	private record FeaturePrecursor(String sequence, byte charge) {}
 
+	/**
+	 * {@code predictionStore} null means the default {@code prediction-cache} folder beside the run outputs.
+	 * {@code clearStaleStoreLock} clears a prediction store write lock left by an interrupted run.
+	 */
 	public record Options(int predictionNce, byte predictionDefaultCharge, boolean adjustNceForDia,
-			boolean candidateDiagnostics, boolean allowLegacyFeatures) {
+			boolean candidateDiagnostics, boolean allowLegacyFeatures, File predictionStore, boolean clearStaleStoreLock) {
 		public Options {
 			if (predictionNce <= 0 || predictionDefaultCharge <= 0) {
 				throw new IllegalArgumentException("Prediction NCE and default charge must be positive");
 			}
 		}
 
+		public Options(int predictionNce, byte predictionDefaultCharge, boolean adjustNceForDia,
+				boolean candidateDiagnostics, boolean allowLegacyFeatures) {
+			this(predictionNce, predictionDefaultCharge, adjustNceForDia, candidateDiagnostics, allowLegacyFeatures, null, false);
+		}
+
 		public static Options defaults() { return new Options(27, (byte)2, true, false, false); }
+	}
+
+	static File predictionStoreDirectory(String baseName, Options options) {
+		if (options.predictionStore() != null) return options.predictionStore().getAbsoluteFile();
+		return new File(new File(baseName).getAbsoluteFile().getParentFile(), ContextPredictionStore.DEFAULT_DIRECTORY_NAME);
 	}
 
 	public static void execute(String[] args) throws IOException, SQLException, InterruptedException, DataFormatException {
 
-		if (args.length != 4) {
+		Options options;
+		try {
+			if (args.length < 4) throw new IllegalArgumentException("Expected four input paths.");
+			options = positionalOptions(java.util.Arrays.copyOfRange(args, 4, args.length));
+		} catch (IllegalArgumentException e) {
+			System.err.println("Error: " + e.getMessage());
 			System.err.println("Usage: ");
 			System.err.println("java -jar context.jar features "
-					+ "<rawFilePath> <libraryFilePath> <fastaPath> <massListPath>");
+					+ "<rawFilePath> <libraryFilePath> <fastaPath> <massListPath> [scoring options]");
 			System.err.println("rawFilePath accepts " + RawFiles.supportedExtensions());
+			System.err.println("Scoring options (as for features-folder): " + String.join(", ", new java.util.TreeSet<>(POSITIONAL_OPTIONS)));
 			System.exit(1);
+			return;
 		}
 
 		String rawFilePath = args[0];
@@ -70,8 +92,22 @@ public class ContextFeatureScorer {
 		File rawFile = new File(rawFilePath);
 		File library = new File(libraryFilePath);
 		ArrayList<ScoredFeature> partitionedFeatures = scoreFeaturesForContext(library, rawFile, fasta, baseName,
-				massListPath, 0);
+				massListPath, 0, options);
 		Logger.logLine("Scored and partitioned " + partitionedFeatures.size() + " features.");
+	}
+
+	private static final java.util.Set<String> POSITIONAL_OPTIONS = java.util.Set.of("--prediction-nce",
+			"--prediction-default-charge", "--adjust-nce-for-dia", "--candidate-diagnostics", "--allow-legacy-features",
+			"--prediction-store", "--clear-stale-store-lock");
+
+	/** Optional scoring flags after the four positional paths; with none, the defaults apply as before. */
+	static Options positionalOptions(String[] flags) {
+		if (flags.length == 0) return Options.defaults();
+		Map<String, String> arguments = ContextFeatureScorerCLI.parseArguments(flags);
+		for (String flag : arguments.keySet()) {
+			if (!POSITIONAL_OPTIONS.contains(flag)) throw new IllegalArgumentException("Unsupported option for features: " + flag);
+		}
+		return ContextFeatureScorerCLI.scoringOptions(arguments);
 	}
 
 	static IsolationWindow findMatchingMassListWindow(ScoredFeature feature, ArrayList<IsolationWindow> targetWindows,
@@ -170,56 +206,74 @@ public class ContextFeatureScorer {
 			File pairSidecar = new File(featuresToSplit.getAbsolutePath() + ".pairs.tsv");
 			File identityManifest = new File(featuresToSplit.getAbsolutePath() + ".context.sha256");
 			File inProgress = new File(featuresToSplit.getAbsolutePath() + ".context.inprogress");
-			String identity = ContextFeatureCacheIdentity.inputs(library, rawFile, fasta, effectiveMassList, params, options);
-			File diagnosticFile = options.candidateDiagnostics()
-					? new File(baseName + "_context_" + identity.substring(0, 12) + "_candidates.tsv") : null;
 			File incompleteArchive = ContextFeatureCacheIdentity.archiveIncomplete(inProgress, featuresToSplit,
 					pairSidecar, identityManifest, baseName);
 			if (incompleteArchive != null) Logger.logLine("Preserved incomplete Context output in " + incompleteArchive);
 
-			if (featuresToSplit.exists() && featuresToSplit.canRead()) {
-				if (options.allowLegacyFeatures() && !pairSidecar.exists() && !identityManifest.exists()) {
-					Logger.logLine("Using an explicitly accepted legacy feature file without Context pairing: " + featuresToSplit);
-				} else {
+			boolean reuse = featuresToSplit.exists() && featuresToSplit.canRead();
+			if (reuse && options.allowLegacyFeatures() && !pairSidecar.exists() && !identityManifest.exists()) {
+				Logger.logLine("Using an explicitly accepted legacy feature file without Context pairing: " + featuresToSplit);
+			} else {
+				if (reuse) ContextFeatureCacheIdentity.requireCompanions(identityManifest, featuresToSplit, pairSidecar);
+				ContextWorkingLibraryPreparer.Settings predictionSettings = new ContextWorkingLibraryPreparer.Settings(
+						options.predictionNce(), options.predictionDefaultCharge(), options.adjustNceForDia());
+				File storeDirectory = predictionStoreDirectory(baseName, options);
+				SharedWorkingLibrary.Resolved shared = SharedWorkingLibrary.resolve(storeDirectory,
+						library.getName().replaceFirst("\\.[^.]+$", ""),
+						ContextFeatureCacheIdentity.workingLibraryInputs(library, fasta, params, predictionSettings),
+						(workingLibrary, predictions) -> {
+							if (!(interfaceForLibrary instanceof LibraryFile)) {
+								throw new IOException("Context requires an Encyclopedia LibraryFile source for exact target metadata");
+							}
+							try (ContextPredictionStore store = ContextPredictionStore.open(storeDirectory, predictionSettings,
+										options.clearStaleStoreLock());
+									ContextWorkingLibraryPreparer.Result prepared = ContextWorkingLibraryPreparer.prepare(
+											(LibraryFile) interfaceForLibrary, params, predictionSettings, workingLibrary, predictions, store)) {
+								Logger.logLine("Prepared shared working library: " + prepared.retainedTargets() + " targets, "
+										+ prepared.retainedDecoys() + " decoys");
+							}
+						});
+				String identity = ContextFeatureCacheIdentity.withWorkingLibrary(
+						ContextFeatureCacheIdentity.inputs(library, rawFile, fasta, effectiveMassList, params, options),
+						shared.libraryArtifact());
+				File diagnosticFile = options.candidateDiagnostics()
+						? new File(baseName + "_context_" + identity.substring(0, 12) + "_candidates.tsv") : null;
+				if (reuse) {
 					ContextFeatureCacheIdentity.requireMatch(identityManifest, identity, featuresToSplit, pairSidecar, diagnosticFile);
 					java.nio.file.Files.deleteIfExists(inProgress.toPath());
 					Logger.logLine("Reusing verified Context feature and pair sidecar: " + featuresToSplit);
-				}
-			} else {
-				if (!(interfaceForLibrary instanceof LibraryFile)) {
-					throw new IOException("Context requires an Encyclopedia LibraryFile source for exact target metadata");
-				}
-				File workingLibrary = new File(baseName + "_context_" + identity.substring(0, 12) + ".elib");
-				File predictions = new File(baseName + "_context_" + identity.substring(0, 12) + "_predictions.tsv");
-				if (pairSidecar.exists() || identityManifest.exists() || workingLibrary.exists()
-						|| predictions.exists() || (diagnosticFile != null && diagnosticFile.exists())) {
-					throw new IOException("Context output already exists without a reusable feature cache: " + featuresToSplit);
-				}
-				ContextFeatureCacheIdentity.markInProgress(inProgress, identity, options.candidateDiagnostics());
-				Logger.logLine("Calculating features...");
-				ContextWorkingLibraryPreparer.Settings predictionSettings = new ContextWorkingLibraryPreparer.Settings(
-						options.predictionNce(), options.predictionDefaultCharge(), options.adjustNceForDia());
-				try (ContextWorkingLibraryPreparer.Result prepared = ContextWorkingLibraryPreparer.prepare(
-						(LibraryFile) interfaceForLibrary, params, predictionSettings, workingLibrary, predictions);
-					CandidateDiagnosticWriter diagnostics = diagnosticFile == null ? null : new CandidateDiagnosticWriter(
-							diagnosticFile, EncyclopediaTwoDecoyStrategy.resolve(prepared.library(), params).getMode())) {
-					LibraryScoringFactory preparedFactory = new ContextEncyclopediaScoringFactory(params, diagnostics);
-					EncyclopediaTwoJobData preparedJob = new EncyclopediaTwoJobData(rawFile, fasta, prepared.library(),
-							prepared.library(), outputPrefix, preparedFactory);
-					ProgressIndicator progress = new EmptyProgressIndicator(true);
-					org.searlelab.msrawjava.io.StripeFileInterface interfaceForStripeFile = preparedJob.getDiaFileReader();
-					SearchPairSidecar pairs = new SearchPairSidecar();
-					try {
-						EncyclopediaTwo.generateFeatureFile(progress, prepared.library(), preparedJob, interfaceForStripeFile,
-								java.util.Optional.empty(), java.util.OptionalInt.empty(), pairs::record);
-					} finally {
-						interfaceForStripeFile.close();
+				} else {
+					if (pairSidecar.exists() || identityManifest.exists() || (diagnosticFile != null && diagnosticFile.exists())) {
+						throw new IOException("Context output already exists without a reusable feature cache: " + featuresToSplit);
 					}
-					if (diagnostics != null) diagnostics.requireSuccess();
-					pairs.write(featuresToSplit, pairSidecar, library, rawFile);
-					ContextFeatureCacheIdentity.save(identityManifest, identity, featuresToSplit, pairSidecar, diagnosticFile);
+					ContextFeatureCacheIdentity.markInProgress(inProgress, identity, options.candidateDiagnostics());
+					Logger.logLine("Calculating features...");
+					LibraryFile workingLibrary = new LibraryFile();
+					try {
+						workingLibrary.openFile(shared.library());
+						try (CandidateDiagnosticWriter diagnostics = diagnosticFile == null ? null : new CandidateDiagnosticWriter(
+								diagnosticFile, EncyclopediaTwoDecoyStrategy.resolve(workingLibrary, params).getMode())) {
+							LibraryScoringFactory preparedFactory = new ContextEncyclopediaScoringFactory(params, diagnostics);
+							EncyclopediaTwoJobData preparedJob = new EncyclopediaTwoJobData(rawFile, fasta, workingLibrary,
+									workingLibrary, outputPrefix, preparedFactory);
+							ProgressIndicator progress = new EmptyProgressIndicator(true);
+							org.searlelab.msrawjava.io.StripeFileInterface interfaceForStripeFile = preparedJob.getDiaFileReader();
+							SearchPairSidecar pairs = new SearchPairSidecar();
+							try {
+								EncyclopediaTwo.generateFeatureFile(progress, workingLibrary, preparedJob, interfaceForStripeFile,
+										java.util.Optional.empty(), java.util.OptionalInt.empty(), pairs::record);
+							} finally {
+								interfaceForStripeFile.close();
+							}
+							if (diagnostics != null) diagnostics.requireSuccess();
+							pairs.write(featuresToSplit, pairSidecar, library, rawFile);
+							ContextFeatureCacheIdentity.save(identityManifest, identity, featuresToSplit, pairSidecar, diagnosticFile);
+						}
+					} finally {
+						workingLibrary.close();
+					}
+					java.nio.file.Files.deleteIfExists(inProgress.toPath());
 				}
-				java.nio.file.Files.deleteIfExists(inProgress.toPath());
 			}
 			return partitionFeatures(featuresToSplit, params, baseName, effectiveMassList);
 		}

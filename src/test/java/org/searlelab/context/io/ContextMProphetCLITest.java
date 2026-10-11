@@ -37,6 +37,15 @@ public class ContextMProphetCLITest {
 				() -> ContextMProphetCLI.run(new String[] {"-background", background.toString(),
 						"-reference", reference.toString(), "-f", fasta.toString(), "-generateDecoys"}));
 		assertTrue(directDecoys.getMessage().contains("only to raw"));
+		for (String[] storeOption : new String[][] {{"--prediction-store", folder.getRoot().getPath()},
+				{"--clear-stale-store-lock", "true"}}) {
+			IllegalArgumentException directStore = assertThrows(IllegalArgumentException.class,
+					() -> ContextMProphetCLI.run(new String[] {"-background", background.toString(),
+							"-reference", reference.toString(), "-f", fasta.toString(), storeOption[0], storeOption[1]}));
+			assertTrue(directStore.getMessage(), directStore.getMessage().contains(storeOption[0] + " applies only to raw"));
+		}
+		assertThrows(IllegalArgumentException.class,
+				() -> ContextMProphetCLI.parse(new String[] {"--clear-stale-store-lock", "yes"}));
 	}
 
 	@Test

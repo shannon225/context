@@ -15,7 +15,8 @@ public class ContextFeatureScorerCLI {
 
 	private static final Set<String> ALLOWED_ARGUMENTS = Set.of("--library", "--fasta", "--dia-folder", "--start-seed",
 			"--end-seed", "--input-prefix", "--prediction-nce", "--prediction-default-charge",
-			"--adjust-nce-for-dia", "--candidate-diagnostics", "--allow-legacy-features");
+			"--adjust-nce-for-dia", "--candidate-diagnostics", "--allow-legacy-features", "--prediction-store",
+			"--clear-stale-store-lock");
 
 	public static void main(String[] args) {
 
@@ -39,14 +40,7 @@ public class ContextFeatureScorerCLI {
 
 			String inputPrefix = arguments.getOrDefault("--input-prefix",
 					AssaySchedulePairMatcher.DEFAULT_INPUT_PREFIX);
-			int predictionNce = parsePositiveInteger(arguments.getOrDefault("--prediction-nce", "27"), "--prediction-nce");
-			int defaultCharge = parsePositiveInteger(arguments.getOrDefault("--prediction-default-charge", "2"),
-					"--prediction-default-charge");
-			if (defaultCharge > Byte.MAX_VALUE) throw new IllegalArgumentException("--prediction-default-charge is too large.");
-			ContextFeatureScorer.Options options = new ContextFeatureScorer.Options(predictionNce, (byte) defaultCharge,
-					parseBoolean(arguments.getOrDefault("--adjust-nce-for-dia", "true"), "--adjust-nce-for-dia"),
-					parseBoolean(arguments.getOrDefault("--candidate-diagnostics", "false"), "--candidate-diagnostics"),
-					parseBoolean(arguments.getOrDefault("--allow-legacy-features", "false"), "--allow-legacy-features"));
+			ContextFeatureScorer.Options options = scoringOptions(arguments);
 
 			int shuffledSeed = parseNonNegativeInteger(arguments.getOrDefault("--shuffledSeed", Integer.toString(DEFAULT_SHUFFLED_SEED)), "--shuffled-seed");
 			
@@ -200,6 +194,29 @@ public class ContextFeatureScorerCLI {
 		return parsed;
 	}
 
+	static ContextFeatureScorer.Options scoringOptions(Map<String, String> arguments) {
+		int predictionNce = parsePositiveInteger(arguments.getOrDefault("--prediction-nce", "27"), "--prediction-nce");
+		int defaultCharge = parsePositiveInteger(arguments.getOrDefault("--prediction-default-charge", "2"),
+				"--prediction-default-charge");
+		if (defaultCharge > Byte.MAX_VALUE) throw new IllegalArgumentException("--prediction-default-charge is too large.");
+		return new ContextFeatureScorer.Options(predictionNce, (byte) defaultCharge,
+				parseBoolean(arguments.getOrDefault("--adjust-nce-for-dia", "true"), "--adjust-nce-for-dia"),
+				parseBoolean(arguments.getOrDefault("--candidate-diagnostics", "false"), "--candidate-diagnostics"),
+				parseBoolean(arguments.getOrDefault("--allow-legacy-features", "false"), "--allow-legacy-features"),
+				predictionStore(arguments.get("--prediction-store")),
+				parseBoolean(arguments.getOrDefault("--clear-stale-store-lock", "false"), "--clear-stale-store-lock"));
+	}
+
+	/** Null keeps the default prediction-cache folder beside the run outputs. */
+	public static File predictionStore(String value) {
+		if (value == null) return null;
+		File directory = new File(value);
+		if (directory.exists() && !directory.isDirectory()) {
+			throw new IllegalArgumentException("--prediction-store must be a directory: " + directory);
+		}
+		return directory;
+	}
+
 	private static boolean parseBoolean(String value, String flag) {
 		if ("true".equalsIgnoreCase(value)) return true;
 		if ("false".equalsIgnoreCase(value)) return false;
@@ -222,7 +239,8 @@ public class ContextFeatureScorerCLI {
 				+ "--dia-folder <folder> " + "[--start-seed <integer>] " + "[--end-seed <integer>] "
 				+ "[--input-prefix <literal>] [--prediction-nce <integer>] "
 				+ "[--prediction-default-charge <integer>] [--adjust-nce-for-dia <true|false>] "
-				+ "[--candidate-diagnostics <true|false>] [--allow-legacy-features <true|false>]");
+				+ "[--candidate-diagnostics <true|false>] [--allow-legacy-features <true|false>] "
+				+ "[--prediction-store <folder>] [--clear-stale-store-lock <true|false>]");
 		System.out.println();
 		System.out.println("Required:");
 		System.out.println("  --library      Spectral library used for scoring.");
@@ -239,6 +257,10 @@ public class ContextFeatureScorerCLI {
 		System.out.println("  --adjust-nce-for-dia Apply DIA NCE conversion; default: true.");
 		System.out.println("  --candidate-diagnostics Write optional scored candidates before winner trimming; default: false.");
 		System.out.println("  --allow-legacy-features Reuse an old feature file without pair metadata; default: false.");
+		System.out.println("  --prediction-store Folder for stored predictions and shared working libraries, so runs in");
+		System.out.println("                   different folders can share them; default: prediction-cache beside each DIA file.");
+		System.out.println("  --clear-stale-store-lock Clear a prediction store lock left by an interrupted run; default: false.");
+		System.out.println("                   Use only when no other Context run is using that store.");
 		System.out.println();
 		System.out.println("Expected filename pairs:");
 		System.out.println("  example_masked1_assay.dia");

@@ -15,7 +15,11 @@ import java.nio.file.StandardOpenOption;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.List;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.locks.ReentrantLock;
 import java.util.stream.Stream;
+
+import org.searlelab.context.encyclopedia.ContextWorkingLibraryPreparer;
 
 import edu.washington.gs.maccoss.encyclopedia.datastructures.SearchParameters;
 
@@ -23,21 +27,52 @@ import edu.washington.gs.maccoss.encyclopedia.datastructures.SearchParameters;
 final class ContextFeatureCacheIdentity {
 	private ContextFeatureCacheIdentity() {}
 
+	private static final ConcurrentHashMap<String, ReentrantLock> SHARED_LOCKS = new ConcurrentHashMap<>();
+
 	static final class OutputLock implements AutoCloseable {
 		private final FileChannel channel;
 		private final FileLock lock;
+		private final ReentrantLock threadLock;
 
-		private OutputLock(FileChannel channel, FileLock lock) {
+		private OutputLock(FileChannel channel, FileLock lock, ReentrantLock threadLock) {
 			this.channel = channel;
 			this.lock = lock;
+			this.threadLock = threadLock;
 		}
 
 		@Override public void close() throws IOException {
 			try {
 				lock.release();
 			} finally {
-				channel.close();
+				try {
+					channel.close();
+				} finally {
+					if (threadLock != null) threadLock.unlock();
+				}
 			}
+		}
+	}
+
+	/**
+	 * Waits for exclusive use of {@code lockFile} across threads and processes. Used where concurrent work on a shared
+	 * output must be serialized rather than refused.
+	 */
+	static OutputLock acquireSharedLock(File lockFile) throws IOException {
+		ReentrantLock threadLock = SHARED_LOCKS.computeIfAbsent(lockFile.getCanonicalPath(), ignored -> new ReentrantLock());
+		threadLock.lock();
+		FileChannel channel = null;
+		try {
+			channel = FileChannel.open(lockFile.toPath(), StandardOpenOption.CREATE, StandardOpenOption.WRITE);
+			return new OutputLock(channel, channel.lock(), threadLock);
+		} catch (IOException | RuntimeException e) {
+			try {
+				if (channel != null) channel.close();
+			} catch (IOException cleanupFailure) {
+				e.addSuppressed(cleanupFailure);
+			} finally {
+				threadLock.unlock();
+			}
+			throw e;
 		}
 	}
 
@@ -47,7 +82,7 @@ final class ContextFeatureCacheIdentity {
 		try {
 			FileLock lock = channel.tryLock();
 			if (lock == null) throw new IOException("Context feature output is in use: " + features);
-			return new OutputLock(channel, lock);
+			return new OutputLock(channel, lock, null);
 		} catch (OverlappingFileLockException e) {
 			channel.close();
 			throw new IOException("Context feature output is in use: " + features, e);
@@ -68,6 +103,28 @@ final class ContextFeatureCacheIdentity {
 			update(digest, file.getCanonicalPath());
 			content(digest, file);
 		}
+		return hex(digest.digest());
+	}
+
+	/**
+	 * Identity of a shared working library: what preparation reads (source library and FASTA content, search
+	 * parameters, prediction settings), and not the raw file or assay schedule, so every run of that library shares it.
+	 */
+	static String workingLibraryInputs(File library, File fasta, SearchParameters parameters,
+			ContextWorkingLibraryPreparer.Settings settings) throws IOException {
+		MessageDigest digest = sha256();
+		update(digest, "Context-shared-working-library-v1|Encyclopedia-6.9.23|JChronologer-1.0.10");
+		update(digest, parameters.toString());
+		update(digest, settings.nce() + "|" + settings.defaultCharge() + "|" + settings.adjustNceForDia());
+		for (File file : new File[] {library, fasta}) content(digest, file);
+		return hex(digest.digest());
+	}
+
+	/** Per-run identity: the run's inputs plus the exact working library its features were searched against. */
+	static String withWorkingLibrary(String inputIdentity, String workingLibraryArtifact) {
+		MessageDigest digest = sha256();
+		update(digest, inputIdentity);
+		update(digest, workingLibraryArtifact);
 		return hex(digest.digest());
 	}
 
@@ -114,10 +171,14 @@ final class ContextFeatureCacheIdentity {
 		}
 	}
 
-	static void requireMatch(File manifest, String inputIdentity, File features, File sidecar, File diagnostic) throws IOException {
+	static void requireCompanions(File manifest, File features, File sidecar) throws IOException {
 		if (!manifest.isFile() || !sidecar.isFile()) {
 			throw new IOException("Context feature cache lacks its pair sidecar or identity manifest: " + features);
 		}
+	}
+
+	static void requireMatch(File manifest, String inputIdentity, File features, File sidecar, File diagnostic) throws IOException {
+		requireCompanions(manifest, features, sidecar);
 		if (diagnostic != null && !diagnostic.isFile()) {
 			throw new IOException("Context feature cache lacks its candidate diagnostic: " + diagnostic);
 		}

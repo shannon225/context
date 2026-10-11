@@ -15,7 +15,7 @@ import edu.washington.gs.maccoss.encyclopedia.filereaders.SearchParameterParser;
 /** Runs the existing background-trained Context mProphet workflow from the public command. */
 public final class ContextMProphetCLI {
 	private static final Set<String> FLAGS = Set.of("-i", "-l", "-f", "-massList", "-background",
-			"-reference", "-o", "-prefix", "-fdr", "--allow-legacy-features");
+			"-reference", "-o", "-prefix", "-fdr", "--allow-legacy-features", "--prediction-store", "--clear-stale-store-lock");
 
 	private ContextMProphetCLI() {}
 
@@ -30,8 +30,10 @@ public final class ContextMProphetCLI {
 		if (direct == (options.containsKey("-i") || options.containsKey("-l") || options.containsKey("-massList"))) {
 			throw new IllegalArgumentException("Use either -background/-reference or -i/-l/-massList with -f");
 		}
-		if (direct && options.containsKey("-generateDecoys")) {
-			throw new IllegalArgumentException("-generateDecoys applies only to raw acquisition inputs");
+		for (String rawOnly : new String[] {"-generateDecoys", "--prediction-store", "--clear-stale-store-lock"}) {
+			if (direct && options.containsKey(rawOnly)) {
+				throw new IllegalArgumentException(rawOnly + " applies only to raw acquisition inputs");
+			}
 		}
 		float fdr = Float.parseFloat(options.getOrDefault("-fdr", "0.01"));
 		if (!Float.isFinite(fdr) || fdr <= 0f || fdr > 1f) {
@@ -52,7 +54,9 @@ public final class ContextMProphetCLI {
 			String base = RawFiles.stripExtension(dia.getAbsolutePath());
 			ContextFeatureScorer.Options defaults = ContextFeatureScorer.Options.defaults();
 			ContextFeatureScorer.Options scoringOptions = new ContextFeatureScorer.Options(defaults.predictionNce(),
-					defaults.predictionDefaultCharge(), defaults.adjustNceForDia(), defaults.candidateDiagnostics(), allowLegacy);
+					defaults.predictionDefaultCharge(), defaults.adjustNceForDia(), defaults.candidateDiagnostics(), allowLegacy,
+					ContextFeatureScorerCLI.predictionStore(options.get("--prediction-store")),
+					Boolean.parseBoolean(options.getOrDefault("--clear-stale-store-lock", "false")));
 			ContextFeatureScorer.scoreFeaturesForContext(library, dia, fasta, base, massList.getAbsolutePath(), 0,
 					scoringOptions);
 			background = new File(base + "_background.features.txt");
@@ -91,9 +95,10 @@ public final class ContextMProphetCLI {
 			if (args[i].isBlank()) throw new IllegalArgumentException("Empty value for " + flag);
 			i++;
 		}
-		if (options.containsKey("--allow-legacy-features")
-				&& !Set.of("true", "false").contains(options.get("--allow-legacy-features").toLowerCase())) {
-			throw new IllegalArgumentException("--allow-legacy-features must be true or false");
+		for (String flag : new String[] {"--allow-legacy-features", "--clear-stale-store-lock"}) {
+			if (options.containsKey(flag) && !Set.of("true", "false").contains(options.get(flag).toLowerCase())) {
+				throw new IllegalArgumentException(flag + " must be true or false");
+			}
 		}
 		return options;
 	}
@@ -121,5 +126,7 @@ public final class ContextMProphetCLI {
 		System.out.println("   or: context.jar mprophet -background <background.features.txt> -reference <reference.features.txt> -f <proteins.fasta> [-o <results>] [-fdr <fraction>]");
 		System.out.println("Options: -prefix <name>; --allow-legacy-features true for old split files without pair sidecars.");
 		System.out.println("-generateDecoys is accepted for raw runs; Context scoring ensures assay decoys when needed.");
+		System.out.println("Raw runs only: --prediction-store <folder> shares stored predictions across folders (default:");
+		System.out.println("prediction-cache beside the acquisition); --clear-stale-store-lock true clears a lock left by an interrupted run.");
 	}
 }
