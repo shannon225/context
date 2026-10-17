@@ -13,7 +13,7 @@ import java.util.regex.Pattern;
 public class ContextFeatureScorerCLI {
 
 	private static final int DEFAULT_START_SEED = 1;
-	private static final int DEFAULT_END_SEED = 100;
+	private static final int DEFAULT_END_SEED = 1;
 
 	private static final Pattern MASKED_SEED_PATTERN = Pattern.compile("_masked([0-9]+)(?=_|\\.)",
 			Pattern.CASE_INSENSITIVE);
