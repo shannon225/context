@@ -276,11 +276,13 @@ Predictions are stored and reused. By default Context keeps them in a `predictio
 beside the acquisition; `--prediction-store <folder>` points several folders at one store.
 
 - `prediction-cache/scribetwo-jchronologer-nce<NCE>-z<charge>-<dia|dda>.dlib` holds one predicted
-  spectrum per modified sequence and charge, for targets and decoys, with a `.context-profile`
-  file recording the prediction settings and Encyclopedia/JChronologer versions. A store written
-  under a different profile is refused. Only precursors not already stored are predicted, so a
-  library that overlaps an earlier one predicts only its new peptides. Expect roughly 0.7 GB per
-  million stored spectra.
+  spectrum per modified sequence and charge, for targets and decoys. Its `ContextPredictionProfile`
+  metadata value records NCE, default charge, DIA adjustment, and the Context, Encyclopedia, and
+  JChronologer versions. A store written under a different profile is refused. Existing Context
+  stores with a matching `.context-profile` sidecar are migrated to embedded metadata when opened;
+  the old sidecar is preserved, and new stores create none. Only precursors not already stored are
+  predicted, so a library that overlaps an earlier one predicts only its new peptides. Expect
+  roughly 0.7 GB per million stored spectra.
 - `prediction-cache/working-libraries/<library>_<identity>.elib` and its `_predictions.tsv`
   report are built once per source library, FASTA, search parameters, and prediction settings,
   and every run that uses them reuses them. They are kept after the runs. Concurrent runs wait
