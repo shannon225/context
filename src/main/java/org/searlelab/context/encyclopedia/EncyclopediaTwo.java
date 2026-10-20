@@ -18,6 +18,7 @@ import java.util.function.Consumer;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Future;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.ThreadPoolExecutor;
@@ -481,6 +482,7 @@ public class EncyclopediaTwo {
 				ThreadFactory threadFactory = new ThreadFactoryBuilder().setNameFormat("STRIPE_" + range.getStart() + "to" + range.getStop() + "-%d").setDaemon(true).build();
 				LinkedBlockingQueue<Runnable> workQueue = new LinkedBlockingQueue<Runnable>();
 				ExecutorService executor = new ThreadPoolExecutor(cores, cores, Long.MAX_VALUE, TimeUnit.NANOSECONDS, workQueue, threadFactory);
+				ArrayList<Future<?>> scoringTasks = new ArrayList<>();
 				try {
 					int count = 0;
 
@@ -519,7 +521,7 @@ public class EncyclopediaTwo {
 					} else {
 						localStripes = stripes;
 					}
-					executor.submit(taskFactory.getScoringTask(scorer, tasks, localStripes, range, dutyCycle, precursors, resultsQueue));
+					scoringTasks.add(executor.submit(taskFactory.getScoringTask(scorer, tasks, localStripes, range, dutyCycle, precursors, resultsQueue)));
 				}
 
 				if (rangeIndex+1<ranges.size()) {
@@ -535,6 +537,13 @@ public class EncyclopediaTwo {
 					Thread.sleep(500);
 				}
 				executor.awaitTermination(Long.MAX_VALUE, TimeUnit.NANOSECONDS);
+				for (Future<?> task : scoringTasks) {
+					try {
+						task.get();
+					} catch (ExecutionException e) {
+						throw new IOException("Scoring worker failed for " + range, e.getCause());
+					}
+				}
 			} finally {
 				// ExecutorService is only AutoCloseable from Java 19, and this project targets 17.
 				executor.shutdownNow();

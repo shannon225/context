@@ -208,6 +208,34 @@ public class ContextWorkingLibraryPreparerTest {
 		}
 	}
 
+	@Test
+	public void avoidsTargetCollisionAndReusesDecoySequenceAcrossCharges() throws Exception {
+		SearchParameters parameters = SearchParameterParser.getDefaultParametersObject();
+		AminoAcidConstants constants = parameters.getAAConstants();
+		LibraryFile source = new LibraryFile();
+		source.openFile();
+		try {
+			source.addEntries(new ArrayList<>(List.of(
+					entry("PEPTIDEK", (byte)2, constants),
+					entry("KEDITPEP", (byte)2, constants),
+					entry("PEPTIDEK", (byte)3, constants),
+					entry("ELVISLIVESK", (byte)3, constants))), false);
+			ArrayList<String> requests = new ArrayList<>();
+			Prepared prepared = prepare(source, parameters,
+					new ContextWorkingLibraryPreparer.Settings(27, (byte)2, true), "collision",
+					recording(requests, constants), null);
+			assertEquals(4, prepared.assignments.size());
+			assertEquals("PEDITPEK|2", prepared.assignments.stream()
+					.filter(a -> a.targetKey().equals("PEPTIDEK|2")).findFirst().orElseThrow().decoyKey());
+			assertEquals("PEDITPEK|3", prepared.assignments.stream()
+					.filter(a -> a.targetKey().equals("PEPTIDEK|3")).findFirst().orElseThrow().decoyKey());
+			assertEquals(4, prepared.assignments.stream().filter(a -> a.status().equals("PAIRED")).count());
+			assertEquals(8, requests.size());
+		} finally {
+			source.close();
+		}
+	}
+
 	private record Prepared(List<ContextWorkingLibraryPreparer.Assignment> assignments, List<String> entries) {}
 
 	private Prepared prepare(LibraryFile source, SearchParameters parameters, ContextWorkingLibraryPreparer.Settings settings,
