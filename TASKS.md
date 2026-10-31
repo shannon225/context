@@ -1312,3 +1312,43 @@ r1 tasks marked "proposed superseded" above become `Superseded` only when r2 is 
   - I read the guide back afterwards and checked the text. Ariana's own requirement section (§7) was left unchanged, because it is filled from her messages.
 - **Commit and push.** The commit and push are recorded in the Google implementation record, not here.
 - **Next:** `CTX018-001` (Phase 0). Open question 3 must be decided before `CTX018-004`, question 2 before `CTX018-020`, and question 1 before `CTX018-026`.
+
+- [ ] `CTX018-028` Context-workflow guard for EncyclopeDIA options, from Ariana's 2026-10-31 decision on open question 2. **The specifics below await Ariana's confirmation.**
+  - Context still accepts and parses every EncyclopeDIA workflow option.
+  - The Context Percolator and Context mProphet workflows fail with a clear error, before any training, when an option Context fixes or does not honor is set to a value that differs from the EncyclopeDIA 6.9.23 default. Values are compared after parsing, so `0.010` equals `0.01`.
+  - Options that cause the error:
+    - `-percolatorTrainingIterations`, `-percolatorTrainingFDR` and `-percolatorTrainingSetSize`. Context-only training uses Percolator's own defaults, and Context mProphet uses no fold cap.
+    - `-percolatorModelFile`.
+    - `-percolatorProteinThreshold`.
+    - `-percolatorThreshold`, if it differs from `-fdr`.
+  - Options that are allowed and recorded: `-percolatorVersion` and `-percolatorLocation`, which choose the binary.
+  - The error names each option, its value and the default Context requires.
+  - `AllWorkflowExecutorCLI` applies the check in preflight, so a run with a conflicting option fails before any workflow starts, including the standard and targeted ones that would otherwise honor it.
+  - Standard and targeted workflows run on their own are unchanged.
+  - Files: `percolator/ContextPercolator.java` or a small shared Context helper, `io/AllWorkflowExecutorCLI.java`, `io/ContextMProphetCLI.java`, tests, README.
+  - Depends on: `020`, `021`.
+  - Check: JUnit 4 for each option at its default (passes), at a non-default value (fails with the named option), and at an equivalent spelling (passes); AllWorkflow preflight fails before any output is written; standard and targeted runs on their own still accept the option.
+  - **Approved by Ariana on 2026-10-31, with one change: warnings, not errors.** This supersedes the "fail with a clear error" and "fails … in preflight" wording above, which is kept as history.
+    - A preflight check runs before any training or workflow starts and reports every conflicting option in one block of warnings: the option, the value given, and the default Context uses instead.
+    - The Context Percolator and Context mProphet workflows then run with Context's required settings and do not apply the conflicting values.
+    - In `AllWorkflowExecutorCLI`, the check runs once, before the first of the six workflows. The warning states that the standard and targeted workflows will apply the user's values while the Context workflows will not, so their settings differ in that run.
+    - The existing seed-experiment rejection of `-percolatorModelFile` in `preflightExperiment` is unchanged.
+    - Revised check: each option at its default (no warning), at a non-default value (one warning naming it, and Context uses its required setting), and at an equivalent spelling (no warning). The AllWorkflow warnings appear before any workflow output, and standard and targeted runs still apply the user's value.
+
+#### 2026-10-31 — r2 open questions decided (no implementation)
+
+- **Question 3, q2pep.** Ariana: a **hard change**. The Context Percolator workflow always uses pyIsoPEP `q2pep --calc-q-from-fdr`; there is no user-facing switch. `d2pep` stays for the standard and targeted workflows. The README needs a migration note: the Context Percolator PEP now comes from `q2pep` (`CTX018-004`, `011`, `027`).
+  - Follow-up (future direction, not CTX-018): add a user option in Context (Java) to choose `d2pep` or `q2pep` for the Context Percolator workflow.
+- **Question 1, peptide count.** Ariana: use **whichever is larger**. The `CTX018-026` criterion becomes |median N(Context) − median N(Context-MS)| ≤ max(0.02 × median N(Context-MS), 1 peptide).
+- **Question 2, EncyclopeDIA options.** Ariana: Context accepts all EncyclopeDIA workflow options, but the Context workflows report an error when any option deviates from the defaults Context needs. Added task `CTX018-028` with a proposed specification. Two points await her confirmation:
+  - "Error" means the run fails before training, not a warning.
+  - `AllWorkflowExecutorCLI` fails the whole run in preflight.
+- These answers settle open questions 1–3 in canonical plan r2. They are recorded here and in the implementation record; the frozen canonical plan is not edited.
+
+#### 2026-10-31 — `CTX018-028` specifics approved; documents updated (no implementation)
+
+- **Decision.** Ariana confirmed open question 2 with a change: conflicting EncyclopeDIA options produce **warnings, not errors**. She approved a preflight check that runs before anything else, so all conflicts are reported up front rather than appearing partway through a multi-workflow run.
+- **Changes approved.** Ariana approved recording these decisions, together with the earlier q2pep (hard change, with the user option as a future direction) and peptide-count (whichever is larger) decisions, and authorized committing and pushing them to `origin/ariana/scoring`.
+- **Plan.** Canonical plan r2 gains an "Approved clarification — 2026-10-31" section that records the answers to open questions 1–3. Following the CTX-016 precedent, this is a clarification within r2, not a new revision.
+- **Guide.** The Google implementation record is updated: open question 2 is checked and annotated, and a decision-log row is added. The commit is recorded there after the push.
+- **Next:** `CTX018-001` (Phase 0). No implementation has started.

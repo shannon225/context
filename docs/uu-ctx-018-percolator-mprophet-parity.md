@@ -149,6 +149,20 @@ Judged only in the final-acceptance task, not as gates for earlier tasks. The sa
 
 - **ScribeTwo vs EncyclopediaTwo comparison for the paper.** Run both feature sets through the aligned `mprophet` and `percolator` commands with identical settings and seeds, so the comparison isolates feature generation. Check ScribeTwo feature names against the step 8 reader, and whether `.pairs.tsv` sidecars exist (otherwise `--allow-legacy-features true` is needed).
 
+## Approved clarification — 2026-10-31 (open questions 1–3)
+
+Ariana decided the three open questions above on 2026-10-31 and approved recording them here. This clarifies revision 2; it does not create a new revision. Details and checks are in `TASKS.md` (`CTX018-028` and the log).
+
+1. **Peptide-count floor:** use whichever is larger. The criterion is |median N(Context) − median N(Context-MS)| ≤ max(0.02 × median N(Context-MS), 1 peptide).
+2. **EncyclopeDIA Percolator options:**
+   - Context accepts and parses every EncyclopeDIA workflow option.
+   - A preflight check runs before any training or workflow starts. It **warns, but does not stop the run**, for each of these options set to a non-default value: `-percolatorTrainingIterations`, `-percolatorTrainingFDR`, `-percolatorTrainingSetSize`, `-percolatorModelFile`, `-percolatorProteinThreshold`, and `-percolatorThreshold` when it differs from `-fdr`.
+   - The Context Percolator and Context mProphet workflows then run with Context's required settings.
+   - `-percolatorVersion` and `-percolatorLocation` are allowed and recorded.
+   - In `AllWorkflowExecutorCLI`, the warnings come once, before the first workflow, and state that the standard and targeted workflows apply the user's values while the Context workflows do not.
+   - The existing seed-experiment rejection of `-percolatorModelFile` is unchanged.
+3. **q2pep:** a hard change. The Context Percolator workflow always uses pyIsoPEP `q2pep --calc-q-from-fdr`, and the README gets a migration note. `d2pep` stays for the standard and targeted workflows. A user option in Context (Java) to choose `d2pep` or `q2pep` is a future direction, not part of CTX-018.
+
 ## Superseded historical revision 1 — retained for reference only
 
 # CTX-018 — Approved canonical scope, revision 1 (superseded)
