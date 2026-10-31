@@ -1124,3 +1124,191 @@ Remaining distinctions:
 #### 2026-10-19 — `CTX016-057` external Report append verified
 
 - Appended the complete Git-delivery checklist and dated log from this section to the existing `/Users/arianashannon/Downloads/2026-10-19-CTX-016-Report.md` without overwriting its 217,091-byte prefix. Exact byte-prefix verification passed; the Report was 228,488 bytes afterward, SHA-256 `1d66f640d9d7f95c43c8b0a81f53ced88bfa9d31ab9e8702e356d54e9acc87de`. This final checked-task line and log entry will be appended as an amendment. The five approved commits are on `origin/ariana/scoring` at `ffe39ec`. `TASKS.md` now has a local post-push status update that is not part of those five approved commits; the separately excluded supporting-document edit remains untouched. No PR/release. `CTX016-009`, `CTX016-010`, `CTX016-040`, and `CTX016-053` remain open or awaiting Ariana's final review.
+
+## CTX-018 — Percolator and mProphet parity with Context-MS
+
+- Google implementation record: https://docs.google.com/document/d/1wbZsg6TDiMx8mZ-__cl8tGexxWRcIw7IESnbO_-c_Pk/edit — revision r1 (2026-10-31; Docs revisionId `AHj4eMTbkMMjX3KFGMxxlDHakDZnFcFFatKh4gPIsg8RwRbx9X4R7ek4cRPFIj0JO_qdBzlUQalCrih-jVWsLky1g59LZhJU5ny44ZlDrmg`). Updated to r2 on 2026-10-31 (Docs revisionId `AHj4eMQTP-eUhkBt9VX-0P7taQSTpmvCewKWqDrIDwxLQc2L3GEZh11_cVMi5W71gxUKlVY1aGWWcMvbJSHEncpJno1exHhK-76pc83u92o`; later edits that only record commits do not change the plan).
+- Canonical Until Useful plan: `docs/uu-ctx-018-percolator-mprophet-parity.md`, revision 1 (frozen 2026-10-31).
+- Approval status: **Approved** by Ariana on 2026-10-31 in chat ("I approve of the plan"). Ariana will have an independent agent review the plan before implementation; implementation has not started. Git delivery is not authorized.
+- Revision 2 approval status: **Approved** by Ariana on 2026-10-31 in chat ("You have my approval"). r2 is now canonical in `docs/uu-ctx-018-percolator-mprophet-parity.md`, with r1 kept below it as history. Earlier pending wording, kept as history: The independent review (2026-10-31) proposed r2: `docs/ctx-018-canonical-r2-proposal.md`, adding tasks `CTX018-017`–`027` below. Ariana approved the H2 and H7 directions and asked for the r2 files; approval of the full r2 text is pending. Until then, r1 (`docs/uu-ctx-018-percolator-mprophet-parity.md`) stays frozen and canonical, and no implementation starts.
+- Baselines: Context `ariana/scoring` at `a57ef953b29b091d6ea0284030d8082a422062b6`; Context-MS `main` at `d207f47291b6a1716e4a09e326fc3eda518a197f`; EncyclopeDIA 6.9.23 jar (unchanged).
+- Scope boundary: Context-only. Out of scope: `TargetedBootstrapper` and its CLI/tests; decoy generation (CTX-016); EncyclopeDIA source; Context-MS source; the standard and targeted Percolator/mProphet workflows; changing Context's default Percolator version (v3.01); porting numpy's random generator (option A). Language-specific differences are deferred unless the final criteria fail.
+- Populations: background trains the discriminant; the model is applied without retraining to reference targets and decoys; q-values and PEPs are estimated on the scored reference, at PSM level and again after best-per-peptide de-duplication.
+
+### Acceptance criteria
+
+- [ ] Context Percolator uses pyIsoPEP `q2pep` (`--calc-q-from-fdr`) and Context-MS's Percolator arguments for background training; the standard and targeted workflows are unchanged.
+- [ ] Context mProphet uses Context-MS's q-value/PEP method (Gaussian decoy null, Benjamini–Hochberg q, Storey lfdr with π0 ≥ 0.05 and Silverman KDE on logit p), recomputed at peptide level, and additionally writes `P.psm.reference.txt` and `P.peptide.reference.txt` in the Context-MS format; existing mProphet outputs are kept.
+- [ ] Context mProphet training preprocessing matches Context-MS (pairing check, near-constant pruning, feature exclusions, starting score, no fold cap).
+- [ ] Option B: an optional diagnostic fold file makes Java mProphet use Context-MS's exact folds; with it, weights and scores agree to within floating-point precision. Default behavior without the file is unchanged. Malformed fold files fail clearly. **Superseded** in r2 (approved 2026-10-31): option B is diagnostic only; see "r2 acceptance criteria".
+- [ ] Final acceptance only (CTX018-010; not a gate for earlier tasks), on Ariana's comparison file, both engines, seeds 1–10, Percolator v3.05 for both tools:
+  - Peptides: median count of reference target peptides at PEP ≤ 0.01 across seeds within ±2% of the Context-MS median.
+  - Scores: per run, z = (score − decoy mean) / decoy SD; over reference targets with Context-MS |z| ≥ 1, the median per-row relative difference in z within ±20%. Spearman rank correlation reported for information.
+  - Context-MS `example/` data is interim and report-only. A miss triggers review of language-specific differences or of the thresholds with Ariana.
+- [ ] Documentation, Java 17 verify, Until Useful review, and Ariana's final review are recorded with their actual limits.
+
+### Approved checklist — plan r1
+
+- [ ] `CTX018-001` Report peptides at PEP ≤ 0.01 alongside the existing q ≤ 0.01 count in `ContextPercolator` (`countPeptidesPassingPEPThreshold` currently counts q-values); keep the existing count and label both. Files: `percolator/ContextPercolator.java`, `ContextPercolatorResult.java`, tests. Check: unit test with known q/PEP values.
+- [ ] `CTX018-002` Add `docs/validation/ctx018_compare.py`, importing Context-MS as an installed package (no Context-MS edits). Compares row counts, features kept, weights, reference scores, and peptide counts at PEP ≤ 0.01 and q ≤ 0.01; computes the final metrics; records versions, seeds, and parameters. Also exports Context-MS mProphet folds for `CTX018-009`. Depends on: none. Check: runs on Context-MS `example/` (kept outside the repo; provenance recorded). **Superseded** by `CTX018-017` (r2, approved 2026-10-31).
+- [ ] `CTX018-003` Record the starting gap: run both tools, both engines, on `example/` and (when available) Ariana's comparison file before any code change, with Percolator v3.05. Files: log only. Check: commands, versions, outputs, and metrics recorded. **Superseded** by `CTX018-018` (r2, approved 2026-10-31).
+- [ ] `CTX018-004` Add a `q2pep` method to `PyIsoPEPRunner` with Context-MS's arguments, and use it in the Context Percolator workflow; keep `runD2PEP` for other workflows. Files: `percolator/PyIsoPEPRunner.java`, `ContextPercolator.java`, tests. Check: command unit test; comparison on `example/`.
+- [ ] `CTX018-005` Add a Context-training-only command option in `ContextPercolatorRunner.generateCommand` matching Context-MS (`--post-processing-tdc --override`, Percolator defaults for `-N`, `--maxiter`, `--trainFDR`, `--testFDR`, no `--no-terminate`). Files: `percolator/ContextPercolatorRunner.java`, `ContextPercolator.java`, tests. Check: Context and standard command tests; with v3.05, the same seed and pruned input, per-fold weights match Context-MS. **Superseded** by `CTX018-020` (r2, approved 2026-10-31).
+- [ ] `CTX018-006` Port Context-MS `fdr.py` (Gaussian p-values, BH, π0 over λ = 0.1–0.9 with floor 0.05, Silverman KDE on logit p, monotone PEP) to a small Context class; reuse EncyclopeDIA `BenjaminiHochberg`/`LocalFDR.estimatePi0` only where verified identical. Files: new class under `org.searlelab.context`, tests. Check: JUnit 4 against Python-computed values (q ~1e-6 relative; PEP tolerance set from observed differences and recorded).
+- [ ] `CTX018-007` Context mProphet: best-scoring row per peptide, then recompute q/PEP; additionally write `P.psm.reference.txt` and `P.peptide.reference.txt` (Context-MS columns), deleted and rewritten on rerun like existing outputs. Files: `io/AllWorkflowExecutorCLI.java` (`runContextMProphet`), `encyclopedia/MProphetReiter.java`, tests. Check: identity preservation, tie-breaking, target/decoy counts, existing outputs unchanged.
+- [ ] `CTX018-008` Align mProphet training preprocessing with Context-MS: header pairing check, near-constant pruning, feature exclusions (resolve `ExpMass`/`protein`), starting-score preference including `main_var_Intensity` and best-feature fallback, no 500,000-row fold cap. Each change measured separately. Files: `encyclopedia/MProphetReiter.java`, `io/AllWorkflowExecutorCLI.java`, tests. Check: focused tests; comparison after each change. **Superseded** by `CTX018-025` (r2, approved 2026-10-31).
+- [ ] `CTX018-009` Optional diagnostic fold file for `MProphetReiter` (TSV: `iteration`, `fold`, `position`, `id`; within-fold order preserved). Build folds with EncyclopeDIA's public `MProphetDataset(featureNames, startingScoreIndex, data)` instead of `splitKFold`. Fail on missing, duplicate, or extra ids or a wrong iteration count. Depends on: `CTX018-002`, `CTX018-008`. Check: join and malformed-input tests; on `example/`, per-iteration passing counts and averaged weights match Context-MS. **Superseded** by `CTX018-024` (r2, approved 2026-10-31).
+- [ ] `CTX018-010` Option C final acceptance: seeds 1–10 per tool, both engines, Ariana's comparison file, Percolator v3.05. Check: criteria above computed by `ctx018_compare.py` and recorded with seeds and versions. **Superseded** by `CTX018-026` (r2, approved 2026-10-31).
+- [ ] `CTX018-011` Documentation: README, CLI help (new mProphet outputs, q2pep switch, fold-file option, comparison Percolator version), and the record's validation sections. Check: examples match actual output names.
+- [ ] `CTX018-012` Java 17 Maven `verify` and focused tests. Check: commands, results, failures, and skips recorded; pre-existing baseline failures kept distinct.
+- [ ] `CTX018-013` Until Useful review: minimal diff, reuse, scientific behavior, and artifacts. Check: findings, dispositions, residual risks recorded.
+- [ ] `CTX018-014` Ariana's final review. Status: not started.
+- [ ] `CTX018-015` External Report `YYYY-MM-DD-CTX-018-Report.md` at a location Ariana names (cloud session). Check: full checklist and log copied verbatim and verified.
+- [ ] `CTX018-016` Add a comment to `src/main/java/org/searlelab/context/encyclopedia/MProphetDataset.java` stating it is dead code as of 2026-10-31 (`MProphetReiter` imports EncyclopeDIA's class) and that its q-value code multiplies by π0 twice; do not delete it. Check: comment-only diff; compiles.
+
+### Log
+
+#### 2026-10-31 — planning (no implementation)
+
+- Compared Context `a57ef95` with Context-MS `d207f47` and inspected the EncyclopeDIA 6.9.23 jar with `javap`. No code run or changed. Findings: Context Percolator uses pyIsoPEP `d2pep` (Context-MS: `q2pep`) and EncyclopeDIA-derived Percolator arguments (`-N 500000`, `--maxiter`, `--trainFDR/--testFDR`, `--no-terminate`, no `--override`); mProphet q-values match (BH, no π0), PEP settings differ, and peptide-level q/PEP are not recomputed; small training-preprocessing differences. EncyclopeDIA's default Percolator is v3.01 (v3.05 bundled); Context-MS uses Percolator on PATH or the unpinned `ghcr.io/percolator/percolator:master`.
+- Ariana chose option B (injected folds) as the diagnostic and option C (seeds 1–10) as final acceptance; set ±2% peptides at PEP ≤ 0.01 and ±20% standardized scores (median across seeds) as final criteria only; approved extra Context-MS-format mProphet outputs; chose Percolator v3.05; asked that the dead local `MProphetDataset.java` be commented, not deleted; accepted Context-MS `example/` as interim data. The |z| ≥ 1 row filter and report-only status of `example/` were proposed in chat and adopted with plan approval.
+- Ariana approved plan r1 on 2026-10-31. Guide updated to r1; canonical plan frozen as `docs/uu-ctx-018-percolator-mprophet-parity.md` revision 1. Next: Ariana's independent agent review of the plan, then `CTX018-001`. A material change from that review returns to Ariana for a revised approval.
+
+### r2 acceptance criteria (approved 2026-10-31; heading originally "Proposed … (pending Ariana's approval)")
+
+These replace the r1 option B and final-acceptance criteria if r2 is approved. All other r1 criteria still apply.
+
+- [ ] Aligned mProphet behavior runs only in a Context-only mode used by `runContextMProphet`. With the mode off, standard and targeted mProphet and `scribe-context` / `ContextMProphetExecutor` are unchanged, as default-path regression tests show.
+- [ ] Option B is diagnostic only. With the fold file, record for each of the 50 iterations whether passing counts agree with Context-MS, the first iteration that diverges and its cause, and the maximum relative difference in averaged weights. The tolerance comes from observed differences and is recorded. Malformed fold files fail clearly; without the file, behavior is unchanged.
+- [ ] `percolator` and `mprophet` accept `-seed` (default 1). The same seed and inputs give the same outputs as `AllWorkflowExecutorCLI --seeds`.
+- [ ] Context mProphet also writes `P.rescored_features.txt` and `model/P.weights.txt`.
+- [ ] Final acceptance (`CTX018-026` only; measured after every phase). Data: Ariana's comparison file, both engines, seeds 1–10 per tool, identical Percolator v3.05 binary (sha256 recorded), pyIsoPEP 0.1.4.
+  - Gate 1, identity: the same reference target and decoy `id`s and counts in both tools' rescored outputs, and the same de-duplicated peptide keys.
+  - Gate 2, validity: scores are finite; q and PEP are in [0, 1]; PEP never decreases as score decreases.
+  - Peptides: |median N(Context) − median N(Context-MS)| / median N(Context-MS) ≤ 2%, where N = reference target peptides with PEP ≤ 0.01 at peptide level. Report Context-MS's seed min–max; if ±2% is narrower than that spread, the result goes to Ariana's threshold review. Whether to allow a minimum of ±1 peptide is open question 1 in the r2 proposal.
+  - Scores: per run z = (score − reference decoy mean) / reference decoy population SD. Context-MS consensus = each row's median z over its 10 seeds. Rows = reference targets with consensus |z| ≥ 1, joined by `id`. For each Context run m = median over rows of |z_Context − z_consensus| / |z_consensus|. Pass if the median of m over the 10 runs is ≤ 0.20. Also report the Context-MS leave-one-out noise floor.
+  - Report-only: Jaccard index of the PEP ≤ 0.01 peptide sets, 90th-percentile relative z difference, Spearman correlation, sign flips, q ≤ 0.01 counts, Percolator per-fold weight differences, option B per-iteration agreement.
+
+### r2 checklist additions (approved 2026-10-31; heading originally "Proposed … (pending Ariana's approval)")
+
+r2 phase order:
+- Phase 0: `001`, `017`, `018`, `019`.
+- Phase 1, Percolator: `004`, `020`.
+- Phase 2, mProphet confidence: `021`, `006`, `007`, `023`.
+- Phase 3, mProphet training: `022`, `024`, `025`, `016`.
+- Phase 4: `026`, `011`, `027`, `012`, `013`, `014`, `015`.
+
+r1 tasks marked "proposed superseded" above become `Superseded` only when r2 is approved. (Done 2026-10-31: `002`, `003`, `005`, `008`, `009`, `010` and the r1 option B criterion are now marked **Superseded**.)
+
+- [ ] `CTX018-017` (replaces `002`) Add `docs/validation/ctx018_compare.py`, importing Context-MS `d207f47` as an installed package (no Context-MS edits).
+  - It computes the r2 gates, criteria and report-only metrics, plus noise floors; records versions, binary sha256, seeds and parameters; and writes a per-phase metrics table.
+  - It exports Context-MS mProphet folds and per-iteration passing counts by wrapping `context.mprophet._split_kfold` and the fold-level passing step inside the script, not by re-implementing numpy's random generator.
+  - Depends on: none.
+  - Check: runs on `example/` (kept outside the repo; provenance recorded); a wrapped run gives the same weights as an unwrapped run at the same seed.
+- [ ] `CTX018-018` (replaces `003`) Baseline before any code change, on `example/` and, when available, Ariana's comparison file:
+  - Pin the identical Percolator v3.05 binary for both tools: extract the jar's `bin/percolator-v3-05.lin` (sha256 `3bd83c21c4065b082eb168012fd1bd1357b3ab9df8aa48108cb1e33d35c972bd` for the 6.9.23 jar) and put it on Context-MS's `PATH` as `percolator`. Pin pyIsoPEP 0.1.4.
+  - Run Context-MS seeds 1–10 for both engines to get its noise floor.
+  - Run Context at seed 1, or at seeds 1–10 through `AllWorkflowExecutorCLI --seeds` if an all-features file is available.
+  - Repeat each tool once at a fixed seed to confirm the runs are deterministic.
+  - Record the current Percolator `*.command.txt`, which settles `-Y`/`-y`.
+  - Count rows per peptide in the comparison file (`example/` has exactly one row per peptide).
+  - Files: log only.
+  - Check: commands, versions, outputs and metrics recorded.
+- [ ] `CTX018-019` Add `-seed <int>` to the `percolator` (`ContextPercolatorExecutorCLI`) and `mprophet` (`ContextMProphetCLI`) commands.
+  - Default 1 (`TrainingSeeds.DEFAULT_SEED`), checked with `TrainingSeeds.requireValid`, passed to `ContextPercolator.trainAndApply(..., seed)` and `runContextMProphet(..., seed)`.
+  - Make parameter construction match `AllWorkflowExecutorCLI` so the same seed gives the same results from either entry point.
+  - Update help.
+  - Files: those CLIs, tests, README.
+  - Check: invalid seeds rejected; a run without `-seed` matches the current output; on a fixture, `mprophet -seed 3` and `AllWorkflowExecutorCLI --seeds 3` give identical outputs, ignoring paths and logs. The Percolator equivalence test is skipped and recorded if the Percolator binary or pyIsoPEP is missing.
+- [ ] `CTX018-020` (replaces `005`) Add a Context-training-only command in `ContextPercolatorRunner.generateCommand`.
+  - Training-affecting flags match Context-MS: `--post-processing-tdc --override --protein-report-duplicates`; Percolator defaults for `-N`, `--maxiter`, `--trainFDR`, `--testFDR`; no `--no-terminate`.
+  - Keep the output-only flags Context needs: `--seed`, `--weights`, `--results-peptides`, `--decoy-results-peptides`.
+  - Handle EncyclopeDIA Percolator options and `-percolatorModelFile` as Ariana decides (open question 2 in the r2 proposal).
+  - Standard and targeted commands unchanged.
+  - Files: `percolator/ContextPercolatorRunner.java`, `ContextPercolator.java`, tests.
+  - Check: Context and standard command tests; with v3.05, the same seed and pruned input give per-fold weights matching Context-MS (difference recorded).
+- [ ] `CTX018-021` Add the Context-only mProphet mode in `MProphetReiter`, turned on only by `runContextMProphet`. Every other caller (standard and targeted mProphet, `ContextMProphetExecutor`, `scribe-context`) keeps the default path byte-for-byte. `007`, `022`, `023`, `024` and `025` act only in this mode.
+  - Files: `encyclopedia/MProphetReiter.java`, `io/AllWorkflowExecutorCLI.java`, tests.
+  - Check: default-path regression tests on a fixture for standard and targeted mProphet and `ContextMProphetExecutor.trainAndApplyFeature`.
+- [ ] `CTX018-022` In Context-only mode, rank trained models by passing count with a stable descending sort, so ties keep iteration order as in Context-MS. Today ties are broken by `LinearDiscriminantAnalysis.compareTo` (sum of coefficients) and then reversed by `Collections.reverse`.
+  - Files: `encyclopedia/MProphetReiter.java`, tests.
+  - Depends on: `021`.
+  - Check: JUnit 4 with a tie straddling position 25 keeps the earliest iterations; default-path ordering unchanged.
+- [ ] `CTX018-023` Context mProphet also writes:
+  - `P.rescored_features.txt`: every reference target and decoy row plus `score`.
+  - `model/P.weights.txt`: `feature`/`weight`/`__bias__`, reusing the `PercolatorWeights.writeAveraged` format.
+  - Both are deleted and rewritten on rerun like the existing outputs.
+  - Files: `io/AllWorkflowExecutorCLI.java` (`runContextMProphet`), tests, README.
+  - Depends on: `021`.
+  - Check: row counts and target/decoy labels match the reference input; weights match the logged model; existing outputs unchanged.
+- [ ] `CTX018-024` (replaces `009`) Diagnostic fold file for Context-only `MProphetReiter`.
+  - TSV columns: `iteration`, `fold`, `position`, `id`. Within-fold order preserved.
+  - Folds built from `MProphetData` joined by `id` through the public `MProphetDataset(featureNames, startingScoreIndex, data)` constructor.
+  - Fail on missing, duplicate or extra ids and on a wrong iteration count.
+  - Without the file, behavior is unchanged.
+  - This task comes before `025`, so preprocessing changes are measured with folds fixed.
+  - Files: `encyclopedia/MProphetReiter.java`, tests.
+  - Depends on: `017`, `021`, `022`.
+  - Check: join and malformed-input tests; on `example/`, record per-iteration count agreement, the first iteration that diverges and its cause, and the maximum relative difference in weights. This is diagnostic, not a gate.
+- [ ] `CTX018-025` (replaces `008`) Context-owned mProphet reader and preprocessing (Context-only mode). Each step is measured separately with injected folds:
+  - (a) Reuse `ContextFeatures.prepare`: header check, σ < 1e-6 pruning on the background, same drop list applied to the reference.
+  - (b) Build `MProphetData`/`MProphetDataset` for background and reference. With legacy column selection, prove the result is identical to `MProphetFeatureReader.parseFeatureFile`.
+  - (c) Context-MS feature selection: positional non-feature columns, case-insensitive `ScanNr`/`scan`, metadata exclusions; resolve `ExpMass`/`protein`.
+  - (d) Context-MS starting-score precedence (last match wins), `main_var_Intensity`, then the best-separating feature.
+  - (e) No 500,000-row fold cap.
+  - (f) Fail clearly if the model and the reference differ in feature names or order.
+  - Files: a new Context class (not in `org.searlelab.context.encyclopedia` without an explicit EncyclopeDIA import), `encyclopedia/MProphetReiter.java`, `io/AllWorkflowExecutorCLI.java`, tests.
+  - Depends on: `021`, `024`.
+  - Check: focused tests for each step, including a feature file with no named starting score; comparison after each step.
+- [ ] `CTX018-026` (replaces `010`) Option C final acceptance, with the r2 gates and criteria above, run through `-seed` (`019`).
+  - Check: computed by `ctx018_compare.py` and recorded with seeds, versions and binary sha256; any miss goes to Ariana's review.
+- [ ] `CTX018-027` Documentation additions for r2, alongside `011`:
+  - The `-seed` flag and its equivalence with AllWorkflow.
+  - The Context-only mProphet mode and the workflows it does not change.
+  - `P.rescored_features.txt` and `model/P.weights.txt`.
+  - The handling of EncyclopeDIA Percolator options in the Context workflow.
+  - The r2 metric definitions in the record's validation sections.
+  - Check: examples match actual output names and help text.
+
+### Log (continued)
+
+#### 2026-10-31 — independent plan review and r2 proposal (no implementation)
+
+- **Review.** Reviewed guide r1, canonical r1 and this checklist against Context `a57ef95`, Context-MS `d207f47`, pyIsoPEP 0.1.4 (PyPI wheel) and EncyclopeDIA 6.9.23 (`javap` on the jar). Ran the bundled `percolator-v3-05.lin --help`. No Context code changed or ran.
+- **Verified the same in both tools:** seed coefficients; the 1e-4 range filter in LDA; strict `q < FDR`; Benjamini–Hochberg without π0; population SD for the decoy null; the 10× decoy cap; Percolator raw-weight averaging; pyIsoPEP 0.1.4 `q2pep` CLI defaults equal the Python API, with outputs aligned to the target input order; v3.05 defaults `-N` 0, `--maxiter` 10, train/test FDR 0.01.
+- **Verified differences:**
+  - Ties in mProphet model ranking are broken by the sum of the coefficients, then reversed.
+  - `LocalFDR.estimateLocalFDR` builds `KDE(x, 1.0, 100)` with no π0 floor.
+  - `MProphetFeatureReader` hard-codes name-based exclusions (adds `ExpMass`, `protein`), throws when no named starting score exists, and the reference is parsed separately with no feature-alignment check.
+  - Java parses features and computes LDA scores in float32.
+  - `MProphetReiter` is shared by standard and targeted mProphet and by `ContextMProphetExecutor` (`scribe-context`).
+  - `ContextMProphetCLI` hard-codes seed 1, and the per-engine CLIs have no seed option.
+  - `example/` has exactly one row per peptide.
+- **Decisions in chat:**
+  - `scribe-context` is out of scope; ScribeTwo is no longer the production path. A paper comparison of ScribeTwo vs EncyclopediaTwo should go through the aligned commands as a follow-up.
+  - Approved: the H2 stable-sort fix, the H7 metric definitions, the H5 extra outputs and the H6 `-seed` flag.
+- **Files.** Created `docs/uu-ctx-018-percolator-mprophet-parity.md` (r1, verbatim as Ariana supplied it) and `docs/ctx-018-canonical-r2-proposal.md`. Added this section from Ariana's `TASKS.md` copy and appended the r2 proposal above.
+- **Open questions:** peptide-count floor; handling of EncyclopeDIA Percolator options; whether `q2pep` is a user-facing flag or a hard change.
+- **Next:**
+  - Ariana approves, revises or rejects r2.
+  - The Google implementation record needs a matching r2 update (still at r1, and §1 still shows ±5%/±10%); this needs Ariana's authorization.
+  - Implementation does not start until r2 is approved.
+
+#### 2026-10-31 — r2 approved; documents updated (no implementation)
+
+- **Approval.** Ariana approved r2 in chat ("You have my approval") after approving H2 and H7. She also authorized committing and pushing the CTX-018 planning documents to `origin/ariana/scoring`; that does not cover implementation commits.
+- **Canonical plan.** `docs/uu-ctx-018-percolator-mprophet-parity.md` now holds revision 2 at the top and revision 1 below it as history. `docs/ctx-018-canonical-r2-proposal.md` is marked adopted and kept as the review record.
+- **Checklist.** `CTX018-002`, `003`, `005`, `008`, `009`, `010` and the r1 option B criterion are marked **Superseded**. The r2 acceptance criteria and tasks `CTX018-017`–`027` are approved.
+- **Guide.** The Google implementation record is updated to r2:
+  - Status.
+  - The stale ±5%/±10% text in §1, kept and annotated with the revision.
+  - The r2 out-of-scope item, criteria and metric definitions.
+  - Approach, components, dependencies and resolved risks.
+  - Step 6 phase order.
+  - A dated work-log entry and a decision-log row.
+  - Validation additions.
+  - Files, commands and references.
+  - Open questions 1–3 and the follow-up for the paper comparison.
+  - I read the guide back afterwards and checked the text. Ariana's own requirement section (§7) was left unchanged, because it is filled from her messages.
+- **Commit and push.** The commit and push are recorded in the Google implementation record, not here.
+- **Next:** `CTX018-001` (Phase 0). Open question 3 must be decided before `CTX018-004`, question 2 before `CTX018-020`, and question 1 before `CTX018-026`.
