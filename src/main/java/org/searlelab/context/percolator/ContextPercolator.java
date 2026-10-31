@@ -93,19 +93,21 @@ public class ContextPercolator {
 		File peptideOutput = new File(engineDirectory, prefix + ".peptide.reference.txt");
 		writePyIsoPEPReport(peptideTable, prunedReferenceTable, peptideOutput);
 
-		int passingPeptides = countPeptidesPassingPEPThreshold(peptideTable, fdr);
+		int passingPeptides = countAtOrBelow(peptideTable, PyIsoPEPRunner.Q_VALUE_COLUMN, fdr);
+		int passingPeptidesAtPEP = countAtOrBelow(peptideTable, PyIsoPEPRunner.PEP_COLUMN, fdr);
 
 		Logger.logLine(
 				"Wrote " + rescoredFeatures.getName() + " (" + prunedReferenceTable.size() + " rows including decoys)");
 		Logger.logLine("Wrote " + psmOutput.getName() + " (" + psmTable.size() + " reference target PSMs)");
 		Logger.logLine(
 				"Wrote " + peptideOutput.getName() + " (" + peptideTable.size() + " reference target peptides from "
-						+ peptideRows + " deduplicated rows, " + passingPeptides + " at " + (fdr * 100f) + "% FDR)");
+						+ peptideRows + " deduplicated rows; " + passingPeptides + " at q <= " + fdr + ", "
+						+ passingPeptidesAtPEP + " at PEP <= " + fdr + ")");
 		Logger.logLine("Results are under " + engineDirectory.getAbsolutePath());
 
 		return new ContextPercolatorResult(model, nativeWeights, averagedWeights, rescoredFeatures, psmOutput,
 				peptideOutput, rawPsmReport, rawPeptideReport, psmTable.size(), peptideTable.size(), passingPeptides,
-				fdr);
+				passingPeptidesAtPEP, fdr);
 	}
 
 	private static PercolatorWeights train(File prunedBackground, File fasta, HashMap<String, String> encyclopediaArgs,
@@ -249,13 +251,23 @@ public class ContextPercolator {
 		}
 	}
 
-	private static int countPeptidesPassingPEPThreshold(PyIsoPEPRunner.Table table, float fdr) {
+	/**
+	 * Counts rows whose value in {@code column} is at or below {@code threshold}. A non-numeric value is skipped,
+	 * as before, so one bad report does not stop a multi-file run, but each skipped row is logged as a warning.
+	 */
+	static int countAtOrBelow(PyIsoPEPRunner.Table table, String column, float threshold) {
+		// Compare against the decimal the threshold was given as: (double) 0.01f is 0.0099999998, which would
+		// drop values reported as exactly 0.01.
+		double limit = Double.parseDouble(Float.toString(threshold));
 		int passing = 0;
 		for (String[] row : table.getRows()) {
+			String value = table.get(row, column).trim();
 			try {
-				if (Double.parseDouble(table.get(row, PyIsoPEPRunner.Q_VALUE_COLUMN).trim()) <= fdr)
+				if (Double.parseDouble(value) <= limit)
 					passing++;
 			} catch (NumberFormatException nfe) {
+				Logger.errorLine("Warning: skipping a pyIsoPEP row with a non-numeric [" + column + "] value [" + value
+						+ "] (row " + (row.length > 0 ? row[0] : "") + "); it is not counted.");
 			}
 		}
 		return passing;

@@ -1149,7 +1149,7 @@ Remaining distinctions:
 
 ### Approved checklist — plan r1
 
-- [ ] `CTX018-001` Report peptides at PEP ≤ 0.01 alongside the existing q ≤ 0.01 count in `ContextPercolator` (`countPeptidesPassingPEPThreshold` currently counts q-values); keep the existing count and label both. Files: `percolator/ContextPercolator.java`, `ContextPercolatorResult.java`, tests. Check: unit test with known q/PEP values.
+- [x] `CTX018-001` Report peptides at PEP ≤ 0.01 alongside the existing q ≤ 0.01 count in `ContextPercolator` (`countPeptidesPassingPEPThreshold` currently counts q-values); keep the existing count and label both. Files: `percolator/ContextPercolator.java`, `ContextPercolatorResult.java`, tests. Check: unit test with known q/PEP values.
 - [ ] `CTX018-002` Add `docs/validation/ctx018_compare.py`, importing Context-MS as an installed package (no Context-MS edits). Compares row counts, features kept, weights, reference scores, and peptide counts at PEP ≤ 0.01 and q ≤ 0.01; computes the final metrics; records versions, seeds, and parameters. Also exports Context-MS mProphet folds for `CTX018-009`. Depends on: none. Check: runs on Context-MS `example/` (kept outside the repo; provenance recorded). **Superseded** by `CTX018-017` (r2, approved 2026-10-31).
 - [ ] `CTX018-003` Record the starting gap: run both tools, both engines, on `example/` and (when available) Ariana's comparison file before any code change, with Percolator v3.05. Files: log only. Check: commands, versions, outputs, and metrics recorded. **Superseded** by `CTX018-018` (r2, approved 2026-10-31).
 - [ ] `CTX018-004` Add a `q2pep` method to `PyIsoPEPRunner` with Context-MS's arguments, and use it in the Context Percolator workflow; keep `runD2PEP` for other workflows. Files: `percolator/PyIsoPEPRunner.java`, `ContextPercolator.java`, tests. Check: command unit test; comparison on `example/`.
@@ -1200,7 +1200,7 @@ r2 phase order:
 
 r1 tasks marked "proposed superseded" above become `Superseded` only when r2 is approved. (Done 2026-10-31: `002`, `003`, `005`, `008`, `009`, `010` and the r1 option B criterion are now marked **Superseded**.)
 
-- [ ] `CTX018-017` (replaces `002`) Add `docs/validation/ctx018_compare.py`, importing Context-MS `d207f47` as an installed package (no Context-MS edits).
+- [x] `CTX018-017` (replaces `002`) Add `docs/validation/ctx018_compare.py`, importing Context-MS `d207f47` as an installed package (no Context-MS edits).
   - It computes the r2 gates, criteria and report-only metrics, plus noise floors; records versions, binary sha256, seeds and parameters; and writes a per-phase metrics table.
   - It exports Context-MS mProphet folds and per-iteration passing counts by wrapping `context.mprophet._split_kfold` and the fold-level passing step inside the script, not by re-implementing numpy's random generator.
   - Depends on: none.
@@ -1214,7 +1214,7 @@ r1 tasks marked "proposed superseded" above become `Superseded` only when r2 is 
   - Count rows per peptide in the comparison file (`example/` has exactly one row per peptide).
   - Files: log only.
   - Check: commands, versions, outputs and metrics recorded.
-- [ ] `CTX018-019` Add `-seed <int>` to the `percolator` (`ContextPercolatorExecutorCLI`) and `mprophet` (`ContextMProphetCLI`) commands.
+- [x] `CTX018-019` Add `-seed <int>` to the `percolator` (`ContextPercolatorExecutorCLI`) and `mprophet` (`ContextMProphetCLI`) commands.
   - Default 1 (`TrainingSeeds.DEFAULT_SEED`), checked with `TrainingSeeds.requireValid`, passed to `ContextPercolator.trainAndApply(..., seed)` and `runContextMProphet(..., seed)`.
   - Make parameter construction match `AllWorkflowExecutorCLI` so the same seed gives the same results from either entry point.
   - Update help.
@@ -1352,3 +1352,89 @@ r1 tasks marked "proposed superseded" above become `Superseded` only when r2 is 
 - **Plan.** Canonical plan r2 gains an "Approved clarification — 2026-10-31" section that records the answers to open questions 1–3. Following the CTX-016 precedent, this is a clarification within r2, not a new revision.
 - **Guide.** The Google implementation record is updated: open question 2 is checked and annotated, and a decision-log row is added. The commit is recorded there after the push.
 - **Next:** `CTX018-001` (Phase 0). No implementation has started.
+
+#### 2026-10-31 — Phase 0 implementation: `CTX018-001`, `017`, `018`, `019`
+
+Ariana asked to start the implementation with all Phase 0 tasks. The order followed the plan's dependencies: `017` (script), then `018` (baseline, before any Java change), then `001` and `019`. No commit has been made for this work.
+
+- **Environment, with deviations from the documented setup:**
+  - Only JDK 21 (`openjdk 21.0.12.1`) is installed, so builds and tests ran on JDK 21 with `-Dmaven.compiler.release=17`, which checks Java 17 language and API compatibility. A JDK 17 *runtime* was not exercised.
+  - `./build.sh maven` fails on an existing bug: `readonly MAVEN_REPO` is declared twice (lines 43–44). That is outside CTX-018 and was not fixed. Maven 3.9.9 was installed by hand using the script's own URL and location (`build-cache/apache-maven-3.9.9`).
+  - Python: `tools/ctx018-py` (ignored) with numpy 2.5.4, pandas 3.1.0, scipy 1.18.1, pyIsoPEP 0.1.4, and Context-MS `d207f47` installed with `--no-deps` from a clean clone. The freeze is in `tmp/ctx018/pip-freeze.txt`.
+  - Percolator: the 6.9.23 jar's `bin/percolator-v3-05.lin` was extracted to `tools/ctx018-bin/` (sha256 `3bd83c21…72bd`) and put on `PATH` as `percolator` for Context-MS. Context used `-percolatorVersion v3-05`, which extracts the same bundled binary. Both logs report `Percolator version 3.05.0, Build Date Feb 18 2021`.
+  - Data: Context-MS `example/` was copied to `tmp/ctx018/data/` (sha256 identical to the originals; background 53,998 rows, reference 264 rows = 132 targets + 132 decoys, one row per peptide).
+  - Context requires `-f`, but its Context Percolator and mProphet paths do not pass the FASTA to the engines, so a one-entry placeholder FASTA was used. Split inputs without sidecars needed `--allow-legacy-features true`.
+- **`CTX018-017` — done.** Added `docs/validation/ctx018_compare.py` with two subcommands:
+  - `run-context-ms`: fresh per-seed directories plus `provenance.json`. With `--export-folds`, it writes `folds.tsv` and `iterations.tsv` by wrapping `context.mprophet._split_kfold`, `_inner_loop` and `train`.
+  - `compare`: the r2 gates, the peptide criterion (max of 2% or 1 peptide), consensus-z scores, noise floors, and the report-only metrics, including Percolator per-fold weights at the same seed.
+  - Check: the wrapped mProphet seed-1 run and an unwrapped run produced byte-identical weights and peptide report (passive).
+- **`CTX018-018` — `example/` done; the comparison-file baseline is pending until Ariana supplies the file.**
+  - Context-MS: seeds 1–10, both engines, about 4–9 s per run.
+  - Context: seed 1 on the unmodified jar (`821ec25`, kept as `tmp/ctx018/context-baseline-821ec25.jar`).
+  - Determinism: a repeat at seed 1 was byte-identical for both tools and both engines.
+  - Current Context training command (`*.command.txt`): `-y --maxiter 3 --no-terminate -N 500000 --testFDR 0.01 --trainFDR 0.01`. This settles the `-Y`/`-y` question: Context uses `-y`. It also shows that Context trains with only 3 iterations (the round-1 recalibration cap).
+  - Starting gap at seed 1:
+    - Percolator: N (PEP ≤ 0.01) 21 vs Context-MS seed 1 27. Per-fold weights at the same seed differ (maximum absolute difference 53.1), as expected from the different arguments.
+    - mProphet: 35 vs 35.
+  - Context-MS's own seed spread:
+    - Percolator: N is **0** for seeds 3, 4 and 8 and 22–28 otherwise (median 23.5). The leave-one-out z noise floor is 0.14.
+    - mProphet: N = 35 for every seed; z noise floor 0.031.
+  - The Percolator zeros are real. pyIsoPEP's smallest q is 0.5/(T + 0.5), where T is the number of targets above the best decoy (36–43 of 132), so the smallest `q2pep` PEP lands just above or just below 0.01. On small reference sets, the PEP ≤ 0.01 count is therefore a cliff. This needs Ariana's threshold review.
+  - Neither tool reaches q ≤ 0.01 on `example/`.
+  - Context-MS seed 1 shows the H2 problem on real data: kept-model passing counts 128 and 128 sit at ranks 25 and 26.
+- **`CTX018-001` — done.** `ContextPercolator` reports both counts, and `ContextPercolatorResult` gains `getPEPPassingPeptideCount()`; the existing `getPassingPeptideCount()` still means q ≤ threshold. Log line example: `0 at q <= 0.01, 21 at PEP <= 0.01`.
+  - The old private method was named `countPeptidesPassingPEPThreshold` but counted q-values. It is replaced by `countAtOrBelow(table, column, threshold)`.
+  - Two behavior corrections, for Ariana's review:
+    - A value exactly at the threshold now counts. Before, `(double) 0.01f` = 0.0099999998 excluded values of exactly 0.01, so the old q count could be one lower at the boundary.
+    - A non-numeric pyIsoPEP value is now an `IOException`, not a silently skipped row (CLAUDE.md error rule).
+  - Test: `ContextPercolatorCountTest` (3 tests).
+- **`CTX018-019` — done.** `-seed <int>` on `percolator` (split and raw routes) and `mprophet`, parsed by the new `TrainingSeeds.parseSingle` (default 1; rejects 0, negatives, non-integers, lists and overflow).
+  - `percolator -standardPercolator -seed` is rejected, because the standard workflow is out of scope.
+  - The raw Percolator route gained a `runContextPercolator(..., trainingSeed)` overload. The existing signatures delegate with seed 1.
+  - `ContextMProphetCLI` now builds its parameters through `AllWorkflowExecutorCLI.parseSearchParameters(SearchParameterParser.getDefaultParameters(), fdr)` (made package-private), which is how AllWorkflow builds them.
+  - A bug in my first edit was caught and fixed before testing: `encyclopediaArguments()` removes `-seed` from the map, so the seed is now read first.
+  - Help text and README updated.
+  - Checks:
+    - `ContextSeedOptionTest` (3 tests): the CLI with `-seed 3` matches the AllWorkflow step with seed 3 byte for byte; no `-seed` equals seed 1; invalid seeds are rejected before any output.
+    - `TrainingSeedsTest` (+1).
+    - End to end on `example/` with the new jar: without `-seed`, all Percolator and mProphet outputs are byte-identical to the `821ec25` baseline; with `-seed 3`, every output differs and `*.command.txt` holds `--seed 3`.
+    - `AllWorkflowExecutorCLI --seeds 3` (status COMPLETE) is byte-identical to `percolator -seed 3` and `mprophet -seed 3` for weights, reports and rescored features. That covers the Percolator equivalence that the JUnit test does not.
+- **Phase 0 end measurement** (Context seeds 1–10 via `-seed`, algorithms unchanged; `tmp/ctx018/metrics/phase0-*`):
+  - Percolator: Context median N 18.5 vs Context-MS 23.5 (difference −5, tolerance 1): **not met**, and flagged because the tolerance is narrower than Context-MS's own spread (0–28). Scores: median of run medians 0.169 (limit 0.20): met, against a Context-MS noise floor of 0.14.
+  - mProphet: Context median N 35 vs 35: met. Scores 0.025: met. These are interim `example/` results only.
+  - Gates pass for every run.
+- **Test commands:**
+  - Baseline, unmodified (`821ec25`): `build-cache/apache-maven-3.9.9/bin/mvn -B -Dmaven.repo.local=build-cache/m2-repository -Dmaven.compiler.release=17 test` gave 148 tests, 3 failures, 0 errors, 6 skipped. The 3 failures already existed and are Scribe-related: `ScribeFeatureTableTest` ×2 and `ContextScribeTwoBridgeTest` ×1.
+  - After the change, the same command with `tools/ctx018-py/bin` on `PATH`: 155 tests, the same 3 failures, 0 errors, 4 skipped. The 2 pyIsoPEP tests now run, and no new failures appeared.
+  - Package: `-Ppackage -Dmaven.test.skip=true verify` succeeded.
+- **Outputs:** everything is under `tmp/ctx018/` (ignored): runs, logs, metrics and jars. Nothing is published.
+- **Next:**
+  - Ariana reviews the two `001` boundary corrections and the PEP-cliff observation.
+  - Run `018` on the comparison file when it is available.
+  - Phase 1 (`004`, `020`) only on Ariana's instruction.
+  - Nothing is committed; committing needs Ariana's authorization.
+
+#### 2026-10-31 — Phase 0 follow-ups from Ariana's review (uncommitted)
+
+- **PEP ≤ 0.01 jump.** Running pyIsoPEP `q2pep` exactly as Context-MS calls it (`pep_regression(method="q2pep", calc_q_from_fdr=True)`) on Context's own Phase 0 scores gives N = 0 for seeds 2, 7 and 10 and 17–26 for the others. Context-MS shows the same pattern (0 for seeds 3, 4, 8).
+  - Context does not show the jump today only because it still uses `d2pep`; after `CTX018-004` both tools will.
+  - Mechanism (refined): on `example/` no q-value falls below about 0.0115 (smallest q 0.0115–0.0154). Any PEP ≤ 0.01 therefore comes from the pyIsoPEP fit extending below the lowest observed q, and whether it does varies by seed in both tools.
+  - Ariana: the behavior is shared and data-specific, and she is exploring it separately. Implementation continues.
+  - Risk to `CTX018-026`: on a reference set like this, the number of zero seeds per tool can move the median by about 20 peptides, far more than the ±1-peptide tolerance. Check the comparison file's smallest q before relying on the criterion.
+  - `ctx018_compare.py` now also reports `min_q` and `min_pep` for each run (report-only).
+- **`CTX018-001` corrections.** Ariana approved counting values exactly at the threshold, which supports accepting PEP = 0.01. For a non-numeric pyIsoPEP value she asked to keep the legacy skip, so a multi-file experiment such as targeted bootstrapping keeps going when a few of many files fail, but with a warning.
+  - `countAtOrBelow` now skips the row and logs `Warning: skipping a pyIsoPEP row with a non-numeric [...] value [...] (row <id>); it is not counted.`
+  - Test updated: `aNonNumericValueIsSkippedWithAWarningAndTheRunContinues`. The warnings appear in the test output.
+- **Environment.** The JDK limitation is the cloud container's, not the Python virtual environment's: the container has only OpenJDK 21. Tests compile with `--release 17`, which checks Java 17 compatibility; a JDK 17 runtime was not used.
+- **`build.sh` (outside CTX-018, authorized by Ariana).** Fixed:
+  - the duplicate `readonly MAVEN_REPO`, keeping the line that honors `CONTEXT_MAVEN_REPO`;
+  - in `setup_javapot`: `local x = ...` → `local x=...` (three lines), the mismatched `[ ... } && { ... ]` test, and `-f-` → `-f`.
+  - Not changed: the duplicated first `build_sif()` definition (the second definition wins, so it is harmless), and `-Dmaven.javac.skip=true`, which is not a real Maven property, so compilation runs anyway.
+  - Checks:
+    - `bash -n build.sh` passes.
+    - `./build.sh maven` runs, using the `mvn` 3.9.11 already on `PATH`.
+    - An unknown target prints the usage line.
+    - `CONTEXT_MAVEN_REPO=/tmp/ctx018/m2-javapot-test ./build.sh javapot` cloned JavaPot `84a59af`, built and installed `javapot-1.0.5.jar` (89 entries, same count as `libs/`) and wrote the revision file. A second run took the cached path.
+    - `./build.sh jar` and `sif` were not run.
+- **Tests:** same Maven command as before, with pyIsoPEP on `PATH`: 155 tests, 3 failures (the same existing Scribe failures), 0 errors, 4 skipped.
+- **Next:** Ariana authorizes the Phase 0 commit; Phase 1 on her instruction.

@@ -229,6 +229,7 @@ java -jar context.jar mprophet \
 | `-o` | next to the input | output directory |
 | `-prefix` | the acquisition's name | base name for the output files |
 | `-fdr` | `0.01` | peptide FDR threshold used for reporting |
+| `-seed` | `1` | training seed for the background model (`percolator` and `mprophet`; not with `-standardPercolator`). The same seed and inputs give the same results as `AllWorkflowExecutorCLI --seeds` for that seed |
 | `-pyisopep` | look on `PATH` | path to the `pyisopep` executable (`percolator` only) |
 | `--allow-legacy-features` | `false` | accept older direct split files without pair sidecars (`percolator` and `mprophet`) |
 | `--prediction-store` | `prediction-cache` beside the acquisition | folder for stored predictions and shared working libraries (`features`, `features-folder`, and raw `percolator` and `mprophet` runs) |

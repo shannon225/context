@@ -381,7 +381,7 @@ public final class AllWorkflowExecutorCLI {
 		return result;
 	}
 
-	private static SearchParameters parseSearchParameters(HashMap<String, String> encyclopediaArguments, float fdr) {
+	static SearchParameters parseSearchParameters(HashMap<String, String> encyclopediaArguments, float fdr) {
 		HashMap<String, String> parameterMap = SearchParameterParser.getDefaultParametersObject().toParameterMap();
 		parameterMap.putAll(encyclopediaArguments);
 		parameterMap.put("-percolatorThreshold", Float.toString(fdr));

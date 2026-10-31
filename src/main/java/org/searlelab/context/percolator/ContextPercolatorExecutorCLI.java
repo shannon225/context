@@ -28,11 +28,16 @@ public class ContextPercolatorExecutorCLI {
 		try {
 			float fdr = Float.parseFloat(arguments.getOrDefault("-fdr", Float.toString(DEFAULT_FDR)));
 			PyIsoPEPRunner pyIsoPEP = new PyIsoPEPRunner(arguments.get("-pyisopep"));
+			// Read before encyclopediaArguments(), which removes Context's own flags from the map.
+			int trainingSeed = TrainingSeeds.parseSingle(arguments.get("-seed"));
 
 			boolean standardPercolator = DirectoryOptions.isEnabled(arguments, "-standardPercolator");
 			
 			if (standardPercolator) {
 				rejectStoreOptionsWithoutRawInput(arguments);
+				if (arguments.containsKey("-seed")) {
+					throw new IllegalArgumentException("-seed applies to the Context workflow, not -standardPercolator");
+				}
 				File features = requiredFile(arguments, "-features");
 				File fasta = requiredFile(arguments, "-f");
 				
@@ -59,7 +64,7 @@ public class ContextPercolatorExecutorCLI {
 				HashMap<String, String> encyclopediaArgs = encyclopediaArguments(arguments);
 
 				ContextPercolator.trainAndApply(background, reference, fasta, encyclopediaArgs, pyIsoPEP, fdr,
-						outputDirectory, prefix);
+						outputDirectory, prefix, trainingSeed);
 			} else {
 				File dia = requiredFile(arguments, "-i");
 				File library = requiredFile(arguments, "-l");
@@ -74,7 +79,7 @@ public class ContextPercolatorExecutorCLI {
 				HashMap<String, String> encyclopediaArgs = encyclopediaArguments(arguments);
 
 				ContextPercolatorExecutor.runContextPercolator(library, fasta, dia, massList, pyIsoPEP, fdr, outputDirectory, prefix, generateDecoys,
-						encyclopediaArgs, 0, scoringOptions);
+						encyclopediaArgs, 0, scoringOptions, trainingSeed);
 			}
 		} catch (Exception e) {
 			Logger.errorLine("ContextPercolatorExecutor failed: " + e.getMessage());
@@ -85,7 +90,7 @@ public class ContextPercolatorExecutorCLI {
 
 	private static HashMap<String, String> encyclopediaArguments(HashMap<String, String> arguments) {
 		HashMap<String, String> parameters = SearchParameterParser.getDefaultParameters();
-		for (String contextFlag : new String[] { "-i", "-l", "-f", "-massList", "-fdr", "-o", "-outdir", "-prefix",
+		for (String contextFlag : new String[] { "-i", "-l", "-f", "-massList", "-fdr", "-o", "-outdir", "-prefix", "-seed",
 					"-background", "-reference", "-features", "-standardPercolator", "-pyisopep", "-generateDecoys", "--allow-legacy-features",
 					"--prediction-store", "--clear-stale-store-lock", "-h", "-help", "--help" }) {
 			arguments.remove(contextFlag);
@@ -169,6 +174,7 @@ public class ContextPercolatorExecutorCLI {
 		Logger.timelessLogLine("  -fdr      <float>  peptide FDR threshold (default: " + DEFAULT_FDR + ")");
 		Logger.timelessLogLine("  -o        <dir>    output directory (default: next to the input)");
 		Logger.timelessLogLine("  -prefix   <name>   base name for output files");
+		Logger.timelessLogLine("  -seed     <int>    Context background training seed (default: " + TrainingSeeds.DEFAULT_SEED + "); not for -standardPercolator");
 		Logger.timelessLogLine("  -generateDecoys    add entrapment decoys when the mass list has none;");
 		Logger.timelessLogLine("                     a list that already has decoys is used unchanged");
 		Logger.timelessLogLine("");
