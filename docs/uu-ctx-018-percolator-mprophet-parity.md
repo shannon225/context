@@ -163,6 +163,21 @@ Ariana decided the three open questions above on 2026-10-31 and approved recordi
    - The existing seed-experiment rejection of `-percolatorModelFile` is unchanged.
 3. **q2pep:** a hard change. The Context Percolator workflow always uses pyIsoPEP `q2pep --calc-q-from-fdr`, and the README gets a migration note. `d2pep` stays for the standard and targeted workflows. A user option in Context (Java) to choose `d2pep` or `q2pep` is a future direction, not part of CTX-018.
 
+## Approved clarification — 2026-10-31 (Phase 1 decisions)
+
+Ariana decided these during Phase 1 on 2026-10-31. They clarify revision 2; they do not create a new revision.
+
+1. **Gate 2 (validity):** "PEP never decreases as score decreases" is checked at **peptide level only**. At PSM level, pyIsoPEP `q2pep` orders rows with tied q-values by input row, so both Context-MS and Context break it at the same rows. That count is reported for information. The finiteness and [0, 1] checks apply at both levels.
+2. **Percolator v3.01:** keep Context-MS's training arguments exactly, without `--no-terminate`. Where Context's default v3.01 cannot find an initial direction, as on `example/`, it fails clearly, and `-percolatorVersion v3-05` is the remedy.
+
+## Approved addendum — 2026-10-31 (`CTX018-029`)
+
+Ariana added this task to CTX-018 on 2026-10-31. It is an addendum within revision 2, not a new revision. It replaces the "future direction" in clarification item 3 above.
+
+- `--pepMethod q2pep|d2pep` selects the pyIsoPEP method for the Context Percolator workflow, on `percolator` and `AllWorkflowExecutorCLI`.
+- The default is `q2pep`, so parity runs are unchanged. The standard and targeted workflows are unaffected.
+- New word options use the `--` form (GNU convention); existing options are not renamed.
+
 ## Superseded historical revision 1 — retained for reference only
 
 # CTX-018 — Approved canonical scope, revision 1 (superseded)

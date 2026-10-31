@@ -316,7 +316,16 @@ def z_scores(run):
     return pd.Series((targets["score"].to_numpy() - decoys.mean()) / sd, index=targets["id"].to_numpy())
 
 
+def pep_order_violations(report):
+    """Adjacent pairs, ordered by score, where PEP drops as the score drops."""
+    ordered = report.sort_values("score", ascending=False, kind="mergesort")
+    score, pep = ordered["score"].to_numpy(), ordered["pep"].to_numpy()
+    return int(((np.diff(score) < 0) & (np.diff(pep) < -MONOTONE_TOLERANCE)).sum())
+
+
 def validity(run):
+    """Gate 2. PEP monotonicity is a peptide-level gate only (Ariana, 2026-10-31): at PSM level pyIsoPEP q2pep
+    orders tied q-values by input row, so both tools break it there; that count is reported, not gated."""
     problems = []
     if not np.isfinite(run.rows["score"]).all():
         problems.append("non-finite reference score")
@@ -327,11 +336,8 @@ def validity(run):
         for column in ("q", "pep"):
             if ((report[column] < 0) | (report[column] > 1)).any():
                 problems.append(f"{name}: {column} outside [0, 1]")
-        ordered = report.sort_values("score", ascending=False, kind="mergesort")
-        score, pep = ordered["score"].to_numpy(), ordered["pep"].to_numpy()
-        strictly_lower = np.diff(score) < 0
-        if (np.diff(pep)[strictly_lower] < -MONOTONE_TOLERANCE).any():
-            problems.append(f"{name}: PEP decreases as score decreases")
+    if pep_order_violations(run.peptides):
+        problems.append("peptide: PEP decreases as score decreases")
     return problems
 
 
@@ -421,6 +427,7 @@ def compare(args):
         "loo_median_relative_z_difference": float(np.median(loo)) if loo else None,
         "consensus_rows_abs_z_ge_1": int((consensus.abs() >= Z_ROW_MINIMUM).sum()),
         "validity_problems": {r.seed: validity(r) for r in ms_runs},
+        "psm_pep_order_violations_by_seed": {r.seed: pep_order_violations(r.psms) for r in ms_runs},
     }
 
     if context_runs:
@@ -441,6 +448,7 @@ def compare(args):
                                   "peptide_keys_equal": set(run.peptides["peptide"]) == ms_peptides,
                                   "targets": len(targets), "decoys": len(decoys)},
                 "gate_validity_problems": validity(run),
+                "psm_pep_order_violations": pep_order_violations(run.psms),
                 "N": count_passing(run.peptides, "pep", PEP_THRESHOLD),
                 "q_count": count_passing(run.peptides, "q", Q_THRESHOLD),
                 "min_q": float(run.peptides["q"].min()), "min_pep": float(run.peptides["pep"].min()),

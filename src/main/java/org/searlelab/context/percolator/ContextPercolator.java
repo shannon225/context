@@ -77,7 +77,7 @@ public class ContextPercolator {
 				+ counts[1] + " decoys) with the background model");
 
 		File rawPsmReport = new File(workingDirectory, prefix + ".psm.pyisopep.txt");
-		PyIsoPEPRunner.Table psmTable = pyIsoPEP.runD2PEP(rescoredFeatures, rawPsmReport, SCORE_COLUMN,
+		PyIsoPEPRunner.Table psmTable = pyIsoPEP.runPEP(rescoredFeatures, rawPsmReport, SCORE_COLUMN,
 				prunedReferenceTable.getHeader()[EncyclopediaFeatures.LABEL_INDEX], TARGET_LABEL, DECOY_LABEL);
 
 		File psmOutput = new File(engineDirectory, prefix + ".psm.reference.txt");
@@ -87,7 +87,7 @@ public class ContextPercolator {
 		int peptideRows = writeBestPerPeptide(rescoredFeatures, prunedReferenceTable, peptideInput);
 
 		File rawPeptideReport = new File(workingDirectory, prefix + ".peptide.pyisopep.txt");
-		PyIsoPEPRunner.Table peptideTable = pyIsoPEP.runD2PEP(peptideInput, rawPeptideReport, SCORE_COLUMN,
+		PyIsoPEPRunner.Table peptideTable = pyIsoPEP.runPEP(peptideInput, rawPeptideReport, SCORE_COLUMN,
 				prunedReferenceTable.getHeader()[EncyclopediaFeatures.LABEL_INDEX], TARGET_LABEL, DECOY_LABEL);
 
 		File peptideOutput = new File(engineDirectory, prefix + ".peptide.reference.txt");
@@ -130,7 +130,7 @@ public class ContextPercolator {
 		Files.deleteIfExists(trainingRun.getWeightsFile(FIRST_ROUND).toPath());
 
 		Logger.logLine("Training Percolator on the background with seed " + seed + "...");
-		ContextPercolatorRunner.executePercolatorTSV(version, trainingRun, fdr, parameters.getAAConstants(), FIRST_ROUND, seed);
+		ContextPercolatorRunner.executePercolatorTSV(version, trainingRun, fdr, parameters.getAAConstants(), FIRST_ROUND, seed, true);
 
 		File trainedModel = trainingRun.getModelFile();
 		if (!trainedModel.exists() || !trainedModel.canRead()) {

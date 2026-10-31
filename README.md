@@ -9,7 +9,12 @@ Context trains the discriminant on that background and applies it to the referen
 Two engines can realize this:
 
 * `percolator`: trains Percolator on the background peptides, applies the model to the reference
-  peptides. q-values and PEPs from [pyIsoPEP](https://github.com/statisticalbiotechnology/smooth_q_to_pep).
+  peptides. q-values and PEPs from [pyIsoPEP](https://github.com/statisticalbiotechnology/smooth_q_to_pep)
+  `q2pep --calc-q-from-fdr`, as in Context-MS. Background training uses Context-MS's Percolator arguments
+  (`--post-processing-tdc --override --protein-report-duplicates`, Percolator's own defaults otherwise);
+  EncyclopeDIA's Percolator training options are not applied and trigger a warning if set.
+  *Changed in CTX-018:* earlier versions used `d2pep`, `-y`, `--maxiter 3` and EncyclopeDIA's `-N`/FDR settings,
+  so `posterior_error_prob` values and Percolator weights from older Context Percolator runs are not comparable.
 * `mprophet`: trains an mProphet LDA on the background peptides, applies it to the reference
   peptides. q-values from Benjamini-Hochberg, PEPs from Storey's method.
 
@@ -231,6 +236,7 @@ java -jar context.jar mprophet \
 | `-fdr` | `0.01` | peptide FDR threshold used for reporting |
 | `-seed` | `1` | training seed for the background model (`percolator` and `mprophet`; not with `-standardPercolator`). The same seed and inputs give the same results as `AllWorkflowExecutorCLI --seeds` for that seed |
 | `-pyisopep` | look on `PATH` | path to the `pyisopep` executable (`percolator` only) |
+| `--pepMethod` | `q2pep` | pyIsoPEP method for Context Percolator q-values and PEPs: `q2pep` (as in Context-MS) or `d2pep` (`percolator` and `AllWorkflowExecutorCLI`; not with `-standardPercolator`) |
 | `--allow-legacy-features` | `false` | accept older direct split files without pair sidecars (`percolator` and `mprophet`) |
 | `--prediction-store` | `prediction-cache` beside the acquisition | folder for stored predictions and shared working libraries (`features`, `features-folder`, and raw `percolator` and `mprophet` runs) |
 | `--clear-stale-store-lock` | `false` | clear a prediction store lock left by an interrupted run (same commands) |

@@ -14,6 +14,7 @@ import java.util.stream.Stream;
 import org.searlelab.context.encyclopedia.MProphetReiter;
 import org.searlelab.context.percolator.ContextPercolator;
 import org.searlelab.context.percolator.ContextPercolatorExecutor;
+import org.searlelab.context.percolator.ContextTrainingOptions;
 import org.searlelab.context.percolator.ContextPercolatorResult;
 import org.searlelab.context.percolator.PyIsoPEPRunner;
 import org.searlelab.context.percolator.TrainingSeeds;
@@ -98,8 +99,13 @@ public final class AllWorkflowExecutorCLI {
 			List<Integer> seeds = arguments.containsKey("--seeds") ? TrainingSeeds.parse(arguments.get("--seeds")) : null; 
 			File fasta = requiredReadableFile(arguments, "-f");
 			float fdr = Float.parseFloat(arguments.getOrDefault("-fdr", Float.toString(DEFAULT_FDR)));
-			PyIsoPEPRunner pyIsoPEP = new PyIsoPEPRunner(arguments.get("--pyisopep"));
+			PyIsoPEPRunner pyIsoPEP = new PyIsoPEPRunner(arguments.get("--pyisopep"),
+					PyIsoPEPRunner.PepMethod.parse(arguments.get("--pepMethod")));
 			HashMap<String, String> encyclopediaArguments = encyclopediaArguments(arguments);
+			// Preflight, once and before any workflow starts.
+			ContextTrainingOptions.warn(ContextTrainingOptions.percolatorConflicts(encyclopediaArguments, fdr),
+					"The standard and targeted workflows will apply these values; the Context workflows will not, "
+							+ "so their settings differ in this run.");
 
 			if (folderMode) {
 				File featuresFolder = requiredReadableDirectory(arguments, "--features-folder");
@@ -503,7 +509,7 @@ public final class AllWorkflowExecutorCLI {
 		HashMap<String, String> parameters = SearchParameterParser.getDefaultParameters();
 		HashMap<String, String> remaining = new HashMap<>(arguments);
 
-		for (String workflowFlag : new String[] { "--features-folder", "--features", "--background", "--reference", "--seeds",
+		for (String workflowFlag : new String[] { "--features-folder", "--features", "--background", "--reference", "--seeds", "--pepMethod",
 				"-f", "-fdr", "-o", "-outdir", "--outdir", "--prefix", "--pyisopep", "-h", "-help", "--help" }) {
 			remaining.remove(workflowFlag);
 		}
@@ -531,6 +537,7 @@ public final class AllWorkflowExecutorCLI {
 		Logger.timelessLogLine("  -o        <dir>   output root (default: next to -features)");
 		Logger.timelessLogLine("  --prefix   <name>  output filename prefix");
 		Logger.timelessLogLine("  --pyisopep <path>  pyIsoPEP executable (default: PATH)");
+		Logger.timelessLogLine("  --pepMethod <q2pep|d2pep>  pyIsoPEP method for Context Percolator (default: q2pep)");
 		Logger.timelessLogLine("");
 		Logger.timelessLogLine("Other flags are passed through to EncyclopeDIA parameters.");
 		Logger.timelessLogLine("");

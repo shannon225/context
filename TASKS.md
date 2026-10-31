@@ -1152,7 +1152,7 @@ Remaining distinctions:
 - [x] `CTX018-001` Report peptides at PEP ≤ 0.01 alongside the existing q ≤ 0.01 count in `ContextPercolator` (`countPeptidesPassingPEPThreshold` currently counts q-values); keep the existing count and label both. Files: `percolator/ContextPercolator.java`, `ContextPercolatorResult.java`, tests. Check: unit test with known q/PEP values.
 - [ ] `CTX018-002` Add `docs/validation/ctx018_compare.py`, importing Context-MS as an installed package (no Context-MS edits). Compares row counts, features kept, weights, reference scores, and peptide counts at PEP ≤ 0.01 and q ≤ 0.01; computes the final metrics; records versions, seeds, and parameters. Also exports Context-MS mProphet folds for `CTX018-009`. Depends on: none. Check: runs on Context-MS `example/` (kept outside the repo; provenance recorded). **Superseded** by `CTX018-017` (r2, approved 2026-10-31).
 - [ ] `CTX018-003` Record the starting gap: run both tools, both engines, on `example/` and (when available) Ariana's comparison file before any code change, with Percolator v3.05. Files: log only. Check: commands, versions, outputs, and metrics recorded. **Superseded** by `CTX018-018` (r2, approved 2026-10-31).
-- [ ] `CTX018-004` Add a `q2pep` method to `PyIsoPEPRunner` with Context-MS's arguments, and use it in the Context Percolator workflow; keep `runD2PEP` for other workflows. Files: `percolator/PyIsoPEPRunner.java`, `ContextPercolator.java`, tests. Check: command unit test; comparison on `example/`.
+- [x] `CTX018-004` Add a `q2pep` method to `PyIsoPEPRunner` with Context-MS's arguments, and use it in the Context Percolator workflow; keep `runD2PEP` for other workflows. Files: `percolator/PyIsoPEPRunner.java`, `ContextPercolator.java`, tests. Check: command unit test; comparison on `example/`.
 - [ ] `CTX018-005` Add a Context-training-only command option in `ContextPercolatorRunner.generateCommand` matching Context-MS (`--post-processing-tdc --override`, Percolator defaults for `-N`, `--maxiter`, `--trainFDR`, `--testFDR`, no `--no-terminate`). Files: `percolator/ContextPercolatorRunner.java`, `ContextPercolator.java`, tests. Check: Context and standard command tests; with v3.05, the same seed and pruned input, per-fold weights match Context-MS. **Superseded** by `CTX018-020` (r2, approved 2026-10-31).
 - [ ] `CTX018-006` Port Context-MS `fdr.py` (Gaussian p-values, BH, π0 over λ = 0.1–0.9 with floor 0.05, Silverman KDE on logit p, monotone PEP) to a small Context class; reuse EncyclopeDIA `BenjaminiHochberg`/`LocalFDR.estimatePi0` only where verified identical. Files: new class under `org.searlelab.context`, tests. Check: JUnit 4 against Python-computed values (q ~1e-6 relative; PEP tolerance set from observed differences and recorded).
 - [ ] `CTX018-007` Context mProphet: best-scoring row per peptide, then recompute q/PEP; additionally write `P.psm.reference.txt` and `P.peptide.reference.txt` (Context-MS columns), deleted and rewritten on rerun like existing outputs. Files: `io/AllWorkflowExecutorCLI.java` (`runContextMProphet`), `encyclopedia/MProphetReiter.java`, tests. Check: identity preservation, tie-breaking, target/decoy counts, existing outputs unchanged.
@@ -1220,7 +1220,7 @@ r1 tasks marked "proposed superseded" above become `Superseded` only when r2 is 
   - Update help.
   - Files: those CLIs, tests, README.
   - Check: invalid seeds rejected; a run without `-seed` matches the current output; on a fixture, `mprophet -seed 3` and `AllWorkflowExecutorCLI --seeds 3` give identical outputs, ignoring paths and logs. The Percolator equivalence test is skipped and recorded if the Percolator binary or pyIsoPEP is missing.
-- [ ] `CTX018-020` (replaces `005`) Add a Context-training-only command in `ContextPercolatorRunner.generateCommand`.
+- [x] `CTX018-020` (replaces `005`) Add a Context-training-only command in `ContextPercolatorRunner.generateCommand`.
   - Training-affecting flags match Context-MS: `--post-processing-tdc --override --protein-report-duplicates`; Percolator defaults for `-N`, `--maxiter`, `--trainFDR`, `--testFDR`; no `--no-terminate`.
   - Keep the output-only flags Context needs: `--seed`, `--weights`, `--results-peptides`, `--decoy-results-peptides`.
   - Handle EncyclopeDIA Percolator options and `-percolatorModelFile` as Ariana decides (open question 2 in the r2 proposal).
@@ -1438,3 +1438,81 @@ Ariana asked to start the implementation with all Phase 0 tasks. The order follo
     - `./build.sh jar` and `sif` were not run.
 - **Tests:** same Maven command as before, with pyIsoPEP on `PATH`: 155 tests, 3 failures (the same existing Scribe failures), 0 errors, 4 skipped.
 - **Next:** Ariana authorizes the Phase 0 commit; Phase 1 on her instruction.
+
+#### 2026-10-31 — Phase 1 implementation: `CTX018-004`, `CTX018-020`, and the Percolator part of `CTX018-028` (uncommitted)
+
+Ariana asked to start Phase 1.
+
+- **`CTX018-004` — done.** `PyIsoPEPRunner.runQ2PEP` runs `q2pep --cat-file … --score-col … --label-col … --target-label 1 --decoy-label -1 --calc-q-from-fdr --output …`, the arguments Context-MS passes. The arguments come from a shared `concatenatedArguments(method, …)`, so `runD2PEP`'s arguments are unchanged; a test pins both lists.
+  - `ContextPercolator` now calls `runQ2PEP` for the PSM-level and peptide-level reports (a hard change, as decided).
+  - The standard and targeted workflows never used pyIsoPEP, so `runD2PEP` now has no production caller. It is kept for the future `d2pep`/`q2pep` option.
+  - Tests: `q2pepUsesContextMSArgumentsAndD2pepIsUnchanged`, and `runsQ2PEPAndReportsTargetsWithQValuesAndPEPs` (runs when pyIsoPEP is on `PATH`; it ran here).
+- **`CTX018-020` — implemented as approved (no `--no-terminate`); one finding below needs Ariana's decision before this is marked done.**
+  - `ContextPercolatorRunner.generateContextTrainingCommand` writes `--seed S --results-peptides … --weights … --decoy-results-peptides … --post-processing-tdc --override --protein-report-duplicates <pin>`. It omits `-N`, `--maxiter`, `--trainFDR`, `--testFDR`, `--no-terminate`, `-y`/`-Y` and `--init-weights`.
+  - Only `ContextPercolator.train` uses it, through a new `executePercolatorTSV(…, contextTraining)` overload. The existing signature and `generateCommand` are unchanged (the existing upstream-parity test still passes).
+  - Percolator 2 is rejected for Context training with a clear error.
+  - Tests: `contextTrainingUsesContextMSArgumentsOnly`, `contextTrainingRejectsPercolatorTwoAndInvalidSeeds`.
+- **`CTX018-028`, Percolator part — done; the mProphet part waits for `CTX018-021`/`025`.**
+  - New `ContextTrainingOptions.percolatorConflicts` and `warn`. An option is a conflict when its parsed value is off the EncyclopeDIA default; `-percolatorThreshold` must also differ from `-fdr`, so `-fdr 0.05` alone does not warn.
+  - Called in `ContextPercolatorExecutorCLI` (both Context routes) and once in `AllWorkflowExecutorCLI.main`, before any workflow, with the note that the standard and targeted workflows apply the values.
+  - Test: `ContextTrainingOptionsTest` (2 tests: defaults, `v3-05`, equivalent spellings and `-percolatorThreshold` = `-fdr` give no warning; each conflicting option is named once).
+  - End to end: `-percolatorTrainingIterations 5` gives one warning block and unchanged Context weights. In AllWorkflow the block appears once, before `[1/6]`; the standard workflow used `--maxiter 5`; the Context Percolator output is byte-identical to `percolator -seed 3`; status COMPLETE.
+- **Phase 1 measurement** (`example/`, seeds 1–10, Percolator v3.05; `tmp/ctx018/metrics/phase1-percolator`):
+  - Per-fold Percolator weights are **identical** to Context-MS at the same seed for all 10 seeds (maximum difference 0.0).
+  - PSM-level and peptide-level reports match Context-MS for every seed: maximum score difference 1.8e-14 (floating-point); q-values and PEPs identical.
+  - N per seed equals Context-MS's (27, 22, 0, 0, 25, 22, 28, 0, 26, 25): median 23.5 vs 23.5, **met**. The tolerance is still narrower than the seed spread; see the PEP-jump entry.
+  - Scores: median of run medians 0.103 vs the consensus (limit 0.20), **met**. This equals Context-MS's own spread, as expected when each Context seed reproduces the same Context-MS seed.
+  - Gate 1 (identity) passes. **Gate 2 (validity) fails for both tools**, as described next.
+- **Gate 2 finding (needs Ariana's decision).** At PSM level, "PEP never decreases as score decreases" fails for every Context-MS run and every Context run, at the same 26 places at seed 1.
+  - Every violation is inside a run of tied q-values. pyIsoPEP `q2pep` assigns PEP by rank among tied q-values in **input-row order**, and the PSM input is the unsorted rescored table, so within a tie a higher-scoring row can get a higher PEP. The largest drop is 0.249.
+  - Peptide level passes, because that input is sorted by score first.
+  - Context reproduces Context-MS exactly here, so this is canonical behavior, not a Context bug. The gate as approved cannot pass at PSM level with `q2pep`.
+  - Options:
+    - (a) Apply the monotonicity gate at peptide level only, and report PSM-level violations as report-only. **Recommended**: keeps exact parity.
+    - (b) Sort the PSM table by score before `q2pep` in Context. This breaks parity with Context-MS unless Context-MS does the same.
+    - (c) Raise the PSM-level behavior with the pyIsoPEP or Context-MS authors.
+- **Percolator v3.01 finding (needs Ariana's decision).** With Context's default Percolator v3.01 and Context-MS's arguments, Percolator stops on `example/` ("cannot find an initial direction with positive training examples … Terminating"; `percolator` exits 2). v3.05 succeeds.
+  - Run directly on the same pin:
+    - v3.01 without `--no-terminate`: exit 1.
+    - v3.01 with `--no-terminate`: completes, but only by "setting initial direction to the first feature" in all three splits.
+    - v3.05 with or without `--no-terminate`: byte-identical weights, equal to Context-MS seed 1.
+  - Options:
+    - (A) Keep Context-MS's arguments as approved: data like this fails clearly on v3.01, and the user needs `-percolatorVersion v3-05`. Optionally add that hint to the error.
+    - (B) Add `--no-terminate` back for Context training: v3.01 completes with the first-feature fallback, results with v3.05 are unchanged here, but it deviates from the approved r2 argument list.
+    - Changing the default version is out of scope.
+- **Side effect noted.** With `--post-processing-tdc`, Percolator prints no `Selecting pi_0`, so the background working file ends with `pi_0=null`. EncyclopeDIA's reader accepted it, and the run completed.
+- **Tests:** `mvn … test` with pyIsoPEP on `PATH`: 161 tests, 3 failures (the same existing Scribe failures), 0 errors, 4 skipped (environment-gated integration tests). `git diff --check` is clean. The phase jar is `tmp/ctx018/context-phase1.jar`.
+- **Next:** Ariana decides gate 2 (a/b/c) and v3.01 (A/B); then mark `CTX018-020` done and commit Phase 1 on her authorization. Phase 2 (`021`, `006`, `007`, `023`) starts on her instruction.
+
+#### 2026-10-31 — Phase 1 decisions recorded (uncommitted)
+
+- **Gate 2, decided by Ariana:** PEP monotonicity is checked at **peptide level only**; it is not necessary at PSM level. `ctx018_compare.py` now gates monotonicity on the peptide-level output and reports the PSM-level count as `psm_pep_order_violations` (report-only). The finiteness and [0, 1] checks still apply at both levels.
+  - Rerun on the Phase 1 outputs: gates pass for all 10 Percolator runs, and for the legacy mProphet runs too.
+  - PSM-level violations per seed are identical in both tools (26, 31, 29, 39, 25, 43, 32, 30, 45, 29), which confirms this is pyIsoPEP's tie ordering.
+- **Percolator v3.01, decided by Ariana: option A.** Keep Context-MS's arguments exactly, with no `--no-terminate`. On data like `example/`, v3.01 fails clearly and `-percolatorVersion v3-05` is the remedy. Adding that hint to the error message is offered, not done. `CTX018-020` is marked done.
+- **π0 side effect, explained to Ariana.** Percolator estimates and prints π0 only for its default mix-max post-processing ("Separate target and decoy search inputs detected, using mix-max method. Selecting pi_0=0.884971"). With `--post-processing-tdc` it competes targets with decoys instead ("Selected best-scoring PSM per scan+expMass (target-decoy competition): 7783 target PSMs and 6918 decoy PSMs") and never computes π0.
+  - The background working file therefore ends in `pi_0=null`.
+  - Neither the background file nor its π0 feeds Context's reference results: `ContextPercolator.train` discards the returned passing peptides, and reference q-values and PEPs come from pyIsoPEP. The value is not used.
+- **Proposed addendum (not started, awaiting Ariana's approval).** A user option for the Context Percolator PEP method (`q2pep` default, `d2pep` optional) is small, because `PyIsoPEPRunner` already has both. It would replace the "future direction" follow-up only if Ariana adds it to CTX-018.
+
+- [x] `CTX018-029` (addendum, approved by Ariana on 2026-10-31) `--pepMethod q2pep|d2pep` for the Context Percolator workflow, default `q2pep` (Context-MS's method). This replaces the "future direction" follow-up recorded under open question 3.
+  - The option name follows the GNU convention Ariana asked for: words with `--`, single letters with `-`. Existing single-dash word options are not renamed, which would be a compatibility change.
+  - `PyIsoPEPRunner` carries the method (`PepMethod`, `runPEP`); `ContextPercolator` calls `runPEP`. The CLIs build the runner with the parsed option, so no public workflow signatures change.
+  - Accepted by `percolator` (split and raw routes) and `AllWorkflowExecutorCLI`. Rejected with `-standardPercolator`, invalid values are rejected before any output, and the option is not passed to EncyclopeDIA.
+  - Only `q2pep` has a Context-MS counterpart; `d2pep` is tested for wiring, not parity.
+  - Files: `percolator/PyIsoPEPRunner.java`, `ContextPercolator.java`, `ContextPercolatorExecutorCLI.java`, `io/AllWorkflowExecutorCLI.java`, `PyIsoPEPRunnerTest.java`, README, CLI help.
+  - Depends on: `004`.
+  - Checks: parse, default and invalid values; a stand-in `pyisopep` records that each method reaches pyIsoPEP.
+
+#### 2026-10-31 — `CTX018-029` implemented; Phase 1 committed with Ariana's authorization
+
+- **Tests:** `pepMethodDefaultsToQ2pepAndRejectsUnknownMethods` and `runPEPCallsTheConfiguredMethod` (the stand-in executable records its arguments).
+- **End to end on `example/`:**
+  - Without the option, outputs are byte-identical to Phase 1.
+  - `--pepMethod d2pep` runs `pyisopep d2pep` for both reports (28 at PEP ≤ 0.01).
+  - `--pepMethod tdc2pep` exits 2 with `--pepMethod must be q2pep or d2pep`, and no output directory is created.
+  - `-standardPercolator --pepMethod d2pep` exits 2.
+  - `AllWorkflowExecutorCLI --pepMethod d2pep --seeds 4` uses `d2pep` and completes (COMPLETE), with no EncyclopeDIA option warning.
+- **Full suite** (pyIsoPEP on `PATH`): 163 tests, 3 failures (the same existing Scribe failures), 0 errors, 4 skipped. `git diff --check` is clean.
+- **Delivery:** Ariana asked for a commit and push once the option was done ("go ahead and make a commit/push unless you need additional input"). The commit hash is recorded in the implementation record.
+- **Next:** Phase 2 (`021`, `006`, `007`, `023`) on Ariana's instruction. `018` (comparison file) and the mProphet part of `028` remain open.
