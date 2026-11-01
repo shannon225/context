@@ -752,8 +752,8 @@ Each commit message ends with the session's attribution lines (`Co-Authored-By` 
 - [x] `BOOTLEAK-01` Load and close the library once in `TargetedBootstrapper.execute`; `selectMask` takes the loaded `ArrayList<LibraryEntry>` instead of the library path. Files: `src/main/java/org/searlelab/context/io/TargetedBootstrapper.java`. Check: diff review; seed outputs unchanged.
 - [x] `BOOTLEAK-02` Regression test that a three-seed run leaves no new `encyclopedia_*.elib` in `java.io.tmpdir`. Files: `src/test/java/org/searlelab/context/io/TargetedBootstrapperTest.java`. Check: fails on the original code, passes on the patch.
 - [x] `BOOTLEAK-03` Java 17 validation and before/after output comparison. Files: log only.
-- [ ] `BOOTLEAK-04` Ariana reruns the large DLIB on Windows past seed 39. Check: run completes; `%TEMP%` holds at most one library copy, only during loading.
-- [ ] `BOOTLEAK-05` Ariana's final review; then git delivery when requested.
+- [x] `BOOTLEAK-04` Ariana reruns the large DLIB on Windows past seed 39. Check: run completes; `%TEMP%` holds at most one library copy, only during loading.
+- [x] `BOOTLEAK-05` Ariana's final review; then git delivery when requested.
 
 #### Work log
 
@@ -785,7 +785,7 @@ Each commit message ends with the session's attribution lines (`Co-Authored-By` 
 - [x] `BOOTLEAK-09` Fixture integration test (IL2/IL15, seeds 1–3, 5 peptides, 2 traps): every assignment within 320 ppm, same charge, RT-separated, not a target, unique within seed. Files: `TargetedBootstrapperTest.java`.
 - [x] `BOOTLEAK-10` Java 17 focused tests, before/after comparison of targets and entrapments for seeds 1–3, diff review. Files: log only.
 - [x] `BOOTLEAK-11` README paragraph on how `bootstrap` chooses entrapments. Files: `README.md`.
-- [ ] `BOOTLEAK-12` Ariana runs the large DLIB for a few seeds: Δppm distribution, replaced targets per seed, entrapment reuse across seeds, time per seed; then regenerates bootstrap outputs made since 2026-09-05.
+- [x] `BOOTLEAK-12` Ariana runs the large DLIB for a few seeds: Δppm distribution, replaced targets per seed, entrapment reuse across seeds, time per seed; then regenerates bootstrap outputs made since 2026-09-05.
 
 ##### 2026-11-01 — `BOOTLEAK-06` to `BOOTLEAK-11` implemented and validated
 
@@ -837,3 +837,18 @@ Each commit message ends with the session's attribution lines (`Co-Authored-By` 
 
 - Ariana briefly considered adding random entrapment selection, then decided not to add it: closest-eligible-first stays, and the repeated-entrapment behavior remains recorded as a limitation. No tasks were added.
 - Ariana authorized committing and pushing the `BOOTLEAK-15` change with the proposed message.
+
+##### 2026-11-01 — `BOOTLEAK-04` Windows run on the full DLIB (reported by Ariana)
+
+- Environment: Ariana's Windows PC, launched from Eclipse 4.37 (Eclipse itself runs on Java 21.0.9), branch `claude/targeted-bootstrapper-patch-20261031` rebuilt after `55a503a`; library `Human_UP000005640_9606_entrapment.fasta.trypsin.z1-6_nce33_DIA.dlib` (3,875,793 entries).
+- Before the run, 62 leftover `encyclopedia_*` files from earlier killed runs were deleted from `%TEMP%` (count 0).
+- A 399-target, 1-entrapment run took about 85 s per seed and was stopped by Ariana to save time (not a failure). The rerun with 10 targets and 1 entrapment per assay completed all 50 seeds (last seed written 11:23): every seed has 10 target–entrapment pairs, matching the settings. This passes seed 39, where the original run failed with "not enough space on the disk". The "Opening the library…" message appeared.
+- Eclipse later failed at 11:50:54 with repeated `SWTError: No more handles` ("Unhandled event loop exception", `org.eclipse.ui`, raised while the Error Log view was redrawing). That is Windows graphics-handle exhaustion in Eclipse's UI after a ~19.5 h session, 27 minutes after the run finished; no frame came from Context. A fixture stress run here (80 seeds, 100 targets, 2 GB heap) completed with flat post-GC heap (~9 MB) and no leftover temp files. Advice given: run long jobs outside Eclipse with output to a file, or restart Eclipse, limit console output, and set an Output File.
+- Not yet confirmed: `%TEMP%` count after this run (needed to tick `BOOTLEAK-04`). Console output was lost, so `BOOTLEAK-12`'s "Only found" counts were not captured; Δppm can still be computed from the output files.
+- Output check (2026-11-01, from files Ariana uploaded: seed 1 assay list and assignments, seed 4 assignments): RT window 5.0 min (half-window 2.5 min). Seed 1: 10 targets and 10 entrapments; every pair has matching charge; |Δppm| 0.00–43.70 (7 of 10 within ±9 ppm; one exact-mass pair, `SYSVPLR` → `SLADLFR`), so all fell inside 80 ppm and none needed the 640–1000 ppm steps; every entrapment's RT is more than 3 half-windows (7.5 min) from every target within 11 m/z (smallest gap 7.52 min); entrapments are unique and never targets. Seed 4: 10 pairs, charges match, entrapments unique and never targets; no targets or entrapments shared with seed 1. Seed 4 Δppm was not computed (its assay list was not supplied).
+- `%TEMP%` check after the run (Ariana, WSL `ls /mnt/c/Users/m334793/AppData/Local/Temp/encyclopedia_* | wc -l`): 0 files. `BOOTLEAK-04` is complete. `BOOTLEAK-12` stays open: "Only found" counts were not captured, and outputs made since 2026-09-05 still need regenerating.
+- `BOOTLEAK-12` closed by Ariana's decision (2026-11-01): the full-DLIB runs and output checks above are sufficient. Not done within it: "Only found" (replaced-target) counts were not captured, the Δppm distribution covers seed 1 only, and regenerating bootstrap outputs made since 2026-09-05 is left to Ariana outside this checklist.
+
+##### 2026-11-01 — `BOOTLEAK-05` accepted
+
+- Ariana accepted the BOOTLEAK fix (commits on `claude/targeted-bootstrapper-patch-20261031`: temp-library leak fix, m/z-matched entrapments up to 1000 ppm, loading and seed progress messages) and authorized committing and pushing these `TASKS.md` updates. The Report location has not been chosen yet; it is not written. No pull request has been requested.
