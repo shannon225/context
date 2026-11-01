@@ -13,6 +13,7 @@ import java.util.stream.Stream;
 
 import org.searlelab.context.encyclopedia.MProphetReiter;
 import org.searlelab.context.percolator.ContextPercolator;
+import org.searlelab.context.mprophet.ContextMProphetReports;
 import org.searlelab.context.percolator.ContextPercolatorExecutor;
 import org.searlelab.context.percolator.ContextTrainingOptions;
 import org.searlelab.context.percolator.ContextPercolatorResult;
@@ -332,6 +333,9 @@ public final class AllWorkflowExecutorCLI {
 
 		deleteMProphetOutputs(backgroundData);
 		deleteMProphetOutputs(referenceData);
+		for (File output : ContextMProphetReports.outputs(engineDirectory, prefix)) {
+			Files.deleteIfExists(output.toPath());
+		}
 
 		MProphetResult backgroundResult = MProphetReiter.executeMProphetTSV(backgroundData, fdr, seed,
 				parameters.getAAConstants(), MPROPHET_ROUND);
@@ -346,6 +350,13 @@ public final class AllWorkflowExecutorCLI {
 
 		Logger.logLine("Context mProphet found " + referenceResult.getPassingPeptides().size()
 				+ " reference peptides at " + (fdr * 100.0f) + "% FDR");
+
+		// CTX-018: Context-MS-format outputs with Context-MS's q-values and PEPs, recomputed at peptide level.
+		ContextMProphetReports.Summary summary = ContextMProphetReports.write(referenceFeatures, backgroundModel,
+				backgroundResult.getFeatureNames(), engineDirectory, prefix, fdr);
+		Logger.logLine("Context mProphet (Context-MS q-values and PEPs): " + summary.psmTargets()
+				+ " reference target PSMs, " + summary.peptideTargets() + " peptides; " + summary.peptidesAtQ()
+				+ " at q <= " + fdr + ", " + summary.peptidesAtPEP() + " at PEP <= " + fdr);
 		return referenceResult;
 	}
 

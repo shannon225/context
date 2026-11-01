@@ -205,11 +205,21 @@ results_run01/percolator/
   work/                          intermediate tables and files from pyIsoPEP
 
 results_run01/context-mprophet/
-  run01.peptide.reference.target.txt     target reference peptides
+  run01.peptide.reference.txt            reference target peptides, best row per peptide, with q-value and
+                                         posterior_error_prob recomputed at peptide level (Context-MS's method)
+  run01.psm.reference.txt                the same at PSM level
+  run01.rescored_features.txt            every reference feature, target and decoy, with its score
+  model/run01.weights.txt                the background model as feature/weight rows plus __bias__
+  run01.peptide.reference.target.txt     target reference peptides (EncyclopeDIA q-values and PEPs, unchanged)
   run01.peptide.reference.decoy.txt      decoy reference peptides
   run01.peptide.background.target.txt    target background peptides
   run01.peptide.background.decoy.txt     decoy background peptides
 ```
+
+The first four `context-mprophet` files follow Context-MS's format and method: a Gaussian decoy null gives
+p-values, Benjamini–Hochberg gives q-values, and Storey's local FDR (pi0 floored at 0.05, Silverman KDE on
+logit p) gives PEPs, computed once over all reference rows and again over the best row per peptide. The
+`*.target.txt`/`*.decoy.txt` files keep their earlier EncyclopeDIA values, carried over from the PSM level.
 
 ### Re-running without re-scoring
 

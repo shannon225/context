@@ -1154,8 +1154,8 @@ Remaining distinctions:
 - [ ] `CTX018-003` Record the starting gap: run both tools, both engines, on `example/` and (when available) Ariana's comparison file before any code change, with Percolator v3.05. Files: log only. Check: commands, versions, outputs, and metrics recorded. **Superseded** by `CTX018-018` (r2, approved 2026-10-31).
 - [x] `CTX018-004` Add a `q2pep` method to `PyIsoPEPRunner` with Context-MS's arguments, and use it in the Context Percolator workflow; keep `runD2PEP` for other workflows. Files: `percolator/PyIsoPEPRunner.java`, `ContextPercolator.java`, tests. Check: command unit test; comparison on `example/`.
 - [ ] `CTX018-005` Add a Context-training-only command option in `ContextPercolatorRunner.generateCommand` matching Context-MS (`--post-processing-tdc --override`, Percolator defaults for `-N`, `--maxiter`, `--trainFDR`, `--testFDR`, no `--no-terminate`). Files: `percolator/ContextPercolatorRunner.java`, `ContextPercolator.java`, tests. Check: Context and standard command tests; with v3.05, the same seed and pruned input, per-fold weights match Context-MS. **Superseded** by `CTX018-020` (r2, approved 2026-10-31).
-- [ ] `CTX018-006` Port Context-MS `fdr.py` (Gaussian p-values, BH, π0 over λ = 0.1–0.9 with floor 0.05, Silverman KDE on logit p, monotone PEP) to a small Context class; reuse EncyclopeDIA `BenjaminiHochberg`/`LocalFDR.estimatePi0` only where verified identical. Files: new class under `org.searlelab.context`, tests. Check: JUnit 4 against Python-computed values (q ~1e-6 relative; PEP tolerance set from observed differences and recorded).
-- [ ] `CTX018-007` Context mProphet: best-scoring row per peptide, then recompute q/PEP; additionally write `P.psm.reference.txt` and `P.peptide.reference.txt` (Context-MS columns), deleted and rewritten on rerun like existing outputs. Files: `io/AllWorkflowExecutorCLI.java` (`runContextMProphet`), `encyclopedia/MProphetReiter.java`, tests. Check: identity preservation, tie-breaking, target/decoy counts, existing outputs unchanged.
+- [x] `CTX018-006` Port Context-MS `fdr.py` (Gaussian p-values, BH, π0 over λ = 0.1–0.9 with floor 0.05, Silverman KDE on logit p, monotone PEP) to a small Context class; reuse EncyclopeDIA `BenjaminiHochberg`/`LocalFDR.estimatePi0` only where verified identical. Files: new class under `org.searlelab.context`, tests. Check: JUnit 4 against Python-computed values (q ~1e-6 relative; PEP tolerance set from observed differences and recorded).
+- [x] `CTX018-007` Context mProphet: best-scoring row per peptide, then recompute q/PEP; additionally write `P.psm.reference.txt` and `P.peptide.reference.txt` (Context-MS columns), deleted and rewritten on rerun like existing outputs. Files: `io/AllWorkflowExecutorCLI.java` (`runContextMProphet`), `encyclopedia/MProphetReiter.java`, tests. Check: identity preservation, tie-breaking, target/decoy counts, existing outputs unchanged.
 - [ ] `CTX018-008` Align mProphet training preprocessing with Context-MS: header pairing check, near-constant pruning, feature exclusions (resolve `ExpMass`/`protein`), starting-score preference including `main_var_Intensity` and best-feature fallback, no 500,000-row fold cap. Each change measured separately. Files: `encyclopedia/MProphetReiter.java`, `io/AllWorkflowExecutorCLI.java`, tests. Check: focused tests; comparison after each change. **Superseded** by `CTX018-025` (r2, approved 2026-10-31).
 - [ ] `CTX018-009` Optional diagnostic fold file for `MProphetReiter` (TSV: `iteration`, `fold`, `position`, `id`; within-fold order preserved). Build folds with EncyclopeDIA's public `MProphetDataset(featureNames, startingScoreIndex, data)` instead of `splitKFold`. Fail on missing, duplicate, or extra ids or a wrong iteration count. Depends on: `CTX018-002`, `CTX018-008`. Check: join and malformed-input tests; on `example/`, per-iteration passing counts and averaged weights match Context-MS. **Superseded** by `CTX018-024` (r2, approved 2026-10-31).
 - [ ] `CTX018-010` Option C final acceptance: seeds 1–10 per tool, both engines, Ariana's comparison file, Percolator v3.05. Check: criteria above computed by `ctx018_compare.py` and recorded with seeds and versions. **Superseded** by `CTX018-026` (r2, approved 2026-10-31).
@@ -1234,7 +1234,7 @@ r1 tasks marked "proposed superseded" above become `Superseded` only when r2 is 
   - Files: `encyclopedia/MProphetReiter.java`, tests.
   - Depends on: `021`.
   - Check: JUnit 4 with a tie straddling position 25 keeps the earliest iterations; default-path ordering unchanged.
-- [ ] `CTX018-023` Context mProphet also writes:
+- [x] `CTX018-023` Context mProphet also writes:
   - `P.rescored_features.txt`: every reference target and decoy row plus `score`.
   - `model/P.weights.txt`: `feature`/`weight`/`__bias__`, reusing the `PercolatorWeights.writeAveraged` format.
   - Both are deleted and rewritten on rerun like the existing outputs.
@@ -1516,3 +1516,49 @@ Ariana asked to start Phase 1.
 - **Full suite** (pyIsoPEP on `PATH`): 163 tests, 3 failures (the same existing Scribe failures), 0 errors, 4 skipped. `git diff --check` is clean.
 - **Delivery:** Ariana asked for a commit and push once the option was done ("go ahead and make a commit/push unless you need additional input"). The commit hash is recorded in the implementation record.
 - **Next:** Phase 2 (`021`, `006`, `007`, `023`) on Ariana's instruction. `018` (comparison file) and the mProphet part of `028` remain open.
+
+#### 2026-11-01 — Phase 2 implementation: `CTX018-006`, `CTX018-007`, `CTX018-023`; `CTX018-021` moved to Phase 3 (uncommitted)
+
+Ariana asked to move to Phase 2.
+
+- **Order change within the approved plan.**
+  - The new outputs are written in `AllWorkflowExecutorCLI.runContextMProphet`, which only the Context workflow calls, so `MProphetReiter` is not changed in this phase.
+  - The Context-only mode (`CTX018-021`) would therefore have no effect yet. It moves to Phase 3, where `CTX018-022`, the stable model ranking, first uses it.
+  - The out-of-scope workflows were still compared against Phase 0; see "Regression" below.
+- **`CTX018-006` — done.** `org.searlelab.context.mprophet.MProphetConfidence` ports Context-MS `fdr.py`:
+  - Gaussian decoy null with mean and population SD; p = ½·erfc(z/√2) using commons-math3 3.6 `Erf.erfc`, already a compile dependency of EncyclopeDIA 6.9.23, so no new dependency.
+  - Benjamini–Hochberg q-values without π0.
+  - π0 as the median over λ = 0.1…0.9, with a floor of 0.05.
+  - KDE on logit p with eps = 1e-8, using scipy's Silverman factor: bandwidth = sample SD × (3n/4)^(−1/5).
+  - PEPs clipped to [0, 1] and made non-decreasing in p; ties keep input order (mergesort).
+  - Edge cases: no decoys gives p = 1; decoy SD 0 gives p = 0/1 by side; zero KDE spread gives PEP 1, as Context-MS does.
+  - One deliberate difference: with a single target, Context-MS stops (scipy `gaussian_kde` raises `ValueError`), while Context sets PEP = 1 and logs a warning, so a multi-file run keeps going.
+  - Reference values: `src/test/resources/org/searlelab/context/mprophet/ctx018_fdr_reference.tsv`, generated by the new `docs/validation/ctx018_fdr_fixture.py` from Context-MS's own `fdr.py`. It holds 5 deterministic synthetic sets: typical, tied, extreme/underflow, small (5 + 5) and null. Seeds and the command to regenerate it are in the script.
+  - Observed differences: p 7.7e-15 relative, q 7.7e-15 relative, PEP 1.6e-15 absolute. Test tolerances are p 1e-10 relative, q 1e-9 relative, PEP 1e-9 absolute.
+  - `MProphetConfidenceTest` (4 tests). Two of my first hand-worked expectations were wrong (a BH tie and a π0 median); I corrected them after re-deriving.
+- **`CTX018-007` and `CTX018-023` — done.** `org.searlelab.context.mprophet.ContextMProphetReports` writes four new files next to the unchanged outputs:
+  - `P.rescored_features.txt`: every reference row, labels normalized to 1/−1, plus `score`.
+  - `P.psm.reference.txt`: all reference rows.
+  - `P.peptide.reference.txt`: the best row per peptide over targets and decoys together, with q/PEP recomputed on those rows. Peptide key: the peptide column (second to last) verbatim; ties keep file order.
+  - `model/P.weights.txt`: `feature`/`weight` rows plus `__bias__`.
+  - Scoring uses the background LDA in double precision on the reference feature columns named by the model. A missing column is an `IOException`, not a zero.
+  - The files are deleted before a rerun, like the existing outputs.
+  - The returned `MProphetResult` and the existing log line are unchanged. A new log line gives the new counts, e.g. `132 reference target PSMs, 132 peptides; 39 at q <= 0.01, 35 at PEP <= 0.01`.
+  - `ContextMProphetReportsTest` (3 tests) uses a synthetic table with repeated peptides and a tie. It checks identity, the tie winner, target/decoy counts, recomputed peptide-level values that differ from PSM level, sorting by q, the weights file, and the missing-feature error.
+  - README updated.
+- **Phase 2 measurement** (`example/`, seeds 1–10; `tmp/ctx018/metrics/phase2-mprophet`):
+  - Context mProphet median N 35 vs Context-MS 35: **met**.
+  - Scores: median of run medians 0.025: **met**. Gates pass.
+  - On Context's own scores, the Java q/PEP match Context-MS `fdr.py` to 3.8e-15 (q) and 6.4e-15 (PEP) at every seed.
+  - The training models still differ (Phase 3), so per-seed N is 34–36.
+- **Regression:**
+  - For seeds 1–10, all four legacy Context mProphet files are byte-identical to Phase 0.
+  - `AllWorkflowExecutorCLI --seeds 3` against the Phase 0 run of the same command: `standard-mprophet`, `target-mprophet` and the legacy `context-mprophet` files are byte-identical. In `standard-percolator` and `target-percolator` only `*.command.txt` differs, by the random temporary Percolator path and the output directory. `percolator` (Context) differs, as expected after Phase 1. Status COMPLETE.
+  - Full suite (pyIsoPEP on `PATH`): 170 tests, 3 failures (the same existing Scribe failures), 0 errors, 4 skipped. `git diff --check` is clean.
+- **Performance note:** the KDE is O(n²) in the number of reference targets at each level. That is fine for targeted reference sets, but would be slow for reference sets of about 10⁵ rows.
+- **Next:** commit Phase 2 on Ariana's authorization; Phase 3 (`021`, `022`, `024`, `025`, `016`) on her instruction.
+
+#### 2026-11-01 — Phase 2 delivery
+
+- Ariana kept the single-target PEP behavior: PEP = 1 with a warning, where Context-MS stops. She authorized committing and pushing Phase 2. The commit hash is recorded in the implementation record.
+- The move of `CTX018-021` to Phase 3 is recorded above. Ariana has not yet said whether she accepts it.
