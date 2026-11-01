@@ -818,3 +818,22 @@ Each commit message ends with the session's attribution lines (`Co-Authored-By` 
 ##### 2026-11-01 — `BOOTLEAK-14` commits and push authorized
 
 - Ariana approved both commits, with the revised first message naming `TargetedBootstrapper.execute` and `TargetedBootstrapper.selectDecoys`, and the push to `claude/targeted-bootstrapper-patch-20261031`. Both messages carry the Limitations section. No Google record exists for BOOTLEAK, so hashes are reported in chat only.
+
+#### BOOTLEAK follow-up — library loading and per-seed progress messages (2026-11-01)
+
+- Problem: opening the large DLIB takes about 2–5 minutes with no output, which looks like a hang; `selectTargets` logged "There are N entries from the library." on every call (each seed and each replacement round).
+- Approval: Approved (Ariana, 2026-11-01): add the opening and loaded messages; replace the repeated line, wording at Claude's discretion.
+
+- [x] `BOOTLEAK-15` In `TargetedBootstrapper.execute`, log "Opening the library <file name> (this may take a few minutes)..." before opening and "Loaded N library entries in X s." after loading; log "Seed s of N: selecting K targets." at the start of each seed; remove the repeated "There are N entries from the library." line from `selectTargets`. Files: `TargetedBootstrapper.java`. Check: focused tests; each message appears once (per run or per seed) on the fixture; outputs unchanged.
+
+##### 2026-11-01 — `BOOTLEAK-15` implemented and validated
+
+- Nothing in the repository matched the removed text, so no test or parser depended on it. The load time covers `openFile` (temp copy) and `getAllEntries`, not the m/z sort.
+- Tests (Java 17): `-Dtest=TargetedBootstrapperTest test` 9 tests, 0 failures/errors/skips.
+- Fixture run (seeds 1–3, 5 peptides, 2 traps): "Opening the library IL2_and_IL15_Combo.elib…" and "Loaded 2224 library entries in 0 s." appeared once each, "Seed s of 3" three times, "There are …" zero times. Assay lists and entrapment assignments for all three seeds are byte-identical to the previous 1000 ppm run.
+- Next: Ariana's commit and push authorization; `BOOTLEAK-12` continues on the real DLIB.
+
+##### 2026-11-01 — random entrapment selection declined; `BOOTLEAK-15` commit and push authorized
+
+- Ariana briefly considered adding random entrapment selection, then decided not to add it: closest-eligible-first stays, and the repeated-entrapment behavior remains recorded as a limitation. No tasks were added.
+- Ariana authorized committing and pushing the `BOOTLEAK-15` change with the proposed message.

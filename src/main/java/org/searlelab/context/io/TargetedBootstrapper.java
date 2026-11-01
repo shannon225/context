@@ -44,18 +44,23 @@ public class TargetedBootstrapper {
 		// Load the library once for all seeds. LibraryFile copies the library to a temp file that only close()
 		// deletes, so close it as soon as the entries are in memory.
 		ArrayList<LibraryEntry> entries;
+		File libraryFile = new File(libraryPath);
+		Logger.logLine("Opening the library " + libraryFile.getName() + " (this may take a few minutes)...");
+		long loadStart = System.nanoTime();
 		LibraryFile library = new LibraryFile();
 		try {
-			library.openFile(new File(libraryPath));
+			library.openFile(libraryFile);
 			entries = library.getAllEntries(false, aaConstants);
 		} finally {
 			library.close();
 		}
+		Logger.logLine("Loaded " + entries.size() + " library entries in " + (System.nanoTime() - loadStart) / 1_000_000_000 + " s.");
 		// Targets are drawn from library order; entrapments are searched by precursor m/z. The sort is stable.
 		ArrayList<LibraryEntry> entriesByMz = new ArrayList<>(entries);
 		entriesByMz.sort(Comparator.comparingDouble(LibraryEntry::getPrecursorMZ));
 
 		for (int seed = 1; seed <= maxSeed; seed++) {
+			Logger.logLine("Seed " + seed + " of " + maxSeed + ": selecting " + numberOfPeptides + " targets.");
 			ArrayList<IsolationWindow> isolationWindows = selectMask(numberOfPeptides, aaConstants, seed, entries,
 					entriesByMz, halfWindowWidthRT, halfWindowWidthMz, trapsPerTarget);
 
@@ -83,10 +88,6 @@ public class TargetedBootstrapper {
 
 		// Randomly select precursors loop
 		try {
-			// Load all entries
-
-			Logger.logLine("There are " + entries.size() + " entries from the library.");
-
 			if (numberOfPeptides > entries.size()) {
 				throw new IllegalArgumentException(
 						"The requested number of targets is larger than the number of library entries. Select a smaller number of peptides to put into each assay.");
