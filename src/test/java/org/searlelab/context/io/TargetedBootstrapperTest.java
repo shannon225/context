@@ -10,8 +10,12 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import org.searlelab.context.datastructures.IsolationWindow;
 import org.junit.Rule;
@@ -44,6 +48,31 @@ public class TargetedBootstrapperTest {
 		assertTrue("The bootstrapper did not create the expected output.", Files.exists(expectedOutput));
 		assertTrue(Files.exists(testDirectory.resolve("IL2A_GPFDIA_0combined_masked1_entrapment_assignments.tsv")));
 
+	}
+
+	@Test
+	public void multipleSeedsLeaveNoTemporaryLibraryCopies() throws Throwable {
+		Path testDirectory = tempFolder.newFolder("targeted-bootstrapper-temp-test").toPath();
+		String library = Paths.get(Objects.requireNonNull(getClass().getResource("/org/searlelab/context/io/IL2_and_IL15_Combo.elib")).toURI()).toString();
+		Path testDIAPath = testDirectory.resolve("IL2A_GPFDIA_0combined.dia");
+		Files.copy(Paths.get(Objects.requireNonNull(getClass().getResource("/org/searlelab/context/io/IL2A_GPFDIA_0combined_masked0_assay.dia")).toURI()), testDIAPath);
+		Set<String> before = temporaryLibraryCopies();
+
+		new TargetedBootstrapper().execute(library, testDIAPath.toString(), 3, 1, 0.5f, 1.0, 1);
+
+		Set<String> leftover = temporaryLibraryCopies();
+		leftover.removeAll(before);
+		assertTrue("Temporary library copies were left behind: " + leftover, leftover.isEmpty());
+		for (int seed = 1; seed <= 3; seed++) {
+			assertTrue(Files.exists(testDirectory.resolve("IL2A_GPFDIA_0combined_masked" + seed + "_assay.txt")));
+		}
+	}
+
+	private static Set<String> temporaryLibraryCopies() throws IOException {
+		try (Stream<Path> files = Files.list(Paths.get(System.getProperty("java.io.tmpdir")))) {
+			return files.map(p -> p.getFileName().toString()).filter(n -> n.startsWith("encyclopedia_") && n.endsWith(".elib"))
+					.collect(Collectors.toCollection(HashSet::new));
+		}
 	}
 
 	@Test

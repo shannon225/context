@@ -37,8 +37,19 @@ public class TargetedBootstrapper {
 
 		AminoAcidConstants aaConstants = new AminoAcidConstants();
 
+		// Load the library once for all seeds. LibraryFile copies the library to a temp file that only close()
+		// deletes, so close it as soon as the entries are in memory.
+		ArrayList<LibraryEntry> entries;
+		LibraryFile library = new LibraryFile();
+		try {
+			library.openFile(new File(libraryPath));
+			entries = library.getAllEntries(false, aaConstants);
+		} finally {
+			library.close();
+		}
+
 		for (int seed = 1; seed <= maxSeed; seed++) {
-			ArrayList<IsolationWindow> isolationWindows = selectMask(numberOfPeptides, aaConstants, seed, libraryPath,
+			ArrayList<IsolationWindow> isolationWindows = selectMask(numberOfPeptides, aaConstants, seed, entries,
 					halfWindowWidthRT, halfWindowWidthMz, trapsPerTarget);
 
 			Path maskedFileOutputPath = rawFile.getParent().resolve(baseName + "_masked" + seed + "_assay.dia");
@@ -279,16 +290,12 @@ public class TargetedBootstrapper {
 
 // First function - Randomly Selects Precursors from a library, places on a list
 	public ArrayList<IsolationWindow> selectMask(int numberOfPeptides, AminoAcidConstants aaConstants, int i,
-			String libraryPath, float halfWindowWidthRT, double halfWindowWidthMz, int trapsPerTarget)
+			ArrayList<LibraryEntry> entries, float halfWindowWidthRT, double halfWindowWidthMz, int trapsPerTarget)
 			throws IOException, SQLException, Throwable {
 
 		// START TIMER 1
 		long startTime = System.nanoTime();
 		HashSet<String> rejectedTargetSequences = new HashSet<>();
-		LibraryFile library = new LibraryFile();
-		File file = new File(libraryPath);
-		library.openFile(file);
-		ArrayList<LibraryEntry> entries = library.getAllEntries(false, aaConstants);
 
 		ArrayList<IsolationWindow> targetWindows = selectTargets(numberOfPeptides, aaConstants, i, entries,
 				halfWindowWidthRT, halfWindowWidthMz, rejectedTargetSequences);
