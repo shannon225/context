@@ -741,3 +741,28 @@ Each commit message ends with the session's attribution lines (`Co-Authored-By` 
 ##### 2026-10-11 — r8 commits and push authorized
 
 - Ariana approved the three proposed commits and the push on 2026-10-11: "Leave the task numbers (CTX-016) out of the subjects and messages, but you have my approval. Please make the commits and push!" The commit subjects and bodies therefore omit the task IDs and the "Tasks:" lines shown in the draft above; the third subject is "Document the prediction store and its validation". File groups are unchanged. Commit hashes and the push result are recorded in the entry after this one.
+
+### Bug fix — TargetedBootstrapper temporary library leak (no CTX ID assigned; 2026-11-01)
+
+- Problem: on Windows, `TargetedBootstrapperCLI` failed with `FileSystemException: There is not enough space on the disk` after seed 38–39 with a 3,875,793-entry DLIB. `selectMask` opened a new `LibraryFile` for every seed and never closed it. In Encyclopedia 6.9.23 (checked by `javap`), the `LibraryFile` constructor creates `%TEMP%\encyclopedia_*.elib` (`deleteOnExit` only), `openFile` copies the whole library into it, and only `close()` deletes it. Each seed therefore left a full library copy on disk and also reparsed the full library.
+- Guide: none. Ariana approved the fix directly in chat on 2026-11-01: load the library once in `execute`, close it, and pass the in-memory entries to `selectMask` for every seed.
+- Acceptance: no temporary library copies remain after a multi-seed run; seed outputs (assay list, entrapment assignments, masked file contents) are unchanged; Java 17 tests pass.
+- Approval: Approved (Ariana, 2026-11-01).
+
+- [x] `BOOTLEAK-01` Load and close the library once in `TargetedBootstrapper.execute`; `selectMask` takes the loaded `ArrayList<LibraryEntry>` instead of the library path. Files: `src/main/java/org/searlelab/context/io/TargetedBootstrapper.java`. Check: diff review; seed outputs unchanged.
+- [x] `BOOTLEAK-02` Regression test that a three-seed run leaves no new `encyclopedia_*.elib` in `java.io.tmpdir`. Files: `src/test/java/org/searlelab/context/io/TargetedBootstrapperTest.java`. Check: fails on the original code, passes on the patch.
+- [x] `BOOTLEAK-03` Java 17 validation and before/after output comparison. Files: log only.
+- [ ] `BOOTLEAK-04` Ariana reruns the large DLIB on Windows past seed 39. Check: run completes; `%TEMP%` holds at most one library copy, only during loading.
+- [ ] `BOOTLEAK-05` Ariana's final review; then git delivery when requested.
+
+#### Work log
+
+##### 2026-11-01 — `BOOTLEAK-01`/`02`/`03` implemented and validated
+
+- Environment: Temurin 17.0.13 and Maven 3.9.9 downloaded into ignored `build-cache/` (system JDK is 21). `./build.sh maven` still fails at the pre-existing line-44 `MAVEN_REPO: readonly variable` error, not repaired here; Maven was downloaded from the same URL `build.sh` uses.
+- Baseline (original code): `mvn -B -Dmaven.repo.local=build-cache/m2-repository -Dtest=TargetedBootstrapperTest test` passed 2 tests. A scratch harness (`tmp/leakcheck/`, ignored) running `execute` with seeds 1–3, 1 peptide, 0.5 min RT, 1.0 m/z, 1 trap on the `IL2_and_IL15_Combo.elib` / `IL2A_GPFDIA_0combined_masked0_assay.dia` fixtures left 3 `encyclopedia_*.elib` copies before JVM exit.
+- Patched: same harness left 0. The library is closed right after `getAllEntries`, not at the end of the run, because the entries are fully in memory; this also frees the copy's disk space during masking. Load time is no longer inside `selectMask`'s timer.
+- Equivalence: seeds 1–3 assay lists and entrapment-assignment TSVs are byte-identical before vs after; selection and masking log lines (targets, entrapments, scan counts) are identical; masked `.dia` SQLite tables (`metadata`, `ranges`, `spectra`, `precursor`, `fractions`) have identical contents. Limitation: this fixture's masked files hold 0 fragment spectra and at most 3 precursor scans, so masking content is only weakly exercised. Selection is unchanged by construction: the same entries in the same order are passed for every seed, and selection code does not mutate them.
+- Tests: `TargetedBootstrapperTest` 3 tests, 0 failures/errors/skips on Java 17. With only `TargetedBootstrapper.java` reverted (stash), the new test failed listing 3 leftover `.elib` files, then the change was restored. `git diff --check` passed. Full `-Ppackage verify` not run (recorded baseline failures and native-runtime limits unchanged); no other caller of `selectMask` exists.
+- Not validated: the 3.9M-entry DLIB on Windows (`BOOTLEAK-04`). Still open, out of scope: `writeMaskedFile` closes `rawLibraryFile` outside a `finally`, so an exception during masking can leave one temp `.dia` copy.
+- Next: Ariana's Windows rerun and review; commit only on her instruction.
