@@ -742,12 +742,12 @@ Each commit message ends with the session's attribution lines (`Co-Authored-By` 
 
 - Ariana approved the three proposed commits and the push on 2026-10-11: "Leave the task numbers (CTX-016) out of the subjects and messages, but you have my approval. Please make the commits and push!" The commit subjects and bodies therefore omit the task IDs and the "Tasks:" lines shown in the draft above; the third subject is "Document the prediction store and its validation". File groups are unchanged. Commit hashes and the push result are recorded in the entry after this one.
 
-### Bug fix — TargetedBootstrapper temporary library leak (no CTX ID assigned; 2026-11-01)
+### Bug fix — TargetedBootstrapper temporary library leak (BOOTLEAK; no CTX ID or Google guide by Ariana's decision; started 2026-10-31)
 
 - Problem: on Windows, `TargetedBootstrapperCLI` failed with `FileSystemException: There is not enough space on the disk` after seed 38–39 with a 3,875,793-entry DLIB. `selectMask` opened a new `LibraryFile` for every seed and never closed it. In Encyclopedia 6.9.23 (checked by `javap`), the `LibraryFile` constructor creates `%TEMP%\encyclopedia_*.elib` (`deleteOnExit` only), `openFile` copies the whole library into it, and only `close()` deletes it. Each seed therefore left a full library copy on disk and also reparsed the full library.
-- Guide: none. Ariana approved the fix directly in chat on 2026-11-01: load the library once in `execute`, close it, and pass the in-memory entries to `selectMask` for every seed.
+- Guide: none. Ariana approved the fix directly in chat on 2026-10-31: load the library once in `execute`, close it, and pass the in-memory entries to `selectMask` for every seed.
 - Acceptance: no temporary library copies remain after a multi-seed run; seed outputs (assay list, entrapment assignments, masked file contents) are unchanged; Java 17 tests pass.
-- Approval: Approved (Ariana, 2026-11-01).
+- Approval: Approved (Ariana, 2026-10-31).
 
 - [x] `BOOTLEAK-01` Load and close the library once in `TargetedBootstrapper.execute`; `selectMask` takes the loaded `ArrayList<LibraryEntry>` instead of the library path. Files: `src/main/java/org/searlelab/context/io/TargetedBootstrapper.java`. Check: diff review; seed outputs unchanged.
 - [x] `BOOTLEAK-02` Regression test that a three-seed run leaves no new `encyclopedia_*.elib` in `java.io.tmpdir`. Files: `src/test/java/org/searlelab/context/io/TargetedBootstrapperTest.java`. Check: fails on the original code, passes on the patch.
@@ -757,7 +757,7 @@ Each commit message ends with the session's attribution lines (`Co-Authored-By` 
 
 #### Work log
 
-##### 2026-11-01 — `BOOTLEAK-01`/`02`/`03` implemented and validated
+##### 2026-10-31 — `BOOTLEAK-01`/`02`/`03` implemented and validated
 
 - Environment: Temurin 17.0.13 and Maven 3.9.9 downloaded into ignored `build-cache/` (system JDK is 21). `./build.sh maven` still fails at the pre-existing line-44 `MAVEN_REPO: readonly variable` error, not repaired here; Maven was downloaded from the same URL `build.sh` uses.
 - Baseline (original code): `mvn -B -Dmaven.repo.local=build-cache/m2-repository -Dtest=TargetedBootstrapperTest test` passed 2 tests. A scratch harness (`tmp/leakcheck/`, ignored) running `execute` with seeds 1–3, 1 peptide, 0.5 min RT, 1.0 m/z, 1 trap on the `IL2_and_IL15_Combo.elib` / `IL2A_GPFDIA_0combined_masked0_assay.dia` fixtures left 3 `encyclopedia_*.elib` copies before JVM exit.
@@ -766,3 +766,55 @@ Each commit message ends with the session's attribution lines (`Co-Authored-By` 
 - Tests: `TargetedBootstrapperTest` 3 tests, 0 failures/errors/skips on Java 17. With only `TargetedBootstrapper.java` reverted (stash), the new test failed listing 3 leftover `.elib` files, then the change was restored. `git diff --check` passed. Full `-Ppackage verify` not run (recorded baseline failures and native-runtime limits unchanged); no other caller of `selectMask` exists.
 - Not validated: the 3.9M-entry DLIB on Windows (`BOOTLEAK-04`). Still open, out of scope: `writeMaskedFile` closes `rawLibraryFile` outside a `finally`, so an exception during masking can leave one temp `.dia` copy.
 - Next: Ariana's Windows rerun and review; commit only on her instruction.
+
+##### 2026-11-01 — dates corrected
+
+- Ariana asked to keep the BOOTLEAK label with the start date 2026-10-31. The earlier entries above were first written as 2026-11-01 (UTC); the work ran about 22:30 America/Chicago on 2026-10-31, so their dates were corrected to 2026-10-31. No other content changed.
+
+#### BOOTLEAK follow-up — entrapments not matched by precursor m/z (2026-11-01)
+
+- Problem: commit `2e1b5fe` (2026-09-05) replaced `library.getEntries(libraryMzRange, ...)` in `selectDecoys` with a loop over every library entry and dropped the m/z test, so `libraryMzRange` is built but unused. Entrapments became the first eligible entries in library order (charge and target-overlap checks only), not entries near the target m/z. In the 2026-10-31 three-seed fixture run, entrapments were 22–42 m/z from their targets and `VFTTGFSR` served seeds 1 and 2. Bootstrap outputs made since 2026-09-05 are affected.
+- Decisions (Ariana, 2026-11-01): among eligible candidates, choose the closest precursor m/z first; keep the 10 ppm start, doubling to 320 ppm, inclusive bounds (Ariana allowed a 20 ppm start if faster); fix the "Only found" log line to report this target's entrapment count; no CTX ID or Google guide, keep the BOOTLEAK label.
+- Approach (approved 2026-11-01): `execute` makes one stable m/z-sorted copy of the loaded entries; `selectTargets` keeps library order so seeded target draws are unchanged; `selectDecoys` binary-searches the sorted copy for each tolerance window, orders candidates by |Δm/z|, and applies the existing eligibility checks unchanged.
+- Acceptance: every entrapment is within 320 ppm of its target, same charge, RT-separated from every target window by the existing buffer, not a target, not repeated within a seed, and the closest eligible candidate(s); unmatched targets are still replaced; Java 17 tests pass; README describes the rule. A passing build does not establish FDR validity.
+- Approval: Approved (Ariana, 2026-11-01).
+
+- [x] `BOOTLEAK-06` Build the m/z-sorted entry list once in `execute` and pass it through `selectMask` to `selectDecoys`. Files: `TargetedBootstrapper.java`. Check: diff review; target selection unchanged.
+- [x] `BOOTLEAK-07` In `selectDecoys`, restrict candidates to the ppm window via binary search, order by |Δm/z|, add Δppm to the "Decoy k of n" log line, and make "Only found" report this target's count. Files: `TargetedBootstrapper.java`. Check: tests in `BOOTLEAK-08`/`09`.
+- [x] `BOOTLEAK-08` Synthetic JUnit 4 tests: off-mass entry listed first is not chosen; in-window ineligible candidates rejected (charge, RT overlap, used sequence); closest-first order with 2 traps; widening finds ~150 ppm, ~400 ppm leaves the target unmatched; inclusive boundary. Files: `TargetedBootstrapperTest.java`. Check: regression test fails on the current code, all pass on the fix.
+- [x] `BOOTLEAK-09` Fixture integration test (IL2/IL15, seeds 1–3, 5 peptides, 2 traps): every assignment within 320 ppm, same charge, RT-separated, not a target, unique within seed. Files: `TargetedBootstrapperTest.java`.
+- [x] `BOOTLEAK-10` Java 17 focused tests, before/after comparison of targets and entrapments for seeds 1–3, diff review. Files: log only.
+- [x] `BOOTLEAK-11` README paragraph on how `bootstrap` chooses entrapments. Files: `README.md`.
+- [ ] `BOOTLEAK-12` Ariana runs the large DLIB for a few seeds: Δppm distribution, replaced targets per seed, entrapment reuse across seeds, time per seed; then regenerates bootstrap outputs made since 2026-09-05.
+
+##### 2026-11-01 — `BOOTLEAK-06` to `BOOTLEAK-11` implemented and validated
+
+- Code: `execute` builds `entriesByMz` (stable sort by precursor m/z) once after loading; `selectMask` takes it as a new parameter after `entries` and passes it to `selectDecoys`. `selectDecoys` rejects an unsorted list with `IllegalArgumentException`, and for each 10→320 ppm window takes candidates from new package-private `candidatesInWindow` (binary search for the inclusive window, then stable sort by |Δm/z|; ties: lower m/z, then library order). Eligibility checks are unchanged. "Decoy k of n" now logs Δppm; "Only found" reports this target's count. The unused `libraryMzRange` was removed. README gains a "Simulated assays with `bootstrap`" section.
+- Note: with closest-first ordering, the doubling rounds give the same result as one 320 ppm window, so the start value (10 vs 20 ppm) affects only speed; 10 ppm was kept as approved.
+- Tests (Java 17, Temurin 17.0.13, Maven 3.9.9): `-Dtest=TargetedBootstrapperTest test` 9 tests, 0 failures/errors/skips. With only `TargetedBootstrapper.java` reverted (stash, then restored), 4 new tests failed as expected: off-mass entry chosen (`OFFMASSK`), fixture assignment far outside 320 ppm, unsorted input accepted, 321 ppm candidate accepted. The closest-first and in-window-rejection tests also pass on the old code because their inputs were already in m/z order; they fix the rule going forward.
+- Full suite: `mvn -B -Dmaven.repo.local=build-cache/m2-repository test` ran 148 tests, 4 failures, 1 error, 8 skips. All 5 are in `ScribeFeatureTableTest` (3), `ScribeCalibratedWorkflowTest` (missing resource), and `ContextScribeTwoBridgeTest`; the same 5 fail on unchanged commit `558ac27` in a temporary worktree, so they are pre-existing and unrelated.
+- Fixture comparison (seeds 1–3, 5 peptides, 2 traps, 0.5 min, 1.0 m/z; harness in ignored `tmp/mzfix/`): maximum |Δppm| per seed fell from 178,351 / 123,045 / 150,597 to 107.8 / 78.9 / 109.2; two entrapments are exact-mass (0.00 ppm). Six targets lacked 2 entrapments by 320 ppm and were replaced, so each seed's target list changed.
+- Timing (synthetic, not the real DLIB): 3.9M generated entries (m/z uniform 400–1200, z 2–3, RT 0–120 min, seed 42); sorting once took 3.5 s; `selectDecoys` for 100 targets × 2 traps took 125–411 ms per seed, including the sortedness check.
+- Findings for Ariana, not changed: (1) pre-existing: replacement targets are drawn with seed `i + replacementRound`, which repeats the next seed's draws; in the fixture, seed 1's replacements were seed 2's first targets and seed 2's were seed 3's, so seeds share targets and, under the deterministic rule, entrapments. (2) Closest-first prefers exact-mass candidates, including sequence isomers or isobars of the target, whenever they are RT-separated.
+- Next: `BOOTLEAK-12` on the real DLIB; Ariana's review; commit only on instruction.
+
+#### BOOTLEAK follow-up — 1000 ppm limit and recorded limitation (2026-11-01)
+
+- Decisions (Ariana, 2026-11-01): raise the final entrapment window from 320 to 1000 ppm with steps 10, 20, 40, 80, 160, 320, 640, 1000 ppm; keep closest-eligible-first. Accept that a target drawn in more than one seed gets the same entrapments; record this as a limitation in the commit message without describing its implications there. Accept that seeds share targets (finding 1: replacements use the next seed's draws), since assays from the same matrix often share targets. Keep exact-mass candidates, including sequence isomers (finding 2), because they must be RT-separated from the target.
+- Acceptance amendment: the 320 ppm bound in the earlier acceptance and in `BOOTLEAK-08`/`09` is now 1000 ppm.
+- Approval: Approved (Ariana, 2026-11-01).
+
+- [x] `BOOTLEAK-13` Final window 1000 ppm (doubling capped at 1000) with matching tests and README. Files: `TargetedBootstrapper.java`, `TargetedBootstrapperTest.java`, `README.md`. Check: focused tests; the widening test fails with the cap left at 320.
+- [x] `BOOTLEAK-14` Commit messages include a Limitations section stating that a target drawn in more than one seed receives the same entrapments. Check: at commit time, on Ariana's authorization.
+
+##### 2026-11-01 — `BOOTLEAK-13` implemented and validated
+
+- Code: `MAX_ENTRAPMENT_PPM = 1000`; after an insufficient round the tolerance becomes `min(2 × ppm, 1000)`, and the loop stops after the 1000 ppm round.
+- Tests (Java 17): `-Dtest=TargetedBootstrapperTest test` 9 tests, 0 failures/errors/skips. The widening test now also needs a candidate at −800 ppm (found only in the final round), one exactly at +1000 ppm (inclusive), and rejects +1001 ppm; with `MAX_ENTRAPMENT_PPM` temporarily set to 320 it failed as expected (`[ONEFIFTYK]` only), then the value was restored. Fixture integration bound changed to 1000 ppm.
+- Fixture comparison (seeds 1–3, 5 peptides, 2 traps): replaced targets fell from 6 (320 ppm) to 2 (1000 ppm); seed 2 kept all five initially drawn targets; maximum |Δppm| per seed was 771.1 / 736.3 / 109.2, the larger values only for targets that 320 ppm would have replaced.
+- Full suite not rerun after this step; only `TargetedBootstrapper` changed since the 148-test run, which had only the 5 pre-existing Scribe failures.
+- Next: Ariana's commit and push authorization (`BOOTLEAK-14`), then `BOOTLEAK-12` on the real DLIB.
+
+##### 2026-11-01 — `BOOTLEAK-14` commits and push authorized
+
+- Ariana approved both commits, with the revised first message naming `TargetedBootstrapper.execute` and `TargetedBootstrapper.selectDecoys`, and the push to `claude/targeted-bootstrapper-patch-20261031`. Both messages carry the Limitations section. No Google record exists for BOOTLEAK, so hashes are reported in chat only.
