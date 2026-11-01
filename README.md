@@ -216,6 +216,12 @@ results_run01/context-mprophet/
   run01.peptide.background.decoy.txt     decoy background peptides
 ```
 
+Context mProphet prepares its input as Context-MS does: background and reference headers must match, features
+constant on the background are dropped from both, and the training features are every column except id, label,
+peptide, proteins, `ScanNr` and EncyclopeDIA's metadata columns (so `ExpMass` is a feature). Models are ranked by
+passing count with ties kept in iteration order, and training folds are not capped in size. The standard and
+targeted mProphet workflows are unchanged.
+
 The first four `context-mprophet` files follow Context-MS's format and method: a Gaussian decoy null gives
 p-values, Benjamini–Hochberg gives q-values, and Storey's local FDR (pi0 floored at 0.05, Silverman KDE on
 logit p) gives PEPs, computed once over all reference rows and again over the best row per peptide. The
@@ -247,6 +253,7 @@ java -jar context.jar mprophet \
 | `-seed` | `1` | training seed for the background model (`percolator` and `mprophet`; not with `-standardPercolator`). The same seed and inputs give the same results as `AllWorkflowExecutorCLI --seeds` for that seed |
 | `-pyisopep` | look on `PATH` | path to the `pyisopep` executable (`percolator` only) |
 | `--pepMethod` | `q2pep` | pyIsoPEP method for Context Percolator q-values and PEPs: `q2pep` (as in Context-MS) or `d2pep` (`percolator` and `AllWorkflowExecutorCLI`; not with `-standardPercolator`) |
+| `--foldFile` | — | `mprophet` only, diagnostic: train on the training/testing folds Context-MS exported (`docs/validation/ctx018_compare.py run-context-ms --export-folds`) instead of a random split, to compare the two tools without fold randomness |
 | `--allow-legacy-features` | `false` | accept older direct split files without pair sidecars (`percolator` and `mprophet`) |
 | `--prediction-store` | `prediction-cache` beside the acquisition | folder for stored predictions and shared working libraries (`features`, `features-folder`, and raw `percolator` and `mprophet` runs) |
 | `--clear-stale-store-lock` | `false` | clear a prediction store lock left by an interrupted run (same commands) |

@@ -16,7 +16,7 @@ import edu.washington.gs.maccoss.encyclopedia.filereaders.SearchParameterParser;
 /** Runs the existing background-trained Context mProphet workflow from the public command. */
 public final class ContextMProphetCLI {
 	private static final Set<String> FLAGS = Set.of("-i", "-l", "-f", "-massList", "-background",
-			"-reference", "-o", "-prefix", "-fdr", "-seed", "--allow-legacy-features", "--prediction-store", "--clear-stale-store-lock");
+			"-reference", "-o", "-prefix", "-fdr", "-seed", "--foldFile", "--allow-legacy-features", "--prediction-store", "--clear-stale-store-lock");
 
 	private ContextMProphetCLI() {}
 
@@ -77,7 +77,8 @@ public final class ContextMProphetCLI {
 		int seed = TrainingSeeds.parseSingle(options.get("-seed"));
 		// Built exactly as AllWorkflowExecutorCLI builds them, so the same seed gives the same results.
 		SearchParameters parameters = AllWorkflowExecutorCLI.parseSearchParameters(SearchParameterParser.getDefaultParameters(), fdr);
-		AllWorkflowExecutorCLI.runContextMProphet(background, reference, fasta, parameters, fdr, root, prefix, seed);
+		File foldFile = options.containsKey("--foldFile") ? readable(options, "--foldFile") : null;
+		AllWorkflowExecutorCLI.runContextMProphet(background, reference, fasta, parameters, fdr, root, prefix, seed, foldFile);
 		System.out.println("Context mProphet results: " + engine.getAbsolutePath());
 	}
 
@@ -127,6 +128,7 @@ public final class ContextMProphetCLI {
 		System.out.println("   or: context.jar mprophet -background <background.features.txt> -reference <reference.features.txt> -f <proteins.fasta> [-o <results>] [-fdr <fraction>]");
 		System.out.println("Options: -prefix <name>; -seed <int> background training seed (default: 1);");
 		System.out.println("--allow-legacy-features true for old split files without pair sidecars.");
+		System.out.println("--foldFile <folds.tsv> (diagnostic) trains on Context-MS's exported folds instead of a random split.");
 		System.out.println("-generateDecoys is accepted for raw runs; Context scoring ensures assay decoys when needed.");
 		System.out.println("Raw runs only: --prediction-store <folder> shares stored predictions across folders (default:");
 		System.out.println("prediction-cache beside the acquisition); --clear-stale-store-lock true clears a lock left by an interrupted run.");

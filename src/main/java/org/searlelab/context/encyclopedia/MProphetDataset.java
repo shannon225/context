@@ -21,6 +21,12 @@ import gnu.trove.list.array.TDoubleArrayList;
 import gnu.trove.list.array.TFloatArrayList;
 
 
+/**
+ * Unused as of 2026-10-31 (CTX018-016): MProphetReiter imports EncyclopeDIA's
+ * {@code edu.washington.gs.maccoss.encyclopedia.algorithms.percolator.MProphetDataset}, not this copy. Kept, not
+ * deleted, at Ariana's request. Do not use it: its q-value code multiplies by pi0 twice (in getPassingTargetsByFDR).
+ * Code in this package that names MProphetDataset without importing EncyclopeDIA's class gets this copy.
+ */
 public class MProphetDataset {
 	private final int startingScoreIndex;
 	private final ArrayList<String> featureNames;

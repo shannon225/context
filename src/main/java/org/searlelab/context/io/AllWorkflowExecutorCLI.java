@@ -13,13 +13,16 @@ import java.util.stream.Stream;
 
 import org.searlelab.context.encyclopedia.MProphetReiter;
 import org.searlelab.context.percolator.ContextPercolator;
+import org.searlelab.context.mprophet.ContextMProphetFeatures;
 import org.searlelab.context.mprophet.ContextMProphetReports;
+import org.searlelab.context.mprophet.MProphetFoldFile;
 import org.searlelab.context.percolator.ContextPercolatorExecutor;
 import org.searlelab.context.percolator.ContextTrainingOptions;
 import org.searlelab.context.percolator.ContextPercolatorResult;
 import org.searlelab.context.percolator.PyIsoPEPRunner;
 import org.searlelab.context.percolator.TrainingSeeds;
 
+import edu.washington.gs.maccoss.encyclopedia.algorithms.percolator.MProphetDataset;
 import edu.washington.gs.maccoss.encyclopedia.algorithms.percolator.MProphetExecutionData;
 import edu.washington.gs.maccoss.encyclopedia.algorithms.percolator.MProphetResult;
 import edu.washington.gs.maccoss.encyclopedia.algorithms.percolator.PercolatorExecutionData;
@@ -320,6 +323,18 @@ public final class AllWorkflowExecutorCLI {
 	
 	public static MProphetResult runContextMProphet(File backgroundFeatures, File referenceFeatures, File fasta,
 			SearchParameters parameters, float fdr, File outputDirectory, String prefix, int seed) throws Exception {
+		return runContextMProphet(backgroundFeatures, referenceFeatures, fasta, parameters, fdr, outputDirectory, prefix,
+				seed, null);
+	}
+
+	/**
+	 * Context mProphet (CTX-018): Context-MS's preprocessing ({@link ContextMProphetFeatures}), Context-only training
+	 * in {@link MProphetReiter}, and the background model applied to a reference with the same feature list.
+	 * {@code foldFile} (diagnostic, may be null) replaces the random training/testing split with Context-MS's folds.
+	 */
+	public static MProphetResult runContextMProphet(File backgroundFeatures, File referenceFeatures, File fasta,
+			SearchParameters parameters, float fdr, File outputDirectory, String prefix, int seed, File foldFile)
+			throws Exception {
 
 		File engineDirectory = DirectoryOptions.engineDirectory(outputDirectory, CONTEXT_MPROPHET_ENGINE_NAME);
 
@@ -337,22 +352,38 @@ public final class AllWorkflowExecutorCLI {
 			Files.deleteIfExists(output.toPath());
 		}
 
-		MProphetResult backgroundResult = MProphetReiter.executeMProphetTSV(backgroundData, fdr, seed,
-				parameters.getAAConstants(), MPROPHET_ROUND);
+		File iterations = new File(new File(engineDirectory, DirectoryOptions.MODEL_DIRECTORY), prefix + ".iterations.tsv");
+		Files.deleteIfExists(iterations.toPath());
+
+		ContextMProphetFeatures.Prepared prepared = ContextMProphetFeatures.prepare(backgroundFeatures, referenceFeatures,
+				DirectoryOptions.subdirectory(engineDirectory, DirectoryOptions.WORK_DIRECTORY), prefix);
+		List<MProphetDataset[]> folds = foldFile == null ? null
+				: MProphetFoldFile.read(foldFile, prepared.background(), MProphetReiter.ITERATIONS);
+		if (folds != null) Logger.logLine("Context mProphet: training on the folds in " + foldFile.getAbsolutePath());
+
+		MProphetReiter.ContextTraining training = MProphetReiter.executeContextTraining(prepared.background(),
+				backgroundData, fdr, seed, parameters.getAAConstants(), folds);
+		MProphetResult backgroundResult = training.result();
 		if (backgroundResult == null || backgroundResult.getLDA() == null) {
 			throw new IOException("Context mProphet could not train a background model");
 		}
 		LinearDiscriminantAnalysis backgroundModel = backgroundResult.getLDA();
+		if (folds != null) {
+			Files.createDirectories(iterations.getParentFile().toPath());
+			List<String> lines = new ArrayList<>(List.of("iteration\ttrained_passing\tseed_passing\tkept\tkept_passing"));
+			lines.addAll(training.iterations());
+			Files.write(iterations.toPath(), lines);
+		}
 
-		MProphetResult referenceResult = MProphetReiter.executeMProphetTSVWithModel(referenceData, fdr, backgroundModel,
-				parameters.getAAConstants());
+		MProphetResult referenceResult = MProphetReiter.applyContextModel(prepared.reference(), referenceData, fdr,
+				backgroundModel, parameters.getAAConstants());
 		if (referenceResult == null) throw new IOException("Context mProphet could not score the reference features");
 
 		Logger.logLine("Context mProphet found " + referenceResult.getPassingPeptides().size()
 				+ " reference peptides at " + (fdr * 100.0f) + "% FDR");
 
 		// CTX-018: Context-MS-format outputs with Context-MS's q-values and PEPs, recomputed at peptide level.
-		ContextMProphetReports.Summary summary = ContextMProphetReports.write(referenceFeatures, backgroundModel,
+		ContextMProphetReports.Summary summary = ContextMProphetReports.write(prepared.prunedReference(), backgroundModel,
 				backgroundResult.getFeatureNames(), engineDirectory, prefix, fdr);
 		Logger.logLine("Context mProphet (Context-MS q-values and PEPs): " + summary.psmTargets()
 				+ " reference target PSMs, " + summary.peptideTargets() + " peptides; " + summary.peptidesAtQ()

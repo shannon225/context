@@ -1164,7 +1164,7 @@ Remaining distinctions:
 - [ ] `CTX018-013` Until Useful review: minimal diff, reuse, scientific behavior, and artifacts. Check: findings, dispositions, residual risks recorded.
 - [ ] `CTX018-014` Ariana's final review. Status: not started.
 - [ ] `CTX018-015` External Report `YYYY-MM-DD-CTX-018-Report.md` at a location Ariana names (cloud session). Check: full checklist and log copied verbatim and verified.
-- [ ] `CTX018-016` Add a comment to `src/main/java/org/searlelab/context/encyclopedia/MProphetDataset.java` stating it is dead code as of 2026-10-31 (`MProphetReiter` imports EncyclopeDIA's class) and that its q-value code multiplies by π0 twice; do not delete it. Check: comment-only diff; compiles.
+- [x] `CTX018-016` Add a comment to `src/main/java/org/searlelab/context/encyclopedia/MProphetDataset.java` stating it is dead code as of 2026-10-31 (`MProphetReiter` imports EncyclopeDIA's class) and that its q-value code multiplies by π0 twice; do not delete it. Check: comment-only diff; compiles.
 
 ### Log
 
@@ -1227,10 +1227,10 @@ r1 tasks marked "proposed superseded" above become `Superseded` only when r2 is 
   - Standard and targeted commands unchanged.
   - Files: `percolator/ContextPercolatorRunner.java`, `ContextPercolator.java`, tests.
   - Check: Context and standard command tests; with v3.05, the same seed and pruned input give per-fold weights matching Context-MS (difference recorded).
-- [ ] `CTX018-021` Add the Context-only mProphet mode in `MProphetReiter`, turned on only by `runContextMProphet`. Every other caller (standard and targeted mProphet, `ContextMProphetExecutor`, `scribe-context`) keeps the default path byte-for-byte. `007`, `022`, `023`, `024` and `025` act only in this mode.
+- [x] `CTX018-021` Add the Context-only mProphet mode in `MProphetReiter`, turned on only by `runContextMProphet`. Every other caller (standard and targeted mProphet, `ContextMProphetExecutor`, `scribe-context`) keeps the default path byte-for-byte. `007`, `022`, `023`, `024` and `025` act only in this mode.
   - Files: `encyclopedia/MProphetReiter.java`, `io/AllWorkflowExecutorCLI.java`, tests.
   - Check: default-path regression tests on a fixture for standard and targeted mProphet and `ContextMProphetExecutor.trainAndApplyFeature`.
-- [ ] `CTX018-022` In Context-only mode, rank trained models by passing count with a stable descending sort, so ties keep iteration order as in Context-MS. Today ties are broken by `LinearDiscriminantAnalysis.compareTo` (sum of coefficients) and then reversed by `Collections.reverse`.
+- [x] `CTX018-022` In Context-only mode, rank trained models by passing count with a stable descending sort, so ties keep iteration order as in Context-MS. Today ties are broken by `LinearDiscriminantAnalysis.compareTo` (sum of coefficients) and then reversed by `Collections.reverse`.
   - Files: `encyclopedia/MProphetReiter.java`, tests.
   - Depends on: `021`.
   - Check: JUnit 4 with a tie straddling position 25 keeps the earliest iterations; default-path ordering unchanged.
@@ -1241,7 +1241,7 @@ r1 tasks marked "proposed superseded" above become `Superseded` only when r2 is 
   - Files: `io/AllWorkflowExecutorCLI.java` (`runContextMProphet`), tests, README.
   - Depends on: `021`.
   - Check: row counts and target/decoy labels match the reference input; weights match the logged model; existing outputs unchanged.
-- [ ] `CTX018-024` (replaces `009`) Diagnostic fold file for Context-only `MProphetReiter`.
+- [x] `CTX018-024` (replaces `009`) Diagnostic fold file for Context-only `MProphetReiter`.
   - TSV columns: `iteration`, `fold`, `position`, `id`. Within-fold order preserved.
   - Folds built from `MProphetData` joined by `id` through the public `MProphetDataset(featureNames, startingScoreIndex, data)` constructor.
   - Fail on missing, duplicate or extra ids and on a wrong iteration count.
@@ -1250,7 +1250,7 @@ r1 tasks marked "proposed superseded" above become `Superseded` only when r2 is 
   - Files: `encyclopedia/MProphetReiter.java`, tests.
   - Depends on: `017`, `021`, `022`.
   - Check: join and malformed-input tests; on `example/`, record per-iteration count agreement, the first iteration that diverges and its cause, and the maximum relative difference in weights. This is diagnostic, not a gate.
-- [ ] `CTX018-025` (replaces `008`) Context-owned mProphet reader and preprocessing (Context-only mode). Each step is measured separately with injected folds:
+- [x] `CTX018-025` (replaces `008`) Context-owned mProphet reader and preprocessing (Context-only mode). Each step is measured separately with injected folds:
   - (a) Reuse `ContextFeatures.prepare`: header check, σ < 1e-6 pruning on the background, same drop list applied to the reference.
   - (b) Build `MProphetData`/`MProphetDataset` for background and reference. With legacy column selection, prove the result is identical to `MProphetFeatureReader.parseFeatureFile`.
   - (c) Context-MS feature selection: positional non-feature columns, case-insensitive `ScanNr`/`scan`, metadata exclusions; resolve `ExpMass`/`protein`.
@@ -1313,7 +1313,7 @@ r1 tasks marked "proposed superseded" above become `Superseded` only when r2 is 
 - **Commit and push.** The commit and push are recorded in the Google implementation record, not here.
 - **Next:** `CTX018-001` (Phase 0). Open question 3 must be decided before `CTX018-004`, question 2 before `CTX018-020`, and question 1 before `CTX018-026`.
 
-- [ ] `CTX018-028` Context-workflow guard for EncyclopeDIA options, from Ariana's 2026-10-31 decision on open question 2. **The specifics below await Ariana's confirmation.**
+- [x] `CTX018-028` Context-workflow guard for EncyclopeDIA options, from Ariana's 2026-10-31 decision on open question 2. **The specifics below await Ariana's confirmation.**
   - Context still accepts and parses every EncyclopeDIA workflow option.
   - The Context Percolator and Context mProphet workflows fail with a clear error, before any training, when an option Context fixes or does not honor is set to a value that differs from the EncyclopeDIA 6.9.23 default. Values are compared after parsing, so `0.010` equals `0.01`.
   - Options that cause the error:
@@ -1562,3 +1562,58 @@ Ariana asked to move to Phase 2.
 
 - Ariana kept the single-target PEP behavior: PEP = 1 with a warning, where Context-MS stops. She authorized committing and pushing Phase 2. The commit hash is recorded in the implementation record.
 - The move of `CTX018-021` to Phase 3 is recorded above. Ariana has not yet said whether she accepts it.
+
+#### 2026-11-01 — Phase 3 implementation: `CTX018-021`, `022`, `024`, `025`, `016`, and the mProphet part of `028` (uncommitted)
+
+Ariana asked to move to Phase 3 once Phase 2 was pushed (`abcd1e3`). The Phase 2 commit first failed `git diff --cached --check`: the decoy rows of the fixture had empty trailing fields. The generator now writes `NA` there; the test re-ran and passed before the commit.
+
+- **`CTX018-021` — done.** Context-only mode in `MProphetReiter`:
+  - `executeContextTraining(dataset, settings, threshold, seed, aa, folds)` and `applyContextModel(reference, …)` are the entry points. Only `runContextMProphet` uses them.
+  - The public constructor and `executeMProphetTSV` / `executeMProphetTSVWithModel` keep the legacy path, which `ContextMProphetExecutor` (`scribe-context`) and the standard and targeted workflows use.
+  - In this mode: folds are not capped (maximum fold size = the larger of targets and decoys, as Context-MS), a supplied fold plan replaces the random split, a training failure is thrown instead of logged and returned as null, and per-iteration records are returned.
+- **`CTX018-022` — done.** `rankModels(models, contextMode)`: in Context mode a stable descending sort by passing count; in legacy mode `Collections.sort` + `reverse`, unchanged. `MProphetReiterContextModeTest` covers both orders with a tie at the cut.
+- **`CTX018-025` — done.** `org.searlelab.context.mprophet.ContextMProphetFeatures`:
+  - (a) Reuses `ContextFeatures.prepare`: header check, σ < 1e-6 pruning on the background, and the same drop list on the reference.
+  - (b) Builds `MProphetData`/`MProphetDataset` through the public constructors. With EncyclopeDIA's column rules, it is **bit-for-bit identical** to `MProphetFeatureReader.parseFeatureFile`: features, starting index, ids, sequences (flanking `-.`/`.-` stripped), proteins, labels and float values. Checked on the 1,000-row fixture (`ContextMProphetFeaturesTest`) and on the full 53,998-row `example/` background (probe: 0 differing rows).
+  - (c) Context-MS's columns: positional id/label/peptide/proteins, case-insensitive `ScanNr`/`scan`, and `io.ENCYCLOPEDIA_METADATA_COLS`. `ExpMass` is a feature; a non-numeric mid-table `protein` column reads as 0 and is then pruned. Labels other than 1/−1 are skipped with a warning.
+  - (d) Starting score: the last of Context-MS's preferred names present, including `main_var_Intensity`; otherwise the per-training-fold best-separating feature (`MProphetReiter.bestSeparatingFeature`, a port of `_auto_main_score`).
+    - **Finding:** EncyclopeDIA's reader stores the *header* position of its starting score and reads it as a *feature* position. On `example/` that is 5 (`weightedSumOfSquaredErrors`) instead of `xCorrModel` (feature 1); on the fixture, 12 (`isotopeDotProduct`) instead of `xCorrModel`. The legacy starting score is therefore wrong whenever it is used, which is only when the seed model is unusable. The Context reader uses the correct index.
+  - (e) No fold cap.
+  - (f) The reference dataset is built with the background's feature list. The model is applied to it through `applyContextModel`, so coefficients line up by name. The new reports also fail on a missing feature (Phase 2).
+  - `runContextMProphet` now uses the reader. The rescored output is written from the pruned reference, as Context-MS writes its own.
+  - **Effect of each step on `example/`:** (a), (c), (d) and (e) change nothing there. Pruning drops `charge1`/`charge4`, which both selections exclude anyway; the 15 features are identical; the seed model is usable, so no starting score is needed; and 54k rows are under the old 500,000-row cap. Their effect is covered by synthetic tests. The only change that affects `example/` is `022`: with random folds, seeds 5 and 10 changed materially, because a tie at the top-25 cut now keeps a different model; the other seeds changed only in the last digits, from averaging order.
+- **`CTX018-024` — done.** `org.searlelab.context.mprophet.MProphetFoldFile` and `mprophet --foldFile <folds.tsv>` (GNU style; README and help updated).
+  - Joins by id; keeps within-fold order (targets then decoys, in file position order).
+  - Fails on duplicate background ids, a wrong header, non-integer fields, a fold other than 0/1, an iteration outside 0..49, an unknown id, an id twice in one iteration, a repeated position, gaps in positions, a missing iteration, and incomplete coverage (naming a missing id).
+  - When given, `model/P.iterations.tsv` records each iteration.
+  - `ctx018_compare.py compare-folds` compares it with Context-MS's `iterations.tsv` and weights.
+  - Tests: `MProphetFoldFileTest` (2 tests: join/order, and 10 malformed cases).
+  - **Option B result** (`example/`, Context-MS's folds from seeds 1–3; `tmp/ctx018/metrics/phase3-folds-seed*`):
+    - Seeds 1 and 3: **50/50 iterations agree**; averaged weights within 2.2e-7 and 1.6e-6 relative.
+    - Seed 2: 49/50 agree. Iteration 31 has 207 vs 208 passing (one PSM at the q < 0.01 line, float32 vs float64). Weights are still within 2.1e-7 relative.
+    - Seed 1 includes the 128/128 tie at ranks 25/26, so this also confirms `022`.
+    - Diagnostic only, as approved.
+- **`CTX018-016` — done.** Class comment on `encyclopedia/MProphetDataset.java`: unused as of 2026-10-31, kept at Ariana's request, π0 applied twice in its q-values, and the same-package shadowing caution. Comment-only; compiles.
+- **`CTX018-028`, mProphet part — done.** The `-percolatorTrainingSetSize` warning now also says there is no Context mProphet fold cap. The `mprophet` command accepts no EncyclopeDIA options, so the warning can only come through `AllWorkflowExecutorCLI`.
+- **Phase 3 measurement** (`example/`, random seeds 1–10; `tmp/ctx018/metrics/phase3-mprophet`): Context mProphet median N 35 vs Context-MS 35, **met**; scores 0.025, **met**; gates pass.
+- **Regression:** `AllWorkflowExecutorCLI --seeds 3` against the Phase 2 run: `standard-percolator`, `target-percolator`, `standard-mprophet`, `target-mprophet` and the Context Percolator output are byte-identical (excluding `*.command.txt` temporary paths). Status COMPLETE.
+- **Not aligned, found during Phase 3 (outside the approved items; neither changes `example/`):**
+  - Java compares the seed model on the test fold even when the seed is unusable; Context-MS does only when usable.
+  - When LDA inversion fails, EncyclopeDIA throws, while Context-MS ends that inner loop.
+- **Tests:** full suite with pyIsoPEP on `PATH`: 179 tests, 3 failures (the same existing Scribe failures), 0 errors, 4 skipped. `git diff --check` is clean.
+- **Next:** commit Phase 3 on Ariana's authorization. Phase 4: `026` needs Ariana's comparison file (and `018`); `011`/`027` docs, `012` verify, `013` Until Useful review, `014` final review, `015` Report.
+
+#### 2026-11-01 — Phase 3 follow-ups from Ariana's review (uncommitted)
+
+- **EncyclopeDIA starting-score bug.** Explained to Ariana: the fix is Context-only. The Context mProphet workflow uses `ContextMProphetFeatures`, which gives the starting score's position in the feature list. EncyclopeDIA 6.9.23 is unchanged, so its reader still has the bug for the standard and targeted mProphet workflows and `scribe-context`, which are out of scope. An upstream fix would be a one-line EncyclopeDIA change and is not planned here.
+- **Preprocessing.** Ariana: the steps are needed for other data, even though `example/` is an ideal case where they change nothing.
+- **Training alignment, approved by Ariana ("persist training similarly to Context-MS").** All in Context-only mode in `MProphetReiter`; the legacy path is unchanged.
+  - The seed model is compared on the test fold only when it is usable (finite, not all zero), as Context-MS's `_is_usable` check does. Iteration records then leave the seed column empty.
+  - An iteration whose training fold has no targets or no decoys is skipped, as Context-MS's `continue` does. Before, EncyclopeDIA's LDA threw an `ArrayIndexOutOfBoundsException` there and the run stopped.
+  - The inner loop ends without a new model when there are no positives or no decoys to build from, as Context-MS's `build_lda` returning `None` does, so training persists instead of stopping. A singular covariance was probed separately: EncyclopeDIA returns NaN coefficients, which the existing NaN check already handles the same way as Context-MS.
+  - With no kept model and an unusable seed model, training stops with a clear error, as Context-MS raises, instead of averaging an all-zero seed model.
+  - Iterations without a model now record empty fields, which matches Context-MS's export for `compare-folds`.
+  - Tests in `MProphetReiterContextModeTest` (3 added; ids are EncyclopeDIA-style because `PercolatorPeptide` parses them): an unusable seed is never compared; no usable model and no seed raise an error; a training fold without decoys is skipped while the other iterations train.
+  - On `example/`, nothing changes, since the seed model is usable and every fold has decoys: random seeds 1–10 and fold-injected seeds 1–3 give weights and iteration records byte-identical to the earlier Phase 3 runs.
+- **Tests:** full suite with pyIsoPEP on `PATH`: 182 tests, 3 failures (the same existing Scribe failures), 0 errors, 4 skipped. `git diff --check` is clean.
+- **Next:** commit Phase 3 on Ariana's authorization.

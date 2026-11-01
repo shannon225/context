@@ -37,7 +37,7 @@ public final class ContextTrainingOptions {
 		}
 		if (given.getPercolatorTrainingSetSize() != defaults.getPercolatorTrainingSetSize()) {
 			conflicts.add("-percolatorTrainingSetSize " + given.getPercolatorTrainingSetSize()
-					+ ": Context training uses every background row (Percolator's default -N 0)");
+					+ ": Context training uses every background row (Percolator's default -N 0; no Context mProphet fold cap)");
 		}
 		if (given.getPercolatorModelFile().isPresent()) {
 			conflicts.add("-percolatorModelFile " + given.getPercolatorModelFile().get()

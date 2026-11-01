@@ -10,6 +10,10 @@ Two subcommands:
                   used (folds.tsv: iteration, fold, position, id) and the per-iteration passing
                   counts (iterations.tsv). Wrapping is passive: it does not change any result.
 
+  compare-folds   Option B diagnostic (CTX018-024): with Context-MS's folds injected into Context mProphet
+                  (`mprophet --foldFile <seed_dir>/folds.tsv`), compare the per-iteration passing counts and the
+                  averaged weights. Report-only; not an acceptance gate.
+
   compare         Compute the CTX-018 r2 gates, acceptance criteria and report-only metrics
                   for one engine from Context runs and Context-MS runs, and write metrics.json
                   and summary.md. Context runs are optional (Context-MS noise floor only).
@@ -490,6 +494,44 @@ def compare(args):
     print((out / "summary.md").read_text())
 
 
+def compare_folds(args):
+    out = Path(args.out)
+    if out.exists():
+        raise SystemExit(f"refusing to overwrite {out}")
+    ms_dir, engine_dir = Path(args.context_ms_seed_dir), Path(args.context_engine_dir)
+    ms_prefix = json.loads((ms_dir / "provenance.json").read_text())["prefix"]
+    ms = pd.read_csv(ms_dir / "iterations.tsv", sep="\t")
+    ctx = pd.read_csv(engine_dir / "model" / f"{args.prefix}.iterations.tsv", sep="\t")
+    if len(ms) != len(ctx):
+        raise SystemExit(f"{len(ms)} Context-MS iterations vs {len(ctx)} Context iterations")
+    columns = ["trained_passing", "seed_passing", "kept", "kept_passing"]
+    agree = [all(str(ms.loc[i, c]) == str(ctx.loc[i, c]) for c in columns) for i in range(len(ms))]
+    first = next((i for i, ok in enumerate(agree) if not ok), None)
+
+    def weights(path):
+        frame = pd.read_csv(path, sep="\t")
+        return dict(zip(frame["feature"], frame["weight"].astype(float)))
+    w_ms = weights(ms_dir / "weights" / f"{ms_prefix}.weights.txt")
+    w_ctx = weights(engine_dir / "model" / f"{args.prefix}.weights.txt")
+    same_features = set(w_ms) == set(w_ctx)
+    diffs = {f: abs(w_ctx[f] - w_ms[f]) for f in w_ms if f in w_ctx}
+    rel = {f: d / max(abs(w_ms[f]), 1e-12) for f, d in diffs.items()}
+    result = {
+        "iterations": len(ms), "iterations_agreeing": int(sum(agree)), "first_divergence": first,
+        "divergence": None if first is None else {"context_ms": ms.loc[first, columns].astype(str).to_dict(),
+                                                  "context": ctx.loc[first, columns].astype(str).to_dict()},
+        "same_features": same_features,
+        "features_only_in_context_ms": sorted(set(w_ms) - set(w_ctx)),
+        "features_only_in_context": sorted(set(w_ctx) - set(w_ms)),
+        "max_abs_weight_difference": max(diffs.values()) if diffs else None,
+        "max_relative_weight_difference": max(rel.values()) if rel else None,
+        "worst_feature": max(rel, key=rel.get) if rel else None,
+    }
+    out.mkdir(parents=True)
+    (out / "folds.json").write_text(json.dumps(result, indent=2, default=_json_default) + "\n")
+    print(json.dumps(result, indent=2, default=_json_default))
+
+
 def _json_default(value):
     if isinstance(value, (np.integer,)):
         return int(value)
@@ -552,6 +594,11 @@ def main():
     run.add_argument("--outdir", required=True, help="runs go to <outdir>/<engine>/seed_<n>/")
     run.add_argument("--context-ms-commit", default=None, help="Context-MS commit recorded in provenance")
     run.add_argument("--export-folds", action="store_true", help="mProphet only: write folds.tsv and iterations.tsv")
+    folds = sub.add_parser("compare-folds", help="option B: compare fold-injected Context mProphet with Context-MS")
+    folds.add_argument("--context-ms-seed-dir", required=True, help="a run-context-ms --export-folds seed directory")
+    folds.add_argument("--context-engine-dir", required=True, help="the Context context-mprophet directory")
+    folds.add_argument("--prefix", required=True, help="the Context prefix")
+    folds.add_argument("--out", required=True)
     cmp = sub.add_parser("compare", help="compute CTX-018 metrics")
     cmp.add_argument("--engine", choices=ENGINES, required=True)
     cmp.add_argument("--context-ms-root", required=True, help="the --outdir given to run-context-ms")
@@ -559,7 +606,7 @@ def main():
                      help="a Context run: seed, its engine output directory, and its prefix (repeatable)")
     cmp.add_argument("--out", required=True, help="new directory for metrics.json and summary.md")
     args = parser.parse_args()
-    run_context_ms(args) if args.command == "run-context-ms" else compare(args)
+    {"run-context-ms": run_context_ms, "compare": compare, "compare-folds": compare_folds}[args.command](args)
 
 
 if __name__ == "__main__":
