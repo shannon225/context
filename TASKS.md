@@ -498,3 +498,23 @@ Ariana asked to move to Phase 3 once Phase 2 was pushed (`abcd1e3`). The Phase 2
   - On `example/`, nothing changes, since the seed model is usable and every fold has decoys: random seeds 1–10 and fold-injected seeds 1–3 give weights and iteration records byte-identical to the earlier Phase 3 runs.
 - **Tests:** full suite with pyIsoPEP on `PATH`: 182 tests, 3 failures (the same existing Scribe failures), 0 errors, 4 skipped. `git diff --check` is clean.
 - **Next:** commit Phase 3 on Ariana's authorization.
+
+#### 2026-11-01 — `CTX018-018` comparison data: library downloaded, feature-scoring probe (log only)
+
+- **Attempt:** fetch Ariana's HeLa comparison inputs into the cloud container (outside the repo, `/home/user/ctx018-data/`).
+- **Result:**
+  - After Ariana allowed `drive.usercontent.google.com` in the environment's network settings, the library downloaded: `Human_UP000005640_9606_entrapment.fasta.trypsin.z1-6_nce33_DIA.dlib`, 5,163,610,112 bytes (matches the Drive size).
+  - It opens read-only as SQLite: 3,875,793 entries; built with JChronologer at NCE 33, default charge 3, charges 1–6, decoys added.
+  - The uploaded `.dia`, assay `.txt` (155 targets + 155 decoys), entrapment assignments and FASTA were copied to `/home/user/ctx018-data/run/`. The copies' sha256 values match the uploads.
+- **Probe:** a 300 s `features` run with Context's defaults (`--prediction-nce 27`, default charge 2, DIA adjustment on). It was stopped by `timeout`, exit 124.
+  - JChronologer runs on this CPU (4 cores, 15 GB RAM).
+  - `ContextWorkingLibraryPreparer` predicts every library precursor and a matched decoy: up to 7.75 M requests.
+  - 336 k requests took 203 s (about 1,650/s), so prediction alone would take about 80 min.
+  - The store holds about 0.6 kB per spectrum, so about 4.7 GB in all, plus the working library.
+  - Free disk is 16 GB after the download, so the margin is a few GB.
+  - The interrupted run left `.context.lock`/`.context.inprogress` files in the scratch directory; the documented next-run recovery applies.
+- **Open for Ariana:**
+  - Use her own feature files (via Drive, now reachable), or generate them here (about 1.5–2 h, tight disk).
+  - If generating here, which prediction settings: Context's defaults (NCE 27, charge 2) or the library's (NCE 33, charge 3)?
+  - Either gives valid input for the parity comparison, since both tools read the same feature files. Her setting is what matches her pipeline.
+- **Next:** on Ariana's choice, produce or download the background/reference feature files and pair sidecars, then run the `CTX018-018` comparison-file steps.
