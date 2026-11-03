@@ -393,6 +393,10 @@ and 1 entrapment per target. For each seed from 1 to `seeds`, it draws target pr
 assigns entrapment peptides, and writes `<acquisition>_masked<seed>_assay.dia`, `_assay.txt`, and
 `_entrapment_assignments.tsv` next to the acquisition.
 
+The acquisition should use narrow (1-2 m/z) MS2 isolation windows, as in PRM. `bootstrap` checks the
+acquisition before loading the library and prints a warning when its widest window is larger than 2 m/z; it still
+runs, but with wider windows some scheduled targets may have no MS2 spectra in the masked file.
+
 Entrapments are library precursors near each target's precursor m/z. Candidates are searched within
 ±10 ppm, then ±20, 40, 80, 160, 320, 640, and 1000 ppm (inclusive), and the closest eligible precursors
 are chosen first (equal distances: lower m/z, then library order). A candidate is eligible when it has

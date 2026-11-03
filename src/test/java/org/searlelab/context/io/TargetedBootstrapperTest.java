@@ -23,6 +23,7 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import org.searlelab.context.datastructures.IsolationWindow;
+import org.searlelab.msrawjava.model.Range;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
@@ -222,6 +223,15 @@ public class TargetedBootstrapperTest {
 
 	private static List<String> compounds(List<IsolationWindow> windows) {
 		return windows.stream().map(IsolationWindow::getCompound).collect(Collectors.toList());
+	}
+
+	@Test
+	public void warnsOnlyForIsolationWindowsWiderThanTwoMz() {
+		// 2.0009 m/z matches the stored window width in the IL2 GPF fixture.
+		assertFalse(TargetedBootstrapper.isolationWindowWarning(List.of(new Range(430.4455, 432.4464), new Range(432.4465, 434.4474)), "narrow.dia").isPresent());
+		Optional<String> warning = TargetedBootstrapper.isolationWindowWarning(List.of(new Range(432.4465, 434.4474), new Range(457.4609, 473.4618)), "wide.dia");
+		assertTrue(warning.isPresent());
+		assertTrue(warning.get(), warning.get().contains("narrow (1-2 m/z) isolation windows") && warning.get().contains("wide.dia is 16.0 m/z"));
 	}
 
 	@Test

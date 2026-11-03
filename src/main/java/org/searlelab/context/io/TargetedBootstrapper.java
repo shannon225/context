@@ -13,6 +13,7 @@ import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map.Entry;
+import java.util.Optional;
 
 import org.searlelab.context.datastructures.IsolationWindow;
 import org.searlelab.msrawjava.io.encyclopedia.EncyclopeDIAFile;
@@ -32,6 +33,23 @@ public class TargetedBootstrapper {
 
 	// Entrapment search windows: 10, 20, 40, 80, 160, 320, 640, then 1000 ppm.
 	private static final double MAX_ENTRAPMENT_PPM = 1000;
+	// Masking expects narrow (1-2 m/z) MS2 isolation windows, as in PRM. Stored window edges can exceed 2 m/z slightly
+	// (2.0009 m/z in the test data), hence the small allowance.
+	private static final double MAX_NARROW_ISOLATION_WINDOW_MZ = 2.01;
+
+	static Optional<String> isolationWindowWarning(Collection<Range> windows, String fileName) {
+		double widest = 0;
+		for (Range window : windows) {
+			widest = Math.max(widest, window.getStop() - window.getStart());
+		}
+		if (widest <= MAX_NARROW_ISOLATION_WINDOW_MZ) {
+			return Optional.empty();
+		}
+		return Optional.of(String.format("Warning: TargetedBootstrapper is only meant to work with experiments collected with "
+				+ "narrow (1-2 m/z) isolation windows, similar to PRM data. The widest MS2 isolation window in %s is %.1f m/z. "
+				+ "Using larger windows may result in some scheduled targets not having MS2 spectra placed into the new file.",
+				fileName, widest));
+	}
 
 	public void execute(String libraryPath, String rawFilePath, int maxSeed, int numberOfPeptides,
 			float halfWindowWidthRT, double halfWindowWidthMz, int trapsPerTarget) throws Throwable {
@@ -40,6 +58,14 @@ public class TargetedBootstrapper {
 		String baseName = rawFileName.replaceFirst("\\.dia$", "");
 
 		AminoAcidConstants aaConstants = new AminoAcidConstants();
+
+		EncyclopeDIAFile rawDia = new EncyclopeDIAFile();
+		try {
+			rawDia.openFile(rawFile.toFile());
+			isolationWindowWarning(rawDia.getRanges().keySet(), rawFileName).ifPresent(Logger::errorLine);
+		} finally {
+			rawDia.close();
+		}
 
 		// Load the library once for all seeds. LibraryFile copies the library to a temp file that only close()
 		// deletes, so close it as soon as the entries are in memory.
