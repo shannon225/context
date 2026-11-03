@@ -852,3 +852,16 @@ Each commit message ends with the session's attribution lines (`Co-Authored-By` 
 ##### 2026-11-01 — `BOOTLEAK-05` accepted
 
 - Ariana accepted the BOOTLEAK fix (commits on `claude/targeted-bootstrapper-patch-20261031`: temp-library leak fix, m/z-matched entrapments up to 1000 ppm, loading and seed progress messages) and authorized committing and pushing these `TASKS.md` updates. The Report location has not been chosen yet; it is not written. No pull request has been requested.
+
+#### BOOTLEAK follow-up — warn when isolation windows are wider than 2 m/z (2026-11-03)
+
+- Finding: a 169-target, 10-entrapment, 2.5 min, 1.0 m/z run on a 16 m/z staggered HeLa DIA file produced reference features for only 7 of 169 targets. `writeMaskedFile` keeps MS2 scans whose isolation-window centre is within ±`halfWindowWidthMz` of the target. A copy of the IL2 fixture with windows widened to 16 m/z kept 25 MS2 scans for a target at a window centre and 0 for targets 3 and 7 m/z off centre. Ariana confirmed `TargetedBootstrapper` is only meant for 1-2 m/z (PRM-like) acquisitions, so the masking rule is correct for supported input; the defect was that unsupported input ran without notice.
+- Approval: Approved (Ariana, 2026-11-03): check isolation windows before running and print a message that the tool is meant for narrow (1-2 m/z) windows and that larger windows may leave some scheduled targets without MS2 spectra. Implemented as a warning; the run continues.
+
+- [x] `BOOTLEAK-16` Before loading the library, `TargetedBootstrapper.execute` reads the acquisition's isolation windows (`EncyclopeDIAFile.getRanges()`) and logs a warning through `Logger.errorLine` when the widest is above 2.01 m/z (allowance for stored widths such as 2.0009 m/z); README notes the requirement. Files: `TargetedBootstrapper.java`, `TargetedBootstrapperTest.java`, `README.md`. Check: unit test for 2.0009 vs 16 m/z windows; end-to-end runs on the fixture and a 16 m/z copy.
+
+##### 2026-11-03 — `BOOTLEAK-16` implemented and validated
+
+- Tests (Java 17): `-Dtest=TargetedBootstrapperTest test` 10 tests, 0 failures/errors/skips, including new `warnsOnlyForIsolationWindowsWiderThanTwoMz`.
+- End-to-end (1 seed, 5 targets, 1 entrapment): with a copy of the IL2 fixture whose windows were widened to 16 m/z (scratch only, not committed), the warning reported "16.0 m/z", appeared before "Opening the library…", and the run still wrote all three outputs. With the unmodified fixture (2.0009 m/z), no warning appeared.
+- Not changed: the masking rule itself, and the minor edge case where 2.0009 m/z windows leave about 0.05% of the m/z range more than 1.0 m/z from every window centre.
