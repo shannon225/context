@@ -408,6 +408,30 @@ Scribe settings can be appended as normal single-dash property/value pairs, for 
 `-numberOfThreadsUsed 2 -adjustTolerances true`. Use `scribe-context` with the same arguments to additionally
 train the final background LDA and apply it to the reference features.
 
+## Simulated assays with `bootstrap`
+
+```text
+java -jar context.jar bootstrap <library> <acquisition.dia> [seeds] [peptides] [rt-half-window-min] [mz-half-window] [entrapments-per-target]
+```
+
+Only the library and acquisition are required; the defaults are 1 seed, 100 peptides, 0.5 min, 1.0 m/z,
+and 1 entrapment per target. For each seed from 1 to `seeds`, it draws target precursors from the library,
+assigns entrapment peptides, and writes `<acquisition>_masked<seed>_assay.dia`, `_assay.txt`, and
+`_entrapment_assignments.tsv` next to the acquisition.
+
+The acquisition should use narrow (1-2 m/z) MS2 isolation windows, as in PRM. `bootstrap` checks the
+acquisition before loading the library and prints a warning when its widest window is larger than 2 m/z; it still
+runs, but with wider windows some scheduled targets may have no MS2 spectra in the masked file.
+
+Entrapments are library precursors near each target's precursor m/z. Candidates are searched within
+±10 ppm, then ±20, 40, 80, 160, 320, 640, and 1000 ppm (inclusive), and the closest eligible precursors
+are chosen first (equal distances: lower m/z, then library order). A candidate is eligible when it has
+the target's charge, is not a target or an entrapment already used in that seed, and its RT window does
+not overlap, with one extra RT half-window of buffer, the window of any target within 11 m/z half-windows
+(11 m/z by default). A target that cannot get enough entrapments by 1000 ppm is replaced. Bootstrap
+outputs made with versions from 2026-09-05 until this rule was restored chose entrapments without the m/z
+window; regenerate them.
+
 ## All commands
 
 ```text
