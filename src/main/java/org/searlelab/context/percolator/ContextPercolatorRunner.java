@@ -45,8 +45,14 @@ public class ContextPercolatorRunner extends ExternalExecutor {
 	}
 
 	public static Pair<ArrayList<PercolatorPeptide>, Float> executePercolatorTSV(PercolatorVersion percolatorVersion, ContextPercolatorExecutionData commandData, float threshold, AminoAcidConstants aaConstants, int round, int seed) throws IOException, FileNotFoundException, UnsupportedEncodingException, InterruptedException {
+		return executePercolatorTSV(percolatorVersion, commandData, threshold, aaConstants, round, seed, false);
+	}
 
-		String[] command = generateCommand(percolatorVersion, commandData, round, seed);
+	/** {@code contextTraining} selects Context-MS's training arguments (Context background training only). */
+	public static Pair<ArrayList<PercolatorPeptide>, Float> executePercolatorTSV(PercolatorVersion percolatorVersion, ContextPercolatorExecutionData commandData, float threshold, AminoAcidConstants aaConstants, int round, int seed, boolean contextTraining) throws IOException, FileNotFoundException, UnsupportedEncodingException, InterruptedException {
+
+		String[] command = contextTraining ? generateContextTrainingCommand(percolatorVersion, commandData, round, seed)
+				: generateCommand(percolatorVersion, commandData, round, seed);
 		Files.write(new File(commandData.getPeptideOutputFile().getAbsolutePath() + ".command.txt").toPath(), java.util.Arrays.asList(command));
 
 		ContextPercolatorRunner e = new ContextPercolatorRunner(command);
@@ -161,6 +167,31 @@ public class ContextPercolatorRunner extends ExternalExecutor {
 
 	static String parsePeptideSequence(String peptideString) {
 		return peptideString.substring(peptideString.indexOf('.') + 1, peptideString.lastIndexOf('.'));
+	}
+
+	/**
+	 * Context background training with Context-MS's Percolator arguments ({@code --post-processing-tdc --override
+	 * --protein-report-duplicates}) and Percolator's own defaults for {@code -N}, {@code --maxiter}, {@code --trainFDR}
+	 * and {@code --testFDR}. Only output paths and the seed are added. EncyclopeDIA's Percolator training options do not
+	 * apply here; {@link ContextTrainingOptions} warns when they are set. The standard and targeted workflows keep
+	 * {@link #generateCommand}.
+	 */
+	static String[] generateContextTrainingCommand(PercolatorVersion percolatorVersion, ContextPercolatorExecutionData commandData, int round, int seed) {
+		TrainingSeeds.requireValid(seed);
+		if (percolatorVersion.getMajorVersion() < 3) {
+			throw new IllegalArgumentException("Context background training uses Percolator 3 options; choose -percolatorVersion v3-01 or v3-05");
+		}
+		ArrayList<String> params = new ArrayList<>();
+		params.add(percolatorVersion.getPercolator().getAbsolutePath());
+		params.add("--seed"); params.add(Integer.toString(seed));
+		params.add("--results-peptides"); params.add(commandData.getPeptideOutputFile().getAbsolutePath());
+		params.add("--weights"); params.add(commandData.getWeightsFile(round).getAbsolutePath());
+		params.add("--decoy-results-peptides"); params.add(commandData.getPeptideDecoyFile().getAbsolutePath());
+		params.add("--post-processing-tdc");
+		params.add("--override");
+		params.add("--protein-report-duplicates");
+		params.add(commandData.getInputTSV().getAbsolutePath());
+		return params.toArray(new String[params.size()]);
 	}
 
 	static String[] generateCommand(PercolatorVersion percolatorVersion, ContextPercolatorExecutionData commandData, int round, int seed) {
