@@ -778,3 +778,78 @@ Ariana asked to move to Phase 3 once Phase 2 was pushed (`abcd1e3`). The Phase 2
   - If generating here, which prediction settings: Context's defaults (NCE 27, charge 2) or the library's (NCE 33, charge 3)?
   - Either gives valid input for the parity comparison, since both tools read the same feature files. Her setting is what matches her pipeline.
 - **Next:** on Ariana's choice, produce or download the background/reference feature files and pair sidecars, then run the `CTX018-018` comparison-file steps.
+
+## CTX-017 — Feature necessity analysis (Percolator, context-ms)
+
+- Google implementation record: https://docs.google.com/document/d/1m9qrS-0_IErOL_dia7ms43ggwaRDsL8O1f4HTme-lxI/edit — guide revision r2.1, approved by Ariana 2026-11-12. The r2.1 text, decision-log rows, and work-log entry are all in the record (verified 2026-11-13).
+- Canonical Until Useful plan: `docs/uu-ctx-017-feature-necessity.md`, revision 1, frozen 2026-11-13 from approved r2.1.
+- Checklist approval status: **Approved by Ariana on 2026-11-13** (this chat). Approval covers scope; each commit, push, PR, or release still needs its own instruction.
+- Priority: High.
+- Scope boundary: analysis only, with the Python `context-ms` 0.1.3 Percolator engine and Percolator 3.05. No Context Java, context-ms, or EncyclopeDIA source edits. mProphet is set aside for now and the r1/r2 Java steps are superseded; either may be revisited. Ariana makes every keep/drop decision. CTX-017 work is committed on its own branch `ctx017` (created from `ariana/scoring` at `7d0f524` on 2026-11-13 at Ariana's request). Each push, PR, or merge still needs her instruction.
+
+### Acceptance criteria
+
+- [ ] Screening, the decoy-artifact check, and grouped leave-one-out ablations run for the context-ms Percolator engine on mouse masked2–10 (and the second dataset when supplied), producing tidy results tables and R figures.
+- [ ] Every analyzed feature or group has Ariana's recorded decision (keep / drop / defer), with date and round, in the guide's Feature decisions table. No feature leaves a later stage or the final set without it.
+- [ ] Each round's tables, figures, and R scripts are in Drive `ctx-017/results` before Ariana is asked to decide. Recommendations live only in the per-round recommendations file (`claude_recommendation`, `recommendation_basis`, `confidence`, `if_applied`).
+- [ ] Every result row records experiment, workflow, ablation set, training seed, masked seed, Percolator version (3.05), and context-ms version (0.1.3). Results report the mean and spread over masked seeds and at least 3 training seeds.
+- [ ] Sensitivity is passing assay targets (N_T) at q ≤ 1%. q-values: pyIsoPEP for Context-Percolator; Percolator's own for standard and reference-only Percolator. Entrapment FDP: lower bound plus both upper bounds until Ariana chooses one.
+- [ ] Inputs stay byte-identical (SHA-256). Existing run folders are refused. Failed runs are recorded as failed. A no-exclusion driver run reproduces the regenerated baseline.
+- [ ] Until Useful review, Ariana's final review, and the external Report are recorded with actual checks and limits.
+
+### Checklist — approved by Ariana 2026-11-13
+
+- [x] `CTX017-001` Record approved r2.1 in the Google record and freeze the canonical plan. Files: Google record, `docs/uu-ctx-017-feature-necessity.md`, this section. Check: the guide shows r2.1 text, decision-log rows, and the 2026-11-12 work-log entry; the plan is revision 1. Completed and verified 2026-11-13.
+- [ ] `CTX017-002` Ariana reconfirms the mouse inputs for masked2–10 are current: `*_assay.features.txt`, `*_assay_background.features.txt`, `*_assay_reference.features.txt`, their `.pairs.tsv` files, and `*_entrapment_assignments.tsv`. Depends on: Ariana. Check: her confirmation logged; inventory with SHA-256 recorded.
+- [ ] `CTX017-003` Environment: context-ms 0.1.3 in a project-local virtual environment, Percolator 3.05 (`percolator-v3-05.centos` from `encyclopedia-6.9.23.jar`) first on `PATH`, pyIsoPEP 0.1.4. Depends on: 002. Check: versions logged; a single-seed smoke run of all three workflows completes.
+- [ ] `CTX017-004` Regenerate the three baseline workflows (Context-Percolator, standard Percolator, reference-only Percolator) with Percolator 3.05 and at least 3 training seeds on masked2–10. Depends on: 003. Check: sensitivity and FDP tables uploaded to Drive; commands, seeds, and versions logged.
+- [ ] `CTX017-005` Python ablation driver in `tmp/ctx017/`: read-only inputs, pruned copies keeping `id`/`Label`/`ScanNr`/`sequence`/`Proteins`, one folder per ablation/training seed/masked seed, refusal of existing folders, SHA-256 checks, failure recording, one tidy TSV. Depends on: 003. Check: invalid exclusions rejected; a no-exclusion run reproduces task 004's baseline.
+- [ ] `CTX017-006` Screening and decoy-artifact scripts (stages 1–2): missing/constant fraction, target-vs-decoy AUC, Spearman clusters at |ρ| ≥ 0.9, background-vs-reference shift, decoy-vs-entrapment AUC with CI. Depends on: 002. Check: outputs on masked2–10; R figures render.
+- [ ] `CTX017-007` Round A: upload evidence and `roundA_recommendations.tsv` to Drive, summarize in chat (evidence first), record Ariana's decisions. Depends on: 006. Check: decisions in the guide table and this log.
+- [ ] `CTX017-008` Stage 3 grouped leave-one-out on the clusters Ariana selected (≥ 3 training seeds), then Round B. Depends on: 004, 005, 007. Check: Δ sensitivity and Δ FDP tables; decisions recorded.
+- [ ] `CTX017-009` Within-cluster single-feature leave-one-out and stage 4 weight stability, then Round C. Depends on: 008. Check: tables and figures; decisions recorded, including whether stage 5 runs.
+- [ ] `CTX017-010` Optional stage 5 backward elimination, only if Ariana chose it in Round C, then Round D. Depends on: 009. Check: decisions recorded, or task marked not run by Ariana's choice.
+- [ ] `CTX017-011` Record Ariana's final feature set in the guide's Feature decisions table. Depends on: 009/010. Check: every analyzed feature or group has a decision.
+- [ ] `CTX017-012` Generalize the FDP-comparison and analysis scripts for several experiments (seed discovery, skip list, file prefix, experiment label, per-seed r). Run the second dataset when supplied; Ariana chooses the upper-bound definition. Depends on: the second dataset. Check: mouse numbers reproduce exactly; combined figure and table in Drive; Ariana's choice logged.
+- [ ] `CTX017-013` Until Useful review of the scripts and the analysis. Depends on: 011, 012. Check: findings, dispositions, and residual risks logged.
+- [ ] `CTX017-014` Ariana's final review. Check: her acceptance logged with date.
+- [ ] `CTX017-015` External Report `YYYY-MM-DD-CTX-017-Report.md` outside the repository, with this checklist and log copied verbatim. Ask Ariana where to save it in cloud sessions. Check: the Report exists and is verified.
+
+### Work log
+
+#### 2026-11-05 — `CTX017-001` guide revision r2 drafted
+
+- Attempt/change: Drafted guide r2 in the Google record at Ariana's request. Ariana makes every keep/drop decision, and Claude presents evidence with a separate recommendation in decision rounds A–D. Installed R 4.3.3 with ggplot2/patchwork/dplyr/tidyr/readr and pyIsoPEP 0.1.4 in the cloud session. Confirmed that Percolator 3.01 and 3.05 binaries are bundled in `encyclopedia-6.9.23.jar` and run.
+- Result/observation: The mProphet constant guard was already corrected in `fba83e0`. Installing Microsoft Arial was blocked (licence acceptance); Liberation Sans is the fallback. No repository changes.
+- Next action: Ariana reviews r2 and supplies data.
+
+#### 2026-11-06 — data received; FDP estimator comparison
+
+- Attempt/change: Downloaded `mouse.zip` from Ariana's Drive `ctx-017` folder into a read-only folder outside the repository. It has 10 masked seeds: features, partitions, `.pairs.tsv` files, entrapment assignments, and Ariana's `results_3workflows` baselines from Python context-ms. An earlier wrong upload (`patch_5min_2mz.zip`) was stopped and deleted at Ariana's request. Compared the lower, tight, and loose entrapment FDP estimators on the baselines for masked2–10 (`fdp_compare.py`, `fdp_estimator_comparison.R`).
+- Result/observation: Each seed has 152 assay targets with 10 entrapments each (r = 10) and 27 scored features. Pooled at q ≤ 1%, lower / tight / loose FDP were: Context 2.33 / 2.56 / 4.66%; full-file Percolator 2.11 / 2.32 / 4.21%; reference-only Percolator 4.77 / 5.25 / 9.54%. Ariana judged these consistent with her other results. The baselines used Percolator 3.09 with training seed 1. The masked1 Context run failed with a `PermissionError` writing its peptide output. Results are in Drive `ctx-017/results/2026-11-06_fdp_estimator_comparison`. The first upload of `fdp_counts.tsv.gz` was truncated; it was re-uploaded and checked by size, and the corrupt copy was renamed for Ariana to delete.
+- Decisions (Ariana): use her context-ms results; skip masked1; FDP lower bound and upper bound (she intentionally uses the loose bound; she will compare across experiments); q-values per workflow as above; results in `ctx-017/results`.
+- Next action: second dataset from Ariana; plan approval.
+
+#### 2026-11-12 — `CTX017-001` r2.1 approved
+
+- Decisions (Ariana): she makes every keep/drop decision, with no exclusion from a final set without her explicit approval. Recommendations go in up to three columns or a separate mapped file; Claude proposed the separate per-round file with four columns. Java steps dropped for now. Python context-ms with the Percolator engine only; mProphet set aside for now. Percolator 3.05 (context-ms uses whichever `percolator` is on `PATH`), with baselines regenerated as needed. Priority High. Ariana approved the plan. Ariana will confirm whether the earlier files are still useful (`CTX017-002`).
+- Attempt/change: Applied the r2.1 text changes to the Google record (48 exact-match replacements, each matched once).
+- Next action: add the guide's decision-log rows and work-log entry; freeze the canonical plan; add this checklist.
+
+#### 2026-11-13 — `CTX017-001` canonical plan and checklist written; guide update incomplete
+
+- Attempt/change: Wrote `docs/uu-ctx-017-feature-necessity.md` revision 1 and this section. The remaining guide edits (nine decision-log rows and the 2026-11-12 work-log entry) were built but not sent: after a session restart the Google Docs and Drive connectors failed to connect (502).
+- Result/observation: The repository changes are only `TASKS.md` and the new canonical plan. No code, no Git actions.
+- Next action: when the Google connectors are back, re-read the guide, add the pending rows and entry, and verify. Ariana approves this checklist and reconfirms the data (`CTX017-002`).
+
+#### 2026-11-13 — `CTX017-001` complete; checklist approved; `CTX017-002` counts shared
+
+- Attempt/change: After the Google connectors reconnected, added the nine r2.1 decision-log rows, the 2026-11-12 work-log entry (with the local commit hash), and the canonical-plan reference to the Google record. The first revision-guarded fill was rejected because Ariana had capitalized one word ("the" → "The"); a re-read confirmed no position shift, and the resent batch applied. Verified the whole record with a Drive read. Ariana authorized committing the canonical plan and this section (local commit `15a9c70`), then approved this checklist and asked for commit and push.
+- Result/observation (`CTX017-002`, for Ariana's confirmation): every seed's assay list (`*_assay.txt`) has 1,672 entries: 152 distinct assay target peptides and 1,520 entrapments (10 per target). The 152 targets differ between seeds (no target is shared by all of masked2–10; 1,022 distinct targets across them), as expected for masked bootstrap assays. Reference feature rows (targets / decoys): masked2 601/457, masked3 606/458, masked4 619/465, masked5 623/477, masked6 577/473, masked7 546/446, masked8 627/469, masked9 591/487, masked10 587/471 (masked1, skipped: 638/450). Background rows range from 23,174 to 25,732 per seed.
+- Next action: Ariana confirms the mouse inputs (`CTX017-002`), then `CTX017-003` (environment) begins.
+
+#### 2026-11-13 — CTX-017 moved to branch `ctx017`
+
+- Attempt/change: Pushing the two local CTX-017 commits (`15a9c70`, `5de6997`) to `ariana/scoring` was rejected because the remote had 20 newer commits (CTX-018, bootstrapper fixes, the CTX-016 archive, and a reorganized `TASKS.md`). A read-only trial merge showed a conflict only at the end of `TASKS.md`. With Ariana's approval, saved both documents and the two commits as patches, reset local `ariana/scoring` to `origin/ariana/scoring` (`7d0f524`), created branch `ctx017` from it, and re-added the canonical plan and this section after the remote `TASKS.md` content, which is unchanged. The earlier hashes `15a9c70` and `5de6997` no longer exist on any branch.
+- Result/observation: CTX-018 changes the Java Context code, which CTX-017 does not use. The remote bootstrapper m/z fix (`eb27bc0`) does not invalidate the mouse data: all entrapments are within 1000 ppm of their targets (median about 32–46 ppm).
+- Next action: push `ctx017` (authorized by Ariana); update the commit hash in the Google record; Ariana confirms the mouse data (`CTX017-002`).
