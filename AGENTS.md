@@ -161,8 +161,8 @@ features at the top applies to the backlog/record collection. New tasks in
    automated/independent review are complete, finish the implementation record's
    validation notes and completion summary and update `TASKS.md`. Record
    `Awaiting Ariana's final review` until she accepts the feature; do not mark
-   the final human-review task complete on her behalf. Create the Report outside
-   the Context repository in `/Users/arianashannon/Downloads/`, named
+   the final human-review task complete on her behalf. Create the Report in the
+   repository's `docs/` folder, named
    `YYYY-MM-DD-CTX-###-Report.md`. Use the day's date in Ariana's local timezone
    (America/Chicago) and the actual feature CTX number. If that filename already
    exists, append a time or sequence suffix to keep each Report unique.
@@ -188,7 +188,7 @@ features at the top applies to the backlog/record collection. New tasks in
    final feature record before clearing that completed feature's entries from
    `TASKS.md`. Clearing is optional and only permitted after feature completion
    and this verified copy. Preserve all other features and pending work; carry
-   forward any follow-up tasks explicitly. Share the local Report path with
+   forward any follow-up tasks explicitly. Share the Report path with
    Ariana so she can catalog it.
 
 Until Useful review approval never authorizes Git operations. Ariana performs
@@ -203,14 +203,10 @@ is part of the approved plan. A review is not required after every task or step;
 follow the review stages in the approved plan and retain Ariana's final review.
 
 Keep `TASKS.md` in the repository root and eligible for version control. Store
-implementation Reports in `/Users/arianashannon/Downloads/`, outside the
-repository, so they are not part of Context's Git history. Do not copy Reports
-into the repository or publish them. Share an absolute clickable path to each
-Report with Ariana. If writing to Downloads requires filesystem permission,
-request it rather than silently saving inside the repository; retain the task
-history until the Report has been written and verified. In cloud sessions where
-Downloads is unavailable, ask Ariana where to save the Report outside the
-repository before writing it.
+implementation Reports in the repository's `docs/` folder, in local and cloud
+sessions alike. Do not publish them. Share a clickable path to each Report with
+Ariana, and retain the task history until the Report has been written and
+verified.
 
 ## Code organization and style
 
@@ -225,9 +221,7 @@ Current project structure:
 - `tmp/`: Local experiment outputs; not committed.
 - `TASKS.md`: Root implementation checklist and work log, when created.
 
-Implementation Reports live outside this structure in
-`/Users/arianashannon/Downloads/`, or the external location Ariana specifies for
-a cloud session.
+Implementation Reports live in `docs/`.
 
 Follow nearby Java naming, formatting, and error-handling conventions. Extend
 existing modules and reuse established helpers and test infrastructure before
@@ -362,9 +356,8 @@ environments were validated unless they were actually exercised.
 Keep input datasets intact during validation; use copies or temporary outputs
 when tools may modify inputs. Record output locations in the implementation
 record. Use `target/` for build artifacts, `build-cache/` for downloaded build
-resources, and `tmp/` for local experiments. Save task archive Reports outside
-the repository in `/Users/arianashannon/Downloads/`, or the external location
-Ariana specifies for a cloud session, using the date and feature CTX number as
+resources, and `tmp/` for local experiments. Save task archive Reports in
+`docs/`, using the date and feature CTX number as
 specified above.
 
 Document output overwrite and cache-reuse behavior for the affected workflow.
@@ -424,7 +417,7 @@ report the conflict.
   containing 1–5 related tasks each. Record each
   group's task IDs, intended files/behavior, proposed commit message, and scope
   approval in `TASKS.md` so Ariana can approve what belongs in each commit.
-  Do not include unrelated edits or external Reports. Keep local-only tracking
+  Do not include unrelated edits or Reports. Keep local-only tracking
   and archival tasks outside code commits where appropriate.
 - **Ask before committing.** Approval of the plan or commit grouping approves
   scope, not execution of `git commit`. Once the changes and relevant checks
@@ -459,6 +452,6 @@ versus optional inputs. Use pseudocode or diagrams when they clarify the workflo
 
 Record feature decisions, alternatives, experiments, and validation in its
 implementation record and `TASKS.md`, with complete task history archived in the
-local Report. Keep fixture provenance alongside fixtures. When using Until
+Report. Keep fixture provenance alongside fixtures. When using Until
 Useful, preserve the approved canonical plan during the work loop as described
 above.

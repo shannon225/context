@@ -92,7 +92,7 @@ to their purpose; reserve "guide" for the Google implementation-record document.
    change. Record findings, dispositions, checks, residual risks, and outcome in `TASKS.md`.
    In scripted Until Useful runs, `NEEDS_INPUT`, `FAILED`, and `STOPPED` halt automatic continuation; don't describe them as
    success. Even `APPROVE` means ready for Ariana's final review, not accepted.
-6. **Report and hand off.** Write the Report **outside the repo** as
+6. **Report and hand off.** Write the Report in `docs/` as
    `YYYY-MM-DD-CTX-###-Report.md` (America/Chicago date; add a time/sequence suffix if the name
    exists). Never overwrite reports unless Ariana specifically asks you to do so.
    Copy the full checklist and dated log verbatim from `TASKS.md`,
@@ -113,7 +113,7 @@ to their purpose; reserve "guide" for the Google implementation-record document.
    final feature record before clearing that completed feature's entries from
    `TASKS.md`. Clearing is optional and only permitted after feature completion
    and this verified copy. Preserve all other features and pending work; carry
-   forward any follow-up tasks explicitly. Share the local Report path with
+   forward any follow-up tasks explicitly. Share the Report path with
    Ariana so she can catalog it.
 
 Until Useful is optional; these instructions do not automatically invoke it or
@@ -121,9 +121,8 @@ its scripted runtime. Include Until Useful review tasks only when that workflow
 is part of the approved plan. A review is not required after every task or step;
 follow the review stages in the approved plan and retain Ariana's final review.
 
-Reports go in `/Users/arianashannon/Downloads/` (Ariana's machine). That path does not exist in
-cloud sessions — ask where to save instead of writing a Report inside the repo.
-Keep `TASKS.md` in the repo root and eligible for version control. Never copy Reports into the repo.
+Reports go in the repo's `docs/` folder, in local and cloud sessions alike.
+Keep `TASKS.md` in the repo root and eligible for version control.
 
 ## Code organization and style
 
@@ -256,4 +255,4 @@ Don't claim Docker or GitHub Actions behavior was validated unless actually exer
 Update the feature record and user docs when behavior changes; update `README.md` and CLI help
 when usage changes. Give practical examples and say which inputs are required vs. optional. Use
 pseudocode or diagrams when they clarify. Keep decisions, alternatives, experiments, and
-validation in the implementation record and `TASKS.md`, with full history in the local Report.
+validation in the implementation record and `TASKS.md`, with full history in the Report.
