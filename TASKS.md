@@ -778,3 +778,45 @@ Ariana asked to move to Phase 3 once Phase 2 was pushed (`abcd1e3`). The Phase 2
   - If generating here, which prediction settings: Context's defaults (NCE 27, charge 2) or the library's (NCE 33, charge 3)?
   - Either gives valid input for the parity comparison, since both tools read the same feature files. Her setting is what matches her pipeline.
 - **Next:** on Ariana's choice, produce or download the background/reference feature files and pair sidecars, then run the `CTX018-018` comparison-file steps.
+
+## CTX-019 — Bootleak 2.0
+
+- Google implementation record: https://docs.google.com/document/d/1VT-sY1rvrERuoMl1OY4to79TicAT01Rtq8mheJy0B04/edit — draft r0, 2026-11-13 (Docs revisionId `AHj4eMR4dPB_IKLpnKZpqs7pv8olPoNwQivy84_Qu-RhtIfQ9JBOuOuJFYfPMFCVMFi8xuv-INzazH8tI51DMw_Inki-trWQ2ux4ib51Fwg`), including Ariana's edits of that day.
+- Canonical Until Useful plan: `docs/uu-ctx-019-bootleak-2.md`, revision 1 (written 2026-11-13; frozen once approved).
+- Branch: `bootleak2`, from `ariana/scoring` at `7d0f5240411e8177db4744bcc6500166f9e5255a`.
+- Approval status: **Pending.** On 2026-11-13 Ariana directed writing the plan and this checklist and committing and pushing them to `bootleak2` ("Go ahead and make the plan, then commit and push"). That authorizes the planning documents and their commit, not implementation. Approval of guide r0, plan r1 and this checklist is still to be recorded.
+- Scope: Part 1, independent bootstrap seeds (confirmed). Part 2, m/z centering of targets, decided after a read-only diagnostic (pending evidence).
+- Populations: bootstrap targets are the reference peptides of the simulated assay; entrapments are library precursors whose data is not copied, so any detection is a known false discovery. Identity, charge and entrapment rules are unchanged (see the plan).
+
+### Acceptance criteria
+
+- [ ] Each seed's initial and replacement targets come from one stream starting at `1 + seed`; no replacement round restarts at another seed's start.
+- [ ] Seeds without replacement rounds give identical outputs before and after the change; CLI syntax and file formats are unchanged.
+- [ ] The new regression test fails on the old code and passes on the new; all `TargetedBootstrapperTest` tests pass on JDK 17.
+- [ ] The full `-Ppackage verify` result on JDK 17 is recorded, with pre-existing failures named.
+- [ ] README updated; affected older outputs explained.
+- [ ] Diagnostic results presented; Ariana's centering decision recorded (and, if centering is added, its revision approved and implemented separately).
+- [ ] Until Useful review, Ariana's final review, and the Report are recorded with their actual limits.
+
+### Checklist (pending approval)
+
+- [ ] `CTX019-001` Ariana approves guide r0, plan r1 and this checklist. Files: this section, guide status. Check: approval and date recorded here; guide revision recorded.
+- [ ] `CTX019-002` Baseline on JDK 17: run `TargetedBootstrapperTest`; capture IL2/IL15 fixture outputs for seeds 1–3 (assay lists, entrapment assignments, selection log incl. any "Only found" lines, masked `.dia` table contents) with a scratch harness in ignored `tmp/ctx019/`. Files: log only. Depends: 001.
+- [ ] `CTX019-003` Part 1 change: `selectTargets` takes an `int[] randomState`; `selectMask` creates `{1 + seed}` once per seed and passes it to the initial and every replacement call. Files: `src/main/java/org/searlelab/context/io/TargetedBootstrapper.java`. Depends: 002. Check: diff review; tests in 004.
+- [ ] `CTX019-004` JUnit 4 tests: forced-replacement regression test (seed 1's replacements are not taken from seed 2's stream; fails on the old code by stash/revert), multi-round test, no-replacement equivalence, unchanged error paths; existing 10 tests pass. Files: `src/test/java/org/searlelab/context/io/TargetedBootstrapperTest.java`. Depends: 003.
+- [ ] `CTX019-005` Before/after comparison with the 002 harness: seeds without replacement identical; seeds with replacement differ only from the first replacement; per-seed replacement occurrence and pairwise shared targets reported. Files: log only. Depends: 004.
+- [ ] `CTX019-006` README "Simulated assays with `bootstrap`": seeds draw from their own stream; outputs with replacement rounds made before this change differ. Files: `README.md`. Depends: 003.
+- [ ] `CTX019-007` Part 2a read-only diagnostic (Python, `python3 -I`) and R figure (ggplot2/patchwork, `theme_bw()`, Arial) in ignored `tmp/ctx019/`: window layout, per-target center offset and edge distance, M+1/M+2 outside the window, MS2 scans per target. Self-check on the IL2/IL15 fixture, then Ariana's acquisitions (supplied by Ariana or run by her). Files: scratch only. Check: input SHA-256 recorded; no input modified; outputs never overwritten.
+- [ ] `CTX019-008` Part 2b decision round: evidence first, recommendation second; record Ariana's centering decision in the guide decision log and here. If centering is added: material plan change — propose guide revision, plan r2 and new tasks with approval Pending. Depends: 007.
+- [ ] `CTX019-009` Validation: full `-Ppackage verify` on JDK 17 and `git diff --check`; name pre-existing failures. Files: log only. Depends: 004, 006 (and 2c tasks if added).
+- [ ] `CTX019-010` Until Useful review of the diff against the frozen plan: smallest change, reuse, no dependency change, promised-unchanged outputs, test strength, populations/identities/determinism. Check: findings, dispositions, residual risks recorded. Depends: 009.
+- [ ] `CTX019-011` Ariana's final review. Depends: 010.
+- [ ] `CTX019-012` Report outside the repository (location from Ariana) with this checklist and log copied verbatim, the guide URL/revision and the plan path/revision; marked "Awaiting Ariana's final review". Depends: 011.
+
+### Log
+
+#### 2026-11-13 — `CTX019-001` planning documents written
+
+- Attempt: at Ariana's direction, wrote `docs/uu-ctx-019-bootleak-2.md` (revision 1) and this section from guide draft r0 as it stood after Ariana's edits (heading, problem wording, "center" spelling). Earlier the same day: reviewed `TargetedBootstrapper`, confirmed the BOOTLEAK fixes on `ariana/scoring`, installed OpenJDK 17.0.21 with Ariana's approval, and created branch `bootleak2` at her request (details in the guide's work log).
+- Result: `TargetedBootstrapperTest` on Java 17.0.21 with Maven 3.9.11: 10 tests, 0 failures, 0 errors, 0 skipped (`mvn -B -Dmaven.repo.local=build-cache/m2-repository -Dtest=TargetedBootstrapperTest test`; the first attempt hit Maven Central HTTP 429 and was retried with `-U`). Full verify not run. No Java or test files changed.
+- Next: commit and push these two documents to `bootleak2` (authorized by Ariana); then Ariana reviews and approves or revises guide r0, plan r1 and this checklist (`CTX019-001`).
