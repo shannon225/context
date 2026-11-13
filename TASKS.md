@@ -781,8 +781,8 @@ Ariana asked to move to Phase 3 once Phase 2 was pushed (`abcd1e3`). The Phase 2
 
 ## CTX-017 — Feature necessity analysis (Percolator, context-ms)
 
-- Google implementation record: https://docs.google.com/document/d/1m9qrS-0_IErOL_dia7ms43ggwaRDsL8O1f4HTme-lxI/edit — guide revision r2.1, approved by Ariana 2026-11-12. The r2.1 text, decision-log rows, and work-log entry are all in the record (verified 2026-11-13).
-- Canonical Until Useful plan: `docs/uu-ctx-017-feature-necessity.md`, revision 1, frozen 2026-11-13 from approved r2.1.
+- Google implementation record: https://docs.google.com/document/d/1m9qrS-0_IErOL_dia7ms43ggwaRDsL8O1f4HTme-lxI/edit — guide revision r2.2, approved by Ariana 2026-11-13 (r2.1 approved 2026-11-12). The record holds the r2.2 text, decision-log rows, and work log.
+- Canonical Until Useful plan: `docs/uu-ctx-017-feature-necessity.md`, revision 2, frozen 2026-11-13 from approved r2.2; revision 1 is retained in the same file.
 - Checklist approval status: **Approved by Ariana on 2026-11-13** (this chat). Approval covers scope; each commit, push, PR, or release still needs its own instruction.
 - Priority: High.
 - Scope boundary: analysis only, with the Python `context-ms` 0.1.3 Percolator engine and Percolator 3.05. No Context Java, context-ms, or EncyclopeDIA source edits. mProphet is set aside for now and the r1/r2 Java steps are superseded; either may be revisited. Ariana makes every keep/drop decision. CTX-017 work is committed on its own branch `ctx017` (created from `ariana/scoring` at `7d0f524` on 2026-11-13 at Ariana's request). Each push, PR, or merge still needs her instruction.
@@ -800,10 +800,10 @@ Ariana asked to move to Phase 3 once Phase 2 was pushed (`abcd1e3`). The Phase 2
 ### Checklist — approved by Ariana 2026-11-13
 
 - [x] `CTX017-001` Record approved r2.1 in the Google record and freeze the canonical plan. Files: Google record, `docs/uu-ctx-017-feature-necessity.md`, this section. Check: the guide shows r2.1 text, decision-log rows, and the 2026-11-12 work-log entry; the plan is revision 1. Completed and verified 2026-11-13.
-- [ ] `CTX017-002` Ariana reconfirms the mouse inputs for masked2–10 are current: `*_assay.features.txt`, `*_assay_background.features.txt`, `*_assay_reference.features.txt`, their `.pairs.tsv` files, and `*_entrapment_assignments.tsv`. Depends on: Ariana. Check: her confirmation logged; inventory with SHA-256 recorded.
+- [x] `CTX017-002` Ariana reconfirms the mouse inputs for masked2–10 are current: `*_assay.features.txt`, `*_assay_background.features.txt`, `*_assay_reference.features.txt`, their `.pairs.tsv` files, and `*_entrapment_assignments.tsv`. Depends on: Ariana. Check: her confirmation logged; inventory with SHA-256 recorded.
 - [x] `CTX017-003` Environment: context-ms 0.1.3 in a project-local virtual environment, Percolator 3.05 (`percolator-v3-05.centos` from `encyclopedia-6.9.23.jar`) first on `PATH`, pyIsoPEP 0.1.4. Depends on: 002. Check: versions logged; a single-seed smoke run of all three workflows completes.
 - [x] `CTX017-004` Regenerate the three baseline workflows (Context-Percolator, standard Percolator, reference-only Percolator) with Percolator 3.05 and at least 3 training seeds on masked2–10. Depends on: 003. Check: sensitivity and FDP tables uploaded to Drive; commands, seeds, and versions logged.
-- [ ] `CTX017-005` Python ablation driver in `tmp/ctx017/`: read-only inputs, pruned copies keeping `id`/`Label`/`ScanNr`/`sequence`/`Proteins`, one folder per ablation/training seed/masked seed, refusal of existing folders, SHA-256 checks, failure recording, one tidy TSV. Depends on: 003. Check: invalid exclusions rejected; a no-exclusion run reproduces task 004's baseline.
+- [x] `CTX017-005` Python ablation driver in `tmp/ctx017/`: read-only inputs, pruned copies keeping `id`/`Label`/`ScanNr`/`sequence`/`Proteins`, one folder per ablation/training seed/masked seed, refusal of existing folders, SHA-256 checks, failure recording, one tidy TSV. Depends on: 003. Check: invalid exclusions rejected; a no-exclusion run reproduces task 004's baseline.
 - [ ] `CTX017-006` Screening and decoy-artifact scripts (stages 1–2): missing/constant fraction, target-vs-decoy AUC, Spearman clusters at |ρ| ≥ 0.9, background-vs-reference shift, decoy-vs-entrapment AUC with CI. Depends on: 002. Check: outputs on masked2–10; R figures render.
 - [ ] `CTX017-007` Round A: upload evidence and `roundA_recommendations.tsv` to Drive, summarize in chat (evidence first), record Ariana's decisions. Depends on: 006. Check: decisions in the guide table and this log.
 - [ ] `CTX017-008` Stage 3 grouped leave-one-out on the clusters Ariana selected (≥ 3 training seeds), then Round B. Depends on: 004, 005, 007. Check: Δ sensitivity and Δ FDP tables; decisions recorded.
@@ -882,3 +882,47 @@ Ariana asked to move to Phase 3 once Phase 2 was pushed (`abcd1e3`). The Phase 2
 - Attempt/result: `tmp/ctx017/baseline_figure.R` recoloured and the figure regenerated; `baseline_figure_v2.png`, `.pdf`, and `.R` uploaded to Drive `ctx-017/results/2026-11-13_baselines_perc305` (sizes match). The v1 files remain there.
 - Noise floor for later ablations: for Context at 1%, passing targets differ by at most 2 peptides between training seeds 1–3 on the same assay.
 - Next action: `CTX017-005` (ablation driver).
+
+### r2.2 checklist additions (approved by Ariana 2026-11-13)
+
+- `CTX017-002` scope under r2.2: both datasets. Ariana judged the mouse data usable and supplied the HeLa data; the SHA-256 inventory of the 80 input files for the 10 assays is in Drive (`inputs_sha256.txt`). Marked complete.
+- `CTX017-012` scope under r2.2: both datasets from the start, not "when supplied".
+- [x] `CTX017-016` Download, check, and inventory the HeLa dataset; choose the first five complete assays (masked1–5). Check: file set, features, r, and entrapment m/z distances logged (2026-11-13).
+- [ ] `CTX017-017` Closing benchmark check: after the analysis, rerun all features on the 10 assays and confirm the results match the starting benchmark (`2026-11-13_baselines_perc305`). Depends on: 011. Check: outputs identical or differences explained.
+- Reporting rule for all later tasks: 1% and 5% q-value, both datasets in every figure and table, and each step returns to Ariana with data, commands, and outputs.
+
+#### 2026-11-13 — r2.2 approved; guide and canonical plan updated
+
+- Decision (Ariana): formal approval of r2.2, with the instruction to keep a backup before modifying files and to continue to `CTX017-005`.
+- Attempt/change: saved a backup copy of the Google record in Drive ("BACKUP 2026-11-13 (before r2.2 edits) …"). Re-read the record and kept Ariana's own additions (per-round feature removal, saving the starting benchmark, the closing all-features check, her thresholds, stop-and-start reporting). Applied the r2.2 text and three decision-log rows. Wrote canonical plan revision 2 above the retained revision 1. The repository files were already committed (`a7eaa4a`) before these edits, which is their backup. Input data files are never modified; ablations work on copies.
+- Next action: `CTX017-005`.
+
+#### 2026-11-13 — `CTX017-005` ablation driver built and checked
+
+- Attempt/change: wrote `tmp/ctx017/ablate.py`. For each assay and training seed it makes pruned copies of the background and reference feature files inside a new run folder, runs `python -m context run --engine percolator` on the copies, and counts N_T and N_E at each q-value threshold. It never writes to the input files, refuses an existing run folder, checks input SHA-256 before and after, and records each run as ok or FAILED with the Percolator and context-ms versions.
+- Commands (with `percolator` 3.05 first on `PATH` and `CONTEXT_PY=/home/user/context-env/bin/python`): `python3 ablate.py --label all_features --exclude none --dataset mouse=<mouse dir> --dataset hela=<hela dir> --assays mouse=<masked2–6 assays> --assays hela=<masked1–5 assays> --seeds 1,2,3 --out /home/user/ctx017-runs/ablation --jobs 3`.
+- Results:
+  - No exclusions, 10 assays × 3 training seeds: 30 of 30 ok in 4 min 10 s. Peptide outputs and weights files are byte-identical to the starting benchmark (30 of 30 each); all 1,500 count rows equal the baseline; all 30 input files unchanged.
+  - Rejected with a clear error and exit 1, creating nothing: an unknown column, a non-feature column (`Label`, `Proteins`), every feature at once, and an existing run folder.
+  - One real exclusion as a mechanics test only (`scribe`, mouse masked2 and HeLa masked1, seed 1): runs ok; `scribe` is absent from the weights; pruned copies keep `id`, `Label`, `ScanNr`, `sequence`, `Proteins` and the same row count. This single run is not evidence about `scribe`.
+  - Failure handling: with a stand-in `percolator` that exits 3, the run is recorded as FAILED, no counts are written, and the driver exits 1.
+- Error found and fixed: the feature files use Windows (CRLF) line endings, so the last header column read as `Proteins\r`. The "every feature excluded" check did not fire and `Proteins` was not recognized as protected. Fixed by stripping `\r\n` when reading column names and keeping each file's line endings in the copies. Re-tested: both rejections work, and a no-exclusion copy is byte-identical to its input. The 30-run check above ran before the fix; it is still valid because its copies and outputs were byte-identical to the inputs and the benchmark.
+- Evidence: Drive `ctx-017/results/2026-11-13_ablation_driver_check` (driver, run status, counts, input checksums). Raw runs in `/home/user/ctx017-runs/ablation` (session only).
+- Next action: `CTX017-006` (screening and decoy-artifact scripts) needs Ariana's go-ahead; her approval so far covers `CTX017-001` to `005`.
+
+#### 2026-11-13 — Ariana's standing instruction on prediction settings (applies to CTX-018's open question above)
+
+- Ariana (comment on the CTX-018 log line asking "Context's defaults (NCE 27, charge 2) or the library's (NCE 33, charge 3)?"): always use NCE 27 and charge +3 for all DIA or PRM data unless she says otherwise; these are the instrument-method defaults and the fallback when in doubt.
+- Note for whoever picks up CTX-018: that log line describes Context's current default as NCE 27 with charge 2, which differs from the charge +3 she specified. Confirm with Ariana whether the Context default should change. Not acted on here; CTX-017 does no prediction.
+
+#### 2026-11-13 — guide backup removed; feature list sent for Ariana's review
+
+- Ariana clarified that her backup instruction meant the data, not the guide, and said the guide copy could be deleted. Moved "BACKUP 2026-11-13 (before r2.2 edits) …" to Drive trash after confirming its ID and title; the guide itself is untouched. The data are protected as before: the downloaded zips are kept, the extracted copies are read-only, and the driver works on pruned copies and checksums the inputs.
+- Feature columns (27), sent to Ariana for confirmation: `primary`, `evalue`, `correlationToGaussian`, `correlationToPrecursor`, `isIntegratedSignal`, `isIntegratedPrecursor`, `numPeaksWithGoodCorrelation`, `HyperScore`, `xCorrLib`, `xCorrModel`, `scribe`, `numberOfMatchingPeaks`, `numberOfMatchingPeaksAboveThreshold`, `averageFragmentDeltaMasses`, `isotopeDotProduct`, `averageParentDeltaMass`, `lnSp`, `maxLadderLength`, `numMissedCleavage`, `pepLength`, `charge1`, `charge2`, `charge3`, `charge4`, `precursorMz`, `precursorMass`, `RTinMin`. Not features: `id`, `Label`, `ScanNr`, `sequence`, `Proteins`.
+- Observation from the context-ms 0.1.3 source (`context/io.py`): the Percolator engine trains on every column between `ScanNr` and `sequence` (`detect_feature_cols`), minus near-constant ones (σ < 1e-6 on the background). context-ms's `ENCYCLOPEDIA_METADATA_COLS` list (`TD`, `pepLength`, `charge1`–`charge4`, `precursorMass`, `RTinMin`, `midTime`, `numberOfMatchingPeaksAboveThreshold`, `primary`) is applied only by its mProphet engine. In the baselines, all five mouse assays dropped `charge1` and `charge4` as near-constant; the HeLa assays dropped none.
+- Next action: Ariana confirms the feature list and gives the go-ahead for `CTX017-006`.
+
+#### 2026-11-13 — feature list confirmed; `CTX017-006` and `CTX017-007` authorized
+
+- Decisions (Ariana): the 27 columns are the correct feature columns, but `charge1`–`charge4` together encode the peptide charge and count as one feature, "charge". So there are 24 features: 23 single columns plus the charge group, which is always screened and removed as a unit. She authorized committing and pushing, and moving on to `CTX017-006` and `CTX017-007`.
+- Next action: screening and decoy-artifact scripts on both datasets, then Round A evidence to Ariana.

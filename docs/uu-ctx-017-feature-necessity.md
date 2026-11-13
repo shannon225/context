@@ -1,3 +1,37 @@
+# CTX-017 — Approved canonical scope, revision 2
+
+Approved by Ariana on 2026-11-13 as guide revision r2.2 (Google implementation record:
+https://docs.google.com/document/d/1m9qrS-0_IErOL_dia7ms43ggwaRDsL8O1f4HTme-lxI/edit). Revision 2
+changes only the points below. Everything else in revision 1, kept in full underneath, still
+applies. This plan is frozen for the implement/review loop; material changes return to Ariana.
+
+## What revision 2 changes
+
+- **Data: two datasets.** Mouse cd8 2mz GPF masked2–6 (152 assay targets, 10 entrapments per target)
+  and HeLa astral 2mz masked1–5 (62 assay targets, 5 entrapments per target). Both have the same 27
+  features. This replaces "mouse masked2–10, second dataset later".
+- **Every figure and table shows both datasets.** Results are summarized per dataset and never
+  pooled across datasets. Entrapments per target (r) are measured per assay.
+- **Reporting thresholds:** passing targets and entrapment FDP are reported at 1% and 5% q-value for
+  both datasets. This is reporting only; Percolator and context-ms training settings are unchanged.
+  Reason: with about 62 targets per HeLa assay, the smallest reachable q-value is about 1%.
+- **Starting benchmark:** the three baseline workflows were regenerated on the 10 assays with
+  Percolator 3.05 and training seeds 1–3 (2026-11-13). They are saved as the starting benchmark, in
+  Drive `ctx-017/results/2026-11-13_baselines_perc305`.
+- **Features are removed per training round, not from the program** (Ariana's note in the guide).
+  All features stay available. At the end, a run with all features must reproduce the starting
+  benchmark.
+- **Thresholds for recommendations:** Ariana sets the FDP tolerance and seed-spread thresholds after
+  seeing the data. The work is stop-and-start: each step returns to her with the data, the commands,
+  and the outputs.
+- **Figure colours:** dark red = Context, light red = targeted Percolator (reference only),
+  gray = Percolator (full file).
+- **Branch:** CTX-017 work is committed on `ctx017`.
+- Later, mProphet should be runnable the same way with all features (Ariana's note); it stays out
+  of scope for now.
+
+## Superseded historical revision 1 — retained in full
+
 # CTX-017 — Approved canonical scope, revision 1
 
 Approved by Ariana on 2026-11-12 as guide revision r2.1 (Google implementation record:
