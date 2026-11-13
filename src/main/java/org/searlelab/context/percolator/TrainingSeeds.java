@@ -19,6 +19,16 @@ public class TrainingSeeds {
 		
 	}
 	
+	/** One training seed from a {@code -seed} value, or {@link #DEFAULT_SEED} when the option is absent. */
+	public static int parseSingle(String value) {
+		if (value == null) return DEFAULT_SEED;
+		try {
+			return requireValid(Integer.parseInt(value.trim()));
+		} catch (NumberFormatException nfe) {
+			throw new IllegalArgumentException("-seed must be an integer from 1 to 2147483647, not [" + value + "]", nfe);
+		}
+	}
+
 	public static List<Integer> parse(String value) {
 		
 		if (value == null || value.isBlank()) {

@@ -169,8 +169,10 @@ public class MassListDecoyGenerator {
 	}
 
 	public static File resolveDecoysMessage(File massList, File outputDirectory, String resolvedPrefix,
-			boolean generateDecoys) {
-		// TODO Auto-generated method stub
-		return null;
+			boolean generateDecoys) throws IOException {
+		if (!generateDecoys)
+			return massList;
+
+		return checkIfDecoysArePresent(massList, outputDirectory, 0);
 	}
 }

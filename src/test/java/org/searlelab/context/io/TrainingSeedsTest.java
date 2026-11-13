@@ -28,6 +28,17 @@ public class TrainingSeedsTest {
 	}
 
 	@Test
+	public void singleSeedOptionDefaultsToOneAndRejectsInvalidValues() {
+		assertEquals(TrainingSeeds.DEFAULT_SEED, TrainingSeeds.parseSingle(null));
+		assertEquals(1, TrainingSeeds.parseSingle(null));
+		assertEquals(3, TrainingSeeds.parseSingle(" 3 "));
+		assertEquals(2147483647, TrainingSeeds.parseSingle("2147483647"));
+		for (String value : new String[] { "", " ", "0", "-1", "x", "1.5", "1,2", "2147483648" }) {
+			assertThrows("Accepted " + value, IllegalArgumentException.class, () -> TrainingSeeds.parseSingle(value));
+		}
+	}
+
+	@Test
 	public void rejectsMalformedAndDuplicateSeeds() {
 		for (String value : new String[] { null, "", " ", "1,", ",1", "1,,2", "1,1", "0", "-1", "x", "1.5",
 				"2147483648" }) {

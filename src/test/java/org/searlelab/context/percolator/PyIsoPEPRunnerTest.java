@@ -120,6 +120,89 @@ public class PyIsoPEPRunnerTest {
 	}
 
 	@Test
+	public void q2pepUsesContextMSArgumentsAndD2pepIsUnchanged() {
+		File in = new File(folder.getRoot(), "in.tsv");
+		File out = new File(folder.getRoot(), "out.tsv");
+		java.util.List<String> tail = java.util.Arrays.asList("--cat-file", in.getAbsolutePath(), "--score-col", "score",
+				"--label-col", "Label", "--target-label", "1", "--decoy-label", "-1", "--calc-q-from-fdr", "--output",
+				out.getAbsolutePath());
+		java.util.List<String> q2pep = new java.util.ArrayList<>(java.util.List.of("q2pep"));
+		q2pep.addAll(tail);
+		java.util.List<String> d2pep = new java.util.ArrayList<>(java.util.List.of("d2pep"));
+		d2pep.addAll(tail);
+		assertEquals(q2pep, PyIsoPEPRunner.concatenatedArguments("q2pep", in, out, "score", "Label", "1", "-1"));
+		assertEquals(d2pep, PyIsoPEPRunner.concatenatedArguments("d2pep", in, out, "score", "Label", "1", "-1"));
+	}
+
+	@Test
+	public void pepMethodDefaultsToQ2pepAndRejectsUnknownMethods() {
+		assertEquals(PyIsoPEPRunner.PepMethod.Q2PEP, PyIsoPEPRunner.PepMethod.parse(null));
+		assertEquals(PyIsoPEPRunner.PepMethod.Q2PEP, PyIsoPEPRunner.PepMethod.parse("q2pep"));
+		assertEquals(PyIsoPEPRunner.PepMethod.D2PEP, PyIsoPEPRunner.PepMethod.parse(" D2PEP "));
+		assertEquals(PyIsoPEPRunner.PepMethod.Q2PEP, new PyIsoPEPRunner(null).getPepMethod());
+		assertEquals(PyIsoPEPRunner.PepMethod.Q2PEP, new PyIsoPEPRunner(null, null).getPepMethod());
+		for (String value : new String[] { "", "tdc2pep", "qns2pep", "pep" }) {
+			try {
+				PyIsoPEPRunner.PepMethod.parse(value);
+				fail("accepted " + value);
+			} catch (IllegalArgumentException expected) {
+				assertTrue(expected.getMessage(), expected.getMessage().contains("--pepMethod"));
+			}
+		}
+	}
+
+	/** A stand-in pyisopep that records its arguments, so the chosen method is checked without pyIsoPEP installed. */
+	@Test
+	public void runPEPCallsTheConfiguredMethod() throws Exception {
+		File fake = folder.newFile("fake-pyisopep");
+		File recorded = new File(folder.getRoot(), "arguments.txt");
+		try (PrintWriter out = new PrintWriter(fake, "UTF-8")) {
+			out.println("#!/bin/sh");
+			out.println("echo \"$@\" > '" + recorded.getAbsolutePath() + "'");
+			out.println("while [ \"$#\" -gt 0 ]; do if [ \"$1\" = --output ]; then output=\"$2\"; fi; shift; done");
+			out.println("printf 'id\\t" + PyIsoPEPRunner.Q_VALUE_COLUMN + "\\t" + PyIsoPEPRunner.PEP_COLUMN + "\\nT1\\t0.01\\t0.02\\n' > \"$output\"");
+		}
+		assertTrue(fake.setExecutable(true));
+		File input = write("in.tsv", "id\tLabel\tscore", "T1\t1\t2.5", "D1\t-1\t0.5");
+
+		for (PyIsoPEPRunner.PepMethod method : PyIsoPEPRunner.PepMethod.values()) {
+			PyIsoPEPRunner.Table table = new PyIsoPEPRunner(fake.getAbsolutePath(), method)
+					.runPEP(input, new File(folder.getRoot(), method + ".tsv"), "score", "Label", "1", "-1");
+			assertEquals(1, table.size());
+			String arguments = new String(java.nio.file.Files.readAllBytes(recorded.toPath())).trim();
+			assertTrue(arguments, arguments.startsWith(method.command() + " --cat-file "));
+		}
+		new PyIsoPEPRunner(fake.getAbsolutePath()).runPEP(input, new File(folder.getRoot(), "default.tsv"), "score",
+				"Label", "1", "-1");
+		assertTrue(new String(java.nio.file.Files.readAllBytes(recorded.toPath())).startsWith("q2pep "));
+	}
+
+	@Test
+	public void runsQ2PEPAndReportsTargetsWithQValuesAndPEPs() throws Exception {
+		String pyisopep = locatePyIsoPEP();
+		assumeTrue("pyIsoPEP is not installed; set PYISOPEP or put pyisopep on PATH", pyisopep != null);
+
+		File input = folder.newFile("rescored-q2pep.tsv");
+		Random random = new Random(11);
+		try (PrintWriter out = new PrintWriter(input, "UTF-8")) {
+			out.println("id\tLabel\tscore\tsequence");
+			for (int i = 0; i < 60; i++) out.println("T" + i + "\t1\t" + (3.0 + random.nextGaussian()) + "\tPEPTIDE" + i + "K");
+			for (int i = 0; i < 60; i++) out.println("D" + i + "\t-1\t" + random.nextGaussian() + "\tDECOYPEP" + i + "K");
+		}
+		PyIsoPEPRunner.Table table = new PyIsoPEPRunner(pyisopep)
+				.runQ2PEP(input, new File(folder.getRoot(), "psm.q2pep.txt"), "score", "Label", "1", "-1");
+
+		assertEquals("targets only", 60, table.size());
+		assertTrue("input columns must survive", table.indexOf("sequence") >= 0);
+		for (String[] row : table.getRows()) {
+			double pep = Double.parseDouble(table.get(row, PyIsoPEPRunner.PEP_COLUMN));
+			double q = Double.parseDouble(table.get(row, PyIsoPEPRunner.Q_VALUE_COLUMN));
+			assertTrue("PEP out of range: " + pep, pep >= 0.0 && pep <= 1.0);
+			assertTrue("q-value out of range: " + q, q >= 0.0 && q <= 1.0);
+		}
+	}
+
+	@Test
 	public void surfacesPyIsoPEPFailures() throws Exception {
 		String pyisopep = locatePyIsoPEP();
 		assumeTrue("pyIsoPEP is not installed; set PYISOPEP or put pyisopep on PATH", pyisopep != null);
