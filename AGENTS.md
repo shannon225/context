@@ -138,6 +138,16 @@ those root sections until they are migrated.
    encountering a blocker, or changing its status; make the next action clear
    without logging every tool call. Append new tasks at the end of the feature
    file, labeled with their feature ID; preserve existing tasks and their IDs.
+   Keep feature IDs (such as `CTX-019`) fixed and consistent with the backlog.
+   A task keeps its original ID while it represents the same work. Update its
+   description, document revisions, dependencies and approval status in place,
+   and record changes in dated log entries without rewriting earlier history.
+   For example, an approval checkpoint keeps its ID when the guide revision
+   changes; renewed approval does not require a new task ID. Allocate new IDs
+   only for genuinely additional work or a replacement with a different
+   purpose or approach. Never renumber or reuse an existing ID for other work.
+   Keep affected checklist links, dependencies and current document references
+   consistent as part of the change, not as a deferred cleanup step.
    Mark a task `[x]` only when its stated work and checks are complete. Add
    dated log entries referencing each task ID with the attempt/change, result
    or error, evidence (including test commands and failures/skips), and
@@ -151,9 +161,12 @@ those root sections until they are migrated.
    guide revision and future tasks for approval before continuing. For Until
    Useful, preserve the canonical plan while approval is pending; adopt the
    approved revision only at the human-approved handoff before the next loop.
-   Preserve completed work and history; label obsolete unfinished tasks `Superseded` rather than
-   deleting them or marking them complete, and append replacement tasks with
-   new IDs. Set approval to `Pending` for the revised guide/checklist and obtain
+   Preserve completed work and history. A material plan revision alone does
+   not require new task IDs: retain IDs for tasks that still represent the
+   same work. Only when different work or a different approach genuinely
+   replaces an unfinished task, label it `Superseded by <new ID>` rather than
+   deleting it or marking it complete. Append the replacement with a new ID
+   and a `Replaces <old ID>` link. Set approval to `Pending` for the revised guide/checklist and obtain
    Ariana's approval before resuming implementation. Routine fixes within the
    approved plan can proceed with logged results.
 5. **Complete review before declaring success.** Passing tests alone does not
