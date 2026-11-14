@@ -1,7 +1,7 @@
-# CTX-019 — Bootleak 2.0 canonical plan, revision 1
+# CTX-019 — Bootleak 2.0 canonical plan, revision 2 (proposed)
 
-- **Status: pending Ariana's approval.** Written on 2026-11-13 at Ariana's direction ("Go ahead and make the plan, then commit and push"). It becomes frozen for the implement/review loop once Ariana approves it together with the `TASKS.md` checklist. Until then it may still be revised.
-- Google implementation record: https://docs.google.com/document/d/1VT-sY1rvrERuoMl1OY4to79TicAT01Rtq8mheJy0B04/edit — draft r0 (Docs revisionId `AHj4eMR4dPB_IKLpnKZpqs7pv8olPoNwQivy84_Qu-RhtIfQ9JBOuOuJFYfPMFCVMFi8xuv-INzazH8tI51DMw_Inki-trWQ2ux4ib51Fwg`, 2026-11-13), including Ariana's edits of that day.
+- **Status: pending Ariana's approval.** Revision 1 was written on 2026-11-13; this proposed revision 2 adds the capacity, entrapment assignment and feasibility work discussed on 2026-11-14. It becomes frozen for the implement/review loop only after Ariana approves it together with the guide and revised `TASKS.md` checklist.
+- Google implementation record: https://docs.google.com/document/d/1VT-sY1rvrERuoMl1OY4to79TicAT01Rtq8mheJy0B04/edit — proposed guide r1, 2026-11-14 (Docs revision ID `AHj4eMRyI4HhY7tlrFOadZNUToFO7cn4hMR69H535uAHrx_4xtmUKFrR1Awb2ebly1k0UrY7QyXEZOnpaqzacmesXH3QAyyO_YWOI8lL604`).
 - Checklist and log: `TASKS.md`, section "CTX-019 — Bootleak 2.0".
 - Branch: `bootleak2`, created 2026-11-13 from `ariana/scoring` at `7d0f5240411e8177db4744bcc6500166f9e5255a` (includes the BOOTLEAK fixes).
 - Dependencies, unchanged: EncyclopeDIA 6.9.23 and msrawjava-core-nolice 26.7.31 (from `pom.xml`); Java 17; JUnit 4.
@@ -9,7 +9,7 @@
 ## Intent
 
 1. **Part 1 — independent seeds (confirmed scope).** Every bootstrap seed draws all of its targets, initial and replacement, from its own random stream.
-2. **Part 2 — m/z centering (pending evidence).** First measure where targets sit within their MS2 isolation windows. Ariana then decides whether the bootstrapper should require centered targets.
+2. **Part 2 — acquisition-aware assay selection (proposed).** Estimate a defensible target concurrency limit, fill target slots up to that limit, and reassign entrapments across targets before rejecting a target. Centered m/z placement and RT intervals covering observed peptide peak bounds are feasibility constraints to measure before choosing defaults. Do not assume every proposed constraint will be enabled in production.
 
 ## Current behavior (verified 2026-11-13 on `7d0f524`)
 
@@ -19,11 +19,11 @@
 - `writeMaskedFile` copies a target's MS2 scans when the scan's isolation window contains the target m/z (`getStripes(mz, rtStart, rtStop)`: `IsolationWindowLower <= mz <= IsolationWindowUpper` and `ScanStartTime` between the bounds, in seconds) and the scan's precursor m/z is within ±`halfWindowWidthMz` of the target (`:484–491`). Where in the window the target sits is not checked.
 - `selectTargets` has no caller outside `TargetedBootstrapper`.
 
-## Populations and identities (unchanged by this feature)
+## Populations and identities
 
-- Bootstrap targets are the **reference** peptides of the simulated assay; their MS2 and MS1 scans are copied into the masked `.dia`.
-- Entrapments are library precursors near each target's m/z whose data is deliberately not copied. Any detection of one is a known false discovery.
-- Target identity is `LibraryEntry.getAccuratePeptideModSeq(aaConstants)` (modified sequence). Charge is kept but does not count toward uniqueness, so one sequence appears at most once per seed. Entrapment rules (same charge, ±10→1000 ppm widening, RT/m/z separation, closest first) are unchanged.
+- Bootstrap targets are selected from the library's `entries` (target) table and become the **reference** peptides of the simulated assay; their MS2 and MS1 scans are copied into the masked `.dia`. The pinned EncyclopeDIA 6.9.23 `getAllEntries(false, ...)` SQL selects from `entries`, not `decoyentries`; the boolean controls sqrt intensity. Verify this population boundary in the pilot and a mixed-table test library.
+- Entrapments are also drawn from target-library precursors near each reference's m/z, but their data is deliberately not copied. Any detection of one is a known false discovery. Library search decoys in `decoyentries` are a separate population and must not be considered for either role.
+- Target identity is `LibraryEntry.getAccuratePeptideModSeq(aaConstants)` (modified sequence). Charge is kept but does not count toward uniqueness, so one sequence appears at most once per seed. Current entrapment eligibility uses same charge, ±10→1000 ppm widening, and RT/m/z separation, then commits the closest candidates first. Part 2 preserves eligibility but proposes reassignment across targets instead of closest-first commitment.
 - Nondeterminism: none expected. The LCG is deterministic, and the `HashSet<Integer>` of drawn indices iterates deterministically for `Integer` keys. Seeds are the integers 1…`maxSeed` from the CLI.
 
 ## Part 1 — seed independence
@@ -56,48 +56,49 @@
 ### Documentation
 - `README.md`, "Simulated assays with `bootstrap`": one or two sentences saying each seed draws from its own random stream, replacements continue that stream, and outputs that had replacement rounds before this change differ.
 
-## Part 2 — m/z centering
+## Part 2 — acquisition-aware target and entrapment selection
 
-### 2a. Read-only diagnostic (no repository code)
-- A Python script in ignored `tmp/ctx019/`, run with `python3 -I`, and an R script (ggplot2, patchwork, dplyr, tidyr; `theme_bw()`, Arial).
-- **Inputs:** a raw acquisition `.dia`, its `_masked<seed>_assay.txt`, and its `_masked<seed>_assay.dia`. All are read only; the script opens copies or uses read-only SQLite URIs.
-- **Report:**
-  - The MS2 window layout from `spectra.IsolationWindowLower/Upper`: distinct windows, widths, overlap, and whether it looks non-overlapping, staggered, or GPF-combined.
-  - For each target (`isDecoy = false`): the nearest containing window, the signed offset from that window's center, the distance to the nearer edge, whether M+1 (`+1.00335/z`) and M+2 fall outside the window, and the MS2 scan count in the masked file.
-  - Summary tables by charge and window.
-- **Checks:** the script refuses to overwrite outputs and records input paths with SHA-256. It is first run on the IL2/IL15 fixture as a self-check, then on Ariana's acquisitions. Those are not in the cloud container, so Ariana supplies them or runs the script herself.
+### 2a. Read-only feasibility study on Ariana's data
 
-### 2b. Decision round
-- Present the evidence first and the recommendation second.
-- Ariana decides:
-  - whether to add centering;
-  - the rule (maximum center offset in m/z, or an isotope-based margin);
-  - whether it is on by default;
-  - the approach: reject off-center targets (non-overlapping windows) or keep only the best-centered window per target (overlapping or staggered windows).
-- Record the decision in the guide's decision log and in `TASKS.md`.
-- If centering is added, that is a **material plan change**: propose a guide revision and plan revision 2, set approval to Pending, and append new tasks before implementing.
+- Inputs, read only: `/Users/arianashannon/Documents/Playground_for_Context/ctx019/library_cd8.elib`, `cd8_2mz_gpf.dia`, and `mus_musculus_reviewed_uniprot.fasta`. The FASTA's role in this study is provenance/compatibility; the schedule and matching analysis can use the `.elib` and `.dia` without a FASTA search. Record file hashes, software version and query parameters. Do not copy the 1.7 GB `.dia` or publish these files.
+- Ariana confirmed on 2026-11-14 that `.elib` `RTInSecondsStart/Stop` are observed peak boundaries. The supplied `.elib` has 99,147 `entries`, no `decoyentries`, and populated ordered bounds for every entry. The library RT lies within those bounds for 98,336 entries; 358 have RT before start, 453 after stop. Ariana chose to exclude these 811 entries from **both** reference-target and entrapment selection for this implementation. This is an eligibility policy, not evidence that their identifications are wrong; the entry RT may be a corrected or otherwise distinct RT coordinate. Record the excluded count for each input library and fail clearly if too few eligible precursors remain. Restrict the pilot to `entries`; verify with a mixed-table fixture that `decoyentries` are excluded.
+- Inspect actual MS2 isolation window lower/upper bounds, width, overlap, scan cadence and retention-time coverage in the `.dia`. Ariana reports 4 m/z overlapping/staggered acquisition windows that deconvolve to effective 2 m/z windows, 2 m/z non-overlapping windows, and possible 1 or 2 m/z GPF windows; verify the supplied file's actual layout rather than assuming one pattern. For each potential target, calculate center offset and nearer-edge distance in each containing window, M+1/M+2 coverage, and available MS2 scan count across its proposed RT interval. Compare with the existing masked-file behavior. GPF or staggered windows may make a target's best window depend on cycle.
+- Plot target-only concurrency for the existing symmetric schedule and for a schedule that covers observed RT start/stop. Entrapments are library challenges, **not physical PRM measurements** and do not consume target slots. Report peak and distribution of concurrency, target yield, interval lengths, edge cases and how these vary by m/z and RT.
+- Estimate capacity from acquisition timing when possible: require a chosen minimum points per chromatographic peak, giving a maximum cycle time `T_cycle,max = peak_width / points_required`; then derive an approximate target-slot limit `K = floor((T_cycle,max - T_other) / T_MS2)`. State which peak-width statistic, scan time, overhead and safety margin were used. For rough total-target estimates, use the peptide elution span rather than the full gradient; Ariana notes that elution often starts 3–7 min after gradient start and ends 3–7 min before gradient completion. Measure this span in the supplied run rather than hardcoding a margin. The DIA scan cadence is evidence for the simulation, not an automatic PRM instrument-capacity guarantee. If timing data are insufficient, compare a sensitivity range of user-supplied `K` values and leave the default undecided. Never infer `K` solely from library size or the observed 14-target peak in the example assay.
+- Compare feasible target count and entrapment fill rate under baseline selection, a capacity rule alone, and capacity plus centering and observed-bound coverage. Report failures and runtime/memory, including sparse RT–m/z regions, narrow/long peaks, overlapping windows, and demanding trap ratios. This pilot is read-only; it does not change bootstrapper outputs.
 
-### 2c. Implementation sketch (only if approved in 2b; detailed in plan revision 2)
-- Reuse `rawDia.getRanges()`, which `execute` already reads for `isolationWindowWarning`, and pass the window list to `selectTargets`.
-- A target is eligible only if some window contains it with `|targetMz − center| <= maxCenterOffsetMz`. The boundary is inclusive unless Ariana decides otherwise.
-- An optional 8th positional argument in `TargetedBootstrapperCLI`, so existing 2–7 argument invocations keep working. README and usage text are updated.
-- Entrapment rules are unchanged; entrapment scans are never copied anyway.
-- Tests: inclusive boundary, rejection near the window edge, unchanged behavior when centering is off, and a clear error when no centered target is available.
+### 2b. Decision round and implementation boundary
+
+- Present the pilot evidence and a recommendation. Ariana decides the capacity rule/default and whether it is user-configurable; center tolerance or isotope margin and whether centering is default; handling of missing or reversed bounds in other libraries; and whether target spreading in sparse RT/m/z regions warrants a later experiment. Observed bounds and exclusion from both roles when a library RT falls outside them are already decided. Record remaining decisions in the guide and `TASKS.md` before changing scientific behavior. If the data show that the proposed rules cannot be supported, revise the plan/checklist for approval.
+- The core selection proposal, once parameters are approved: keep `numberOfPeptides` as a hard requested total; exclude `entries` whose library RT falls outside their observed peak bounds from both assay roles; draw remaining candidates deterministically from each seed's stream and continue trying eligible candidates until the total is reached; admit a target only if its scheduled RT interval fits the concurrency limit at every overlapping time; score/choose a feasible m/z window according to the approved centering rule; then assign `trapsPerTarget` distinct eligible entrapments to all admitted targets with bipartite matching (augmenting paths or max flow). Compute each target–entrapment eligibility against the **entire selected target set** using the existing charge, m/z, RT-separation and identity rules. Reassign already chosen entrapments along an augmenting path before declaring a new target infeasible. If no complete assignment exists, try another target or backtrack according to a bounded, deterministic policy; fail clearly if the requested total cannot be reached; never silently reduce the requested total or trap ratio. Active preference for underfilled RT or m/z regions is a separate optional experiment.
+- Keep reference targets, entrapments and library search decoys distinct, with only `entries` eligible for either assay role. Preserve modified-sequence uniqueness, charge matching, seed reproducibility, existing file columns and the no-entrapment-spectra rule. Entrapment matching changes *which* library challenges are paired, so old outputs with and without replacement may change once this part is enabled; the Part 1 no-replacement equivalence promise applies to the isolated seed fix, not the combined algorithm.
+- First compare matching to the current nearest-first assignment on small and representative inputs. Use a local, deterministic augmenting-path implementation if it is sufficient; consider general max flow only if the measured conflicts require it. Bound candidate expansion and search so a 99k-entry library does not create an all-pairs graph. No new dependency is planned.
+- A preference for underfilled RT/m/z regions is an **optional experiment**, not a default selection rule or acceptance criterion. Compare its yield and selected-population distribution with capacity-only selection; do not claim it is more representative of a real PRM assay or improves detectability without evidence.
+
+### Implementation details to settle after the pilot
+
+- Reuse `rawDia.getRanges()` for the m/z-window list. For overlapping windows, compare all containing windows and select the best usable one; do not assume the first containing window is the right choice. The precise center tolerance or isotope margin is a decision item.
+- Read observed peak start/stop from the library through the repository's pinned EncyclopeDIA API if it preserves these fields. Verify that `ChromatogramLibraryEntry.getRtRange()` exposes the values used in the `.elib`; otherwise propose the smallest Context-side read path. Scheduling can shift the RT center and widen the window, provided both accepted bounds are covered and the output format remains compatible.
+- Preserve existing 2–7 argument CLI invocations. Decide any new capacity or centering options only after the pilot; update README and usage text for approved options.
+- Tests should cover center and RT boundaries, overlapping-window selection, capacity at peak overlap, an augmenting-path reassignment, impossible trap ratios, seeded determinism, and a large-library performance bound. Entrapment scans remain absent from masked files.
 
 ## Acceptance criteria
 
 - [ ] Each seed's initial and replacement targets come from one stream starting at `1 + seed`; no replacement round restarts at another seed's start.
-- [ ] Seeds without replacement rounds give identical outputs before and after the change; CLI syntax and file formats are unchanged.
+- [ ] For the isolated seed fix, seeds without replacement rounds give identical outputs before and after the change; the later selection algorithm may intentionally change assay contents. Existing CLI invocations and file formats remain accepted.
 - [ ] The new regression test fails on the old code and passes on the new; all `TargetedBootstrapperTest` tests pass on JDK 17.
 - [ ] The full `-Ppackage verify` result on JDK 17 is recorded, with pre-existing failures named.
 - [ ] README updated; affected older outputs explained.
-- [ ] Diagnostic results presented; Ariana's centering decision recorded (and, if centering is added, its revision approved and implemented separately).
+- [ ] Pilot results presented; Ariana's decisions on centering, RT-bound use, capacity and matching limits recorded, with a revised approval checkpoint if material parameters differ from this plan.
+- [ ] The pilot reports a justified capacity range, target concurrency, target yield and complete-entrapment assignment rate on the supplied data, with timing and failure cases; Ariana approves final parameters before implementation of Part 2.
+- [ ] Entries whose library RT falls outside observed peak bounds are excluded from both reference and entrapment selection; the excluded count and any consequent infeasibility are reported clearly.
+- [ ] For any approved Part 2 implementation, no cycle exceeds the approved target cap; every scheduled target RT interval covers its accepted observed lower and upper peak bounds; every target has the requested number of distinct, eligible entrapments, including a case that needs reassignment; seeded runs are reproducible and impossible `numberOfPeptides` or trap requests fail clearly, without silently reducing them.
 - [ ] Until Useful review findings, dispositions and residual risks recorded; Ariana's final review; Report written outside the repository.
 - These checks do not establish improved sensitivity or general FDR validity. Small-fixture tests show only that the selection logic behaves as specified.
 
 ## Until Useful review
 
-- Review the Part 1 diff (and Part 2c, if it is added) against this frozen plan. The review covers:
+- Review the approved implementation diff against the frozen plan. The review covers:
   - the smallest practical change and reuse of existing code;
   - no dependency changes;
   - unchanged outputs where promised;
@@ -108,16 +109,23 @@
 
 ## Out of scope
 
-- Library decoy rows being drawable as targets (`LibraryFile.getAllEntries(false, …)`'s flag is the sqrt-intensity flag, not a decoy filter). This needs its own ID or decision.
-- An RT peak-boundary filter (a wider RT window is recommended instead).
+- Library search-decoy generation or filtering inside the search engine. CTX-019's assay selection uses only the `.elib` `entries` population; `decoyentries` must stay excluded.
+- A default centering threshold before the feasibility study and Ariana's decision. Handling of missing or reversed bounds in other libraries and any symmetric-window fallback require an explicit decision; the supplied library's 811 out-of-bound entries are excluded from both roles.
 - Changing `RandomGenerator.randomInt` or the index mapping (`Math.abs(x) % size`), whose statistical quality has not been evaluated.
 - Changes to EncyclopeDIA, msrawjava, or Context's scoring, Percolator, mProphet or FDR workflows.
 - Git delivery planning; it starts only when Ariana asks.
 
 ## Open questions
 
-1. Centering: whether, which rule, which default (decided in 2b).
-2. MS2 window layout of Ariana's bootstrap acquisitions (answered by 2a).
-3. CTX-019 priority, and whether CTX-016 to CTX-019 should be added to the backlog sheet (it lists CTX-001 to CTX-015).
-4. Where the Report should be saved (the Downloads path does not exist in cloud sessions).
-5. Whether 2a's result tables and figures should also be uploaded to a Drive folder, and which one.
+1. Centering: whether, which rule and default (decided in 2b).
+2. RT bounds: observed peak start/stop and exclusion of the 811 out-of-bound entries from both roles are decided by Ariana. After the pilot, decide padding, if any, and policy for missing or reversed bounds in other libraries.
+3. Capacity: points-per-peak criterion, timing/overhead data, safety margin, default or required user parameter, and interval endpoint convention.
+4. Matching: maximum candidate expansion and bounded backtracking policy; measure yield and resource use before freezing these details.
+5. Verify the supplied `.dia` window layout against Ariana's 4 m/z staggered/deconvoluted and 1–2 m/z GPF description in 2a.
+6. CTX-019 priority remains unset. Ariana reports CTX-016 is complete in another account/computer; reconcile backlog status separately, without changing CTX-019's technical approval scope.
+7. Save the required Report locally in Downloads. Ariana also provided a Google Drive `ctx-019` folder for a Report copy: https://drive.google.com/drive/folders/1mIQTNaHLO-9ph5fxVuF4OUeMtqFYo7ix?usp=sharing. Her permission covers the Report, not the input datasets or pilot outputs.
+
+## Documentation handoff
+
+- Ariana requested a final targeted-bootstrapper documentation pass. After implementation and before final validation/review, check README and CLI usage against actual inputs, defaults, file outputs, scheduling rules, seed behavior, exclusions and failure messages; fill gaps with concise examples. Do not reinterpret existing public syntax or formats without a separate approved change.
+- Ariana says the existing random generator was externally validated. CTX-019 preserves it and does not repeat that validation; record this as Ariana's statement rather than a new validation claim.
