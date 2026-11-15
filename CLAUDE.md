@@ -92,7 +92,7 @@ to their purpose; reserve "guide" for the Google implementation-record document.
    change. Record findings, dispositions, checks, residual risks, and outcome in `TASKS.md`.
    In scripted Until Useful runs, `NEEDS_INPUT`, `FAILED`, and `STOPPED` halt automatic continuation; don't describe them as
    success. Even `APPROVE` means ready for Ariana's final review, not accepted.
-6. **Report and hand off.** Write the Report in `docs/` as
+6. **Report and hand off.** Write the Report in `docs/reports/` as
    `YYYY-MM-DD-CTX-###-Report.md` (America/Chicago date; add a time/sequence suffix if the name
    exists). Never overwrite reports unless Ariana specifically asks you to do so.
    Copy the full checklist and dated log verbatim from `TASKS.md`,
@@ -121,14 +121,14 @@ its scripted runtime. Include Until Useful review tasks only when that workflow
 is part of the approved plan. A review is not required after every task or step;
 follow the review stages in the approved plan and retain Ariana's final review.
 
-Reports go in the repo's `docs/` folder, in local and cloud sessions alike.
+Reports go in the repo's `docs/reports/` folder, in local and cloud sessions alike.
 Keep `TASKS.md` in the repo root and eligible for version control.
 
 ## Code organization and style
 
 - `src/main/java/org/searlelab/context/` — application code
 - `src/test/java/`, `src/test/resources/` — tests and fixtures (with provenance)
-- `docs/` — canonical plans and supporting documents · `libs/` — bundled jars
+- `docs/` — canonical plans and supporting documents (Reports in `docs/reports/`) · `libs/` — bundled jars
 - `build-cache/` — downloaded build tools (ignored) · `tmp/` — local experiments (ignored)
 - `TASKS.md` — checklist and log
 

@@ -809,8 +809,8 @@ Ariana asked to move to Phase 3 once Phase 2 was pushed (`abcd1e3`). The Phase 2
 - [x] `CTX017-008` Stage 3 grouped leave-one-out on the clusters Ariana selected (≥ 3 training seeds), then Round B. Depends on: 004, 005, 007. Check: Δ sensitivity and Δ FDP tables; decisions recorded.
 - [x] `CTX017-009` Within-cluster single-feature leave-one-out and stage 4 weight stability, then Round C. Depends on: 008. Check: tables and figures; decisions recorded, including whether stage 5 runs.
 - [x] `CTX017-010` Optional stage 5 backward elimination, only if Ariana chose it in Round C, then Round D. Depends on: 009. Check: decisions recorded, or task marked not run by Ariana's choice.
-- [ ] `CTX017-011` Record Ariana's final feature set in the guide's Feature decisions table. Depends on: 009/010. Check: every analyzed feature or group has a decision.
-- [ ] `CTX017-012` Generalize the FDP-comparison and analysis scripts for several experiments (seed discovery, skip list, file prefix, experiment label, per-seed r). Run the second dataset when supplied; Ariana chooses the upper-bound definition. Depends on: the second dataset. Check: mouse numbers reproduce exactly; combined figure and table in Drive; Ariana's choice logged.
+- [x] `CTX017-011` Record Ariana's final feature set in the guide's Feature decisions table. Depends on: 009/010. Check: every analyzed feature or group has a decision.
+- [x] `CTX017-012` Generalize the FDP-comparison and analysis scripts for several experiments (seed discovery, skip list, file prefix, experiment label, per-seed r). Run the second dataset when supplied; Ariana chooses the upper-bound definition. Depends on: the second dataset. Check: mouse numbers reproduce exactly; combined figure and table in Drive; Ariana's choice logged.
 - [ ] `CTX017-013` Until Useful review of the scripts and the analysis. Depends on: 011, 012. Check: findings, dispositions, and residual risks logged.
 - [ ] `CTX017-014` Ariana's final review. Check: her acceptance logged with date.
 - [ ] **Superseded (2026-11-14, replaced by `CTX017-018`)** `CTX017-015` External Report `YYYY-MM-DD-CTX-017-Report.md` outside the repository, with this checklist and log copied verbatim. Ask Ariana where to save it in cloud sessions. Check: the Report exists and is verified.
@@ -888,7 +888,7 @@ Ariana asked to move to Phase 3 once Phase 2 was pushed (`abcd1e3`). The Phase 2
 - `CTX017-002` scope under r2.2: both datasets. Ariana judged the mouse data usable and supplied the HeLa data; the SHA-256 inventory of the 80 input files for the 10 assays is in Drive (`inputs_sha256.txt`). Marked complete.
 - `CTX017-012` scope under r2.2: both datasets from the start, not "when supplied".
 - [x] `CTX017-016` Download, check, and inventory the HeLa dataset; choose the first five complete assays (masked1–5). Check: file set, features, r, and entrapment m/z distances logged (2026-11-13).
-- [ ] `CTX017-017` Closing benchmark check: after the analysis, rerun all features on the 10 assays and confirm the results match the starting benchmark (`2026-11-13_baselines_perc305`). Depends on: 011. Check: outputs identical or differences explained.
+- [x] `CTX017-017` Closing benchmark check: after the analysis, rerun all features on the 10 assays and confirm the results match the starting benchmark (`2026-11-13_baselines_perc305`). Depends on: 011. Check: outputs identical or differences explained.
 - Reporting rule for all later tasks: 1% and 5% q-value, both datasets in every figure and table, and each step returns to Ariana with data, commands, and outputs.
 
 #### 2026-11-13 — r2.2 approved; guide and canonical plan updated
@@ -984,7 +984,7 @@ Ariana asked to move to Phase 3 once Phase 2 was pushed (`abcd1e3`). The Phase 2
 - 2026-11-14 (`CTX017-008`/`009` figures): Ariana noted the Round B FDP panel showed negative changes with no negative axis labels. `ablation_figures.R` now sets the FDP x-axis breaks every 1 percentage point (`scales::breaks_width(1)`); Round B and Round C figures regenerated (axis now reads -1 to 4). Data unchanged. Uploaded as `roundB_figure_v2`, `roundC_figure_v2` (PNG/PDF) and `ablation_figures_v2.R` beside the originals in the same Drive folder; originals kept.
 - 2026-11-14 (`CTX017-008`/`009` docs): at Ariana's request, wrote `README_reproduce_roundBC.md` (environment, inputs, script-by-script commands, expected outputs, caveats) and uploaded it with `ablate.py` to the Round B/C Drive folder.
 - 2026-11-14 (`CTX017-006` docs): Round A had only a one-line command in its summary note, so wrote `README_reproduce_roundA.md` (populations, measures, environment, inputs, `screen.py` and `screen_figures.R` commands, expected outputs, caveats) and uploaded it to Drive `results/2026-11-13_roundA_screening`. Reproducibility check: reran `screen.py` and `screen_figures.R` into `/home/user/ctx017-runs/roundA_rerun` (about 1 min); all six tables are byte-identical to the Drive copies (`cmp`). Figures regenerated but not byte-compared.
-- [ ] `CTX017-018` (replaces `CTX017-015`) Report `docs/YYYY-MM-DD-CTX-017-Report.md` in the repository (America/Chicago date; add a suffix if the name exists), with this checklist and dated log copied verbatim, plus guide URL/revision and canonical-plan path/revision; marked `Awaiting Ariana's final review`. Depends on: 014. Check: the Report exists in `docs/` and is verified against `TASKS.md`.
+- [ ] `CTX017-018` (replaces `CTX017-015`) **Location changed 2026-11-15 by Ariana: `docs/reports/`, not `docs/`.** Report `docs/YYYY-MM-DD-CTX-017-Report.md` in the repository (America/Chicago date; add a suffix if the name exists), with this checklist and dated log copied verbatim, plus guide URL/revision and canonical-plan path/revision; marked `Awaiting Ariana's final review`. Depends on: 014. Check: the Report exists in `docs/` and is verified against `TASKS.md`.
 
 ### 2026-11-14 — Round B decision; `CTX017-015` replaced
 
@@ -1020,3 +1020,22 @@ Ariana asked to move to Phase 3 once Phase 2 was pushed (`abcd1e3`). The Phase 2
 - Decision (Ariana, 2026-11-15): keep all 24 features after the stage 5 results. The 12 units removed by backward elimination are not dropped.
 - Status: `CTX017-009` and `CTX017-010` complete (Round C and Round D decisions recorded). `CTX017-011` (record the final feature set in the guide) is next.
 - Authorization (Ariana, 2026-11-15): commit and push the `TASKS.md` updates to `ctx017`, after confirming the target branch.
+
+### 2026-11-15 — `CTX017-011` final feature set; `CTX017-017` closing benchmark check
+
+- `CTX017-011`: guide updated (Feature decisions table, Round B/C row note now records the Round D result and Ariana's decision; work log paragraph updated with stage 5). Final feature set: all 24 features (23 columns + charge group). Complete.
+- `CTX017-017` attempt: fresh all-features run, label `closing_all_features`, out `/home/user/ctx017-runs/closing` (`ablate.py --exclude none`, mouse masked2–6, HeLa masked1–5, seeds 1–3, `--jobs 4`, 4 min 7 s). Inputs checked before (80/80 SHA-256 OK) and after (`inputs unchanged: True`). Percolator 3.05.0, context-ms 0.1.3.
+- Result: 30/30 runs ok. N_T and N_E identical to the starting benchmark (`2026-11-13_baselines_perc305`, workflow `context`) on all 1,500 rows (dataset × assay × seed × 50 thresholds), and identical to the earlier `all_features` run. `ablation_counts.tsv` SHA-256 702c2ec1…54bf5. Ariana's requirement (all features at the end reproduce the starting results) is met. Complete.
+- Next action: `CTX017-012` (depends on Ariana's upper-bound choice), `CTX017-013` review, `CTX017-014` final review, `CTX017-018` Report; Report location (`docs/` vs `docs/reports/` per the new AGENTS.md) awaits Ariana.
+
+### 2026-11-15 — Decisions: FDP bounds (`CTX017-012`) and Report location (`CTX017-018`)
+
+- Decision (Ariana, 2026-11-15): report both a lower and the tight upper bound of entrapment FDP: lower = N_E/(N_T+N_E), tight upper = (1 + 1/r)·N_E/(N_T+N_E). The loose 2× bound is no longer reported in new outputs; earlier outputs keep it as recorded.
+- Decision (Ariana, 2026-11-15): the CTX-017 Report goes in `docs/reports/`. `CTX017-018` amended (location note added to the task line). `CLAUDE.md` updated at her instruction (workflow step 6, the Reports-location line, and the code-organization list) to match `AGENTS.md` (`docs/reports/`). Existing Reports in `docs/` are left in place.
+- `CTX017-012` status: both datasets have been run in every stage, with both datasets in every table and figure and the lower/tight bounds computed per assay r; the upper-bound choice is now logged. Remaining: confirm with Ariana that this covers the task's "generalize scripts" item, then mark complete.
+
+### 2026-11-15 — `CTX017-012` closed; `CTX017-013` reviewer handoff
+
+- `CTX017-012`: Ariana agreed (2026-11-15) that the task is covered (both datasets run in every stage; per-assay r; upper-bound choice logged). Complete.
+- `CTX017-013`: per the Until Useful workflow, Ariana runs the review in a separate chat. Handoff note written: `docs/ctx-017-first-reviewer-handoff.md` (scope, Drive locations of scripts and evidence, decisions, priority questions, known limits, requested response). Drive folder contents checked against the note. Review findings, dispositions and residual risks to be logged here when they come back.
+- Authorization (Ariana, 2026-11-15): commit and push `CLAUDE.md`, `TASKS.md` and the handoff note to `ctx017`.
