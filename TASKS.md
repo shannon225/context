@@ -806,14 +806,14 @@ Ariana asked to move to Phase 3 once Phase 2 was pushed (`abcd1e3`). The Phase 2
 - [x] `CTX017-005` Python ablation driver in `tmp/ctx017/`: read-only inputs, pruned copies keeping `id`/`Label`/`ScanNr`/`sequence`/`Proteins`, one folder per ablation/training seed/masked seed, refusal of existing folders, SHA-256 checks, failure recording, one tidy TSV. Depends on: 003. Check: invalid exclusions rejected; a no-exclusion run reproduces task 004's baseline.
 - [x] `CTX017-006` Screening and decoy-artifact scripts (stages 1–2): missing/constant fraction, target-vs-decoy AUC, Spearman clusters at |ρ| ≥ 0.9, background-vs-reference shift, decoy-vs-entrapment AUC with CI. Depends on: 002. Check: outputs on masked2–10; R figures render.
 - [x] `CTX017-007` Round A: upload evidence and `roundA_recommendations.tsv` to Drive, summarize in chat (evidence first), record Ariana's decisions. Depends on: 006. Check: decisions in the guide table and this log.
-- [ ] `CTX017-008` Stage 3 grouped leave-one-out on the clusters Ariana selected (≥ 3 training seeds), then Round B. Depends on: 004, 005, 007. Check: Δ sensitivity and Δ FDP tables; decisions recorded.
-- [ ] `CTX017-009` Within-cluster single-feature leave-one-out and stage 4 weight stability, then Round C. Depends on: 008. Check: tables and figures; decisions recorded, including whether stage 5 runs.
-- [ ] `CTX017-010` Optional stage 5 backward elimination, only if Ariana chose it in Round C, then Round D. Depends on: 009. Check: decisions recorded, or task marked not run by Ariana's choice.
+- [x] `CTX017-008` Stage 3 grouped leave-one-out on the clusters Ariana selected (≥ 3 training seeds), then Round B. Depends on: 004, 005, 007. Check: Δ sensitivity and Δ FDP tables; decisions recorded.
+- [x] `CTX017-009` Within-cluster single-feature leave-one-out and stage 4 weight stability, then Round C. Depends on: 008. Check: tables and figures; decisions recorded, including whether stage 5 runs.
+- [x] `CTX017-010` Optional stage 5 backward elimination, only if Ariana chose it in Round C, then Round D. Depends on: 009. Check: decisions recorded, or task marked not run by Ariana's choice.
 - [ ] `CTX017-011` Record Ariana's final feature set in the guide's Feature decisions table. Depends on: 009/010. Check: every analyzed feature or group has a decision.
 - [ ] `CTX017-012` Generalize the FDP-comparison and analysis scripts for several experiments (seed discovery, skip list, file prefix, experiment label, per-seed r). Run the second dataset when supplied; Ariana chooses the upper-bound definition. Depends on: the second dataset. Check: mouse numbers reproduce exactly; combined figure and table in Drive; Ariana's choice logged.
 - [ ] `CTX017-013` Until Useful review of the scripts and the analysis. Depends on: 011, 012. Check: findings, dispositions, and residual risks logged.
 - [ ] `CTX017-014` Ariana's final review. Check: her acceptance logged with date.
-- [ ] `CTX017-015` External Report `YYYY-MM-DD-CTX-017-Report.md` outside the repository, with this checklist and log copied verbatim. Ask Ariana where to save it in cloud sessions. Check: the Report exists and is verified.
+- [ ] **Superseded (2026-11-14, replaced by `CTX017-018`)** `CTX017-015` External Report `YYYY-MM-DD-CTX-017-Report.md` outside the repository, with this checklist and log copied verbatim. Ask Ariana where to save it in cloud sessions. Check: the Report exists and is verified.
 
 ### Work log
 
@@ -982,3 +982,41 @@ Ariana asked to move to Phase 3 once Phase 2 was pushed (`abcd1e3`). The Phase 2
 - Status: `CTX017-008` and `CTX017-009` measurements complete; checkboxes stay open until Ariana records Round B/C decisions. `CTX017-010` pending her confirmation that it is not run.
 - Next action: Ariana reviews Round B/C evidence and decides; then `CTX017-011`.
 - 2026-11-14 (`CTX017-008`/`009` figures): Ariana noted the Round B FDP panel showed negative changes with no negative axis labels. `ablation_figures.R` now sets the FDP x-axis breaks every 1 percentage point (`scales::breaks_width(1)`); Round B and Round C figures regenerated (axis now reads -1 to 4). Data unchanged. Uploaded as `roundB_figure_v2`, `roundC_figure_v2` (PNG/PDF) and `ablation_figures_v2.R` beside the originals in the same Drive folder; originals kept.
+- 2026-11-14 (`CTX017-008`/`009` docs): at Ariana's request, wrote `README_reproduce_roundBC.md` (environment, inputs, script-by-script commands, expected outputs, caveats) and uploaded it with `ablate.py` to the Round B/C Drive folder.
+- 2026-11-14 (`CTX017-006` docs): Round A had only a one-line command in its summary note, so wrote `README_reproduce_roundA.md` (populations, measures, environment, inputs, `screen.py` and `screen_figures.R` commands, expected outputs, caveats) and uploaded it to Drive `results/2026-11-13_roundA_screening`. Reproducibility check: reran `screen.py` and `screen_figures.R` into `/home/user/ctx017-runs/roundA_rerun` (about 1 min); all six tables are byte-identical to the Drive copies (`cmp`). Figures regenerated but not byte-compared.
+- [ ] `CTX017-018` (replaces `CTX017-015`) Report `docs/YYYY-MM-DD-CTX-017-Report.md` in the repository (America/Chicago date; add a suffix if the name exists), with this checklist and dated log copied verbatim, plus guide URL/revision and canonical-plan path/revision; marked `Awaiting Ariana's final review`. Depends on: 014. Check: the Report exists in `docs/` and is verified against `TASKS.md`.
+
+### 2026-11-14 — Round B decision; `CTX017-015` replaced
+
+- Decision (Ariana, 2026-11-14): keep all 24 features, based on the Round B and C evidence. `CTX017-008` complete. `CTX017-009` stays open until the stage 5 (`CTX017-010`) decision is recorded, as its check requires.
+- Change (Ariana's instruction, 2026-11-14): `CTX017-015` said the Report goes outside the repository; that conflicts with her decision and `CLAUDE.md` (Reports in `docs/`). Marked `CTX017-015` Superseded and appended `CTX017-018` with the Report in `docs/`. No other plan change.
+- Ariana declined committing the two reproduction-guide log lines for now.
+- Next action: Ariana's answer on stage 5 (`CTX017-010`); then `CTX017-011`.
+
+### 2026-11-14 — `CTX017-010` stage 5 backward elimination started
+
+- Authorization (Ariana, 2026-11-14): run stage 5 anyway, as confirmation ("we should expect dropping features to not change much").
+- Environment check after a container restart: Percolator 3.05.0 (SHA-256 92a6700d…), all 80 input checksums OK, earlier run outputs intact.
+- Script: `tmp/ctx017/backward_elim.py` (new). Greedy backward elimination over the 21 Round A units; pass 1 reuses the Round B runs; later passes label `be<pass>_minus_<unit>`; mouse masked2–6, HeLa masked1–5, seeds 1–3, `--jobs 4`.
+- Rule, fixed before the runs (selects only what to remove next; Ariana decides the feature set): every candidate is compared with the fixed `all_features` reference. Acceptable if mean Δ passing assay targets ≥ −1.0 and Δ pooled lower-bound FDP ≤ +1.0 pp in all four dataset × q (1%, 5%) cells. Choose the acceptable candidate with the largest summed mean Δ targets (ties: smaller summed ΔFDP, then name). Stop when none is acceptable or one unit is left. HeLa masked2 at q = 0.01 is left out of the decision (reference q-value step artefact) but kept in the tables.
+- Pass 1 (from Round B, no new runs): 15 of 21 units acceptable; removed `maxLadderLength` (summed Δ targets +2.02, summed ΔFDP +1.86 pp). Not acceptable: `primary`, `numPeaksWithGoodCorrelation`, HyperScore/numberOfMatchingPeaks pair, `numberOfMatchingPeaksAboveThreshold`, `lnSp`.
+- Run: started detached about 19:55Z; log `/home/user/ctx017-runs/stage5.log`; tables `/home/user/ctx017-runs/stage5/{be_candidates.tsv,be_path.tsv}`. A first launch under a 2-hour background limit was stopped after a few seconds; its one partial run folder (`be02_minus_primary`) was deleted before the relaunch.
+- Estimate: about 2.5–3.5 min per candidate; up to about 10 h if most units are removed.
+- Next action: monitor; on completion, summarize the path, make a figure, upload to Drive, report to Ariana.
+
+### 2026-11-15 — `CTX017-010` stage 5 backward elimination finished
+
+- Interruption: the container restarted overnight; the search stopped during pass 5 (last log line 00:28Z), mid-run on `be05_minus_lnSp`. Recovery at 13:10Z: all 80 input checksums OK; deleted the incomplete `be05_minus_lnSp` folder (no `run_status.tsv`); relaunched the same command, appending to the same log. Finished labels were reused; passes 1–4 chose the same units again.
+- Result: `stop: no acceptable candidate in pass 13`; 195 candidates over 13 passes, every run 30 ok, 0 FAILED, inputs unchanged.
+- Removed, in order: `maxLadderLength`, `averageFragmentDeltaMasses`, `correlationToPrecursor`, `isIntegratedSignal`, `precursorMz`, `numMissedCleavage`, `isIntegratedPrecursor`, `correlationToGaussian`, isotopeDotProduct/averageParentDeltaMass pair, `RTinMin`, `evalue`, `xCorrLib` (12 of 21 units, 13 of 24 features).
+- With all 12 removed vs all features (mean Δ targets per run; Δ pooled lower FDP): mouse 1% +2.47, +0.93 pp; mouse 5% +0.73, +0.53 pp; HeLa 1% +0.33, +0.14 pp; HeLa 5% −0.33, +0.45 pp.
+- Kept (pass 13 removal not acceptable): `primary`, HyperScore/numberOfMatchingPeaks pair, `lnSp`, `numPeaksWithGoodCorrelation`, `xCorrModel` (target losses); `scribe`, pepLength/precursorMass pair, `charge`, `numberOfMatchingPeaksAboveThreshold` (mouse 1% FDP +1.00 to +1.16 pp, borderline).
+- Evidence: Drive `ctx-017/results/2026-11-15_stage5_backward_elimination` (`be_path.tsv`, `be_candidates.tsv`, `stage5_path_figure.{pdf,png}`, `backward_elim.py`, `be_figure.R`, `README_reproduce_stage5.md`); interpretation separate in `roundD_recommendations.tsv`.
+- Limitation: selection and evaluation used the same 10 assays; the reduced set is not validated on independent data.
+- Next action: Round D decision by Ariana (final feature set, `CTX017-011`); guide work log and Feature decisions note still to update.
+
+### 2026-11-15 — Round D decision (`CTX017-009`, `CTX017-010`)
+
+- Decision (Ariana, 2026-11-15): keep all 24 features after the stage 5 results. The 12 units removed by backward elimination are not dropped.
+- Status: `CTX017-009` and `CTX017-010` complete (Round C and Round D decisions recorded). `CTX017-011` (record the final feature set in the guide) is next.
+- Authorization (Ariana, 2026-11-15): commit and push the `TASKS.md` updates to `ctx017`, after confirming the target branch.
