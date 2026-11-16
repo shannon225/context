@@ -472,7 +472,10 @@ public class EncyclopediaTwo {
 
 				Collections.sort(stripes);
 
-				if (stripes.size() < 10) {
+				boolean sparseRange = stripes.size() < 10;
+				boolean assayProcessing = taskFactory instanceof ContextEncyclopediaScoringFactory
+						&& ((ContextEncyclopediaScoringFactory) taskFactory).hasAssays();
+				if (sparseRange && !assayProcessing) {
 					// A stripe with very few scans indicates that either
 					// the file is bad, or this is DDA data. Similar to
 					// above, we simply skip this stripe.
@@ -492,6 +495,7 @@ public class EncyclopediaTwo {
 					int count = 0;
 
 					for (LibraryEntry entry : entries) {
+						if (sparseRange && !((ContextEncyclopediaScoringFactory) taskFactory).isAssayTarget(entry)) continue;
 						count++;
 						ArrayList<LibraryEntry> tasks = getTargetAndPrimaryDecoy(entry, decoyStrategy, mappedDecoys, parameters);
 

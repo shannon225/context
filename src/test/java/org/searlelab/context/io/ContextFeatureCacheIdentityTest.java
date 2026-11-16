@@ -18,6 +18,25 @@ import edu.washington.gs.maccoss.encyclopedia.filereaders.SearchParameterParser;
 public class ContextFeatureCacheIdentityTest {
 	@Rule public TemporaryFolder temporaryFolder = new TemporaryFolder();
 
+	@Test public void assayReuseRequiresUnchangedDetectionArtifactAndRejectsOldManifest() throws Exception {
+		File features = file("features.tsv", "id\n");
+		File sidecar = file("pairs.tsv", "id\n");
+		File detections = file("detections.tsv", "complete report\n");
+		File old = new File(temporaryFolder.getRoot(), "old.sha256");
+		File current = new File(temporaryFolder.getRoot(), "current.sha256");
+		ContextFeatureCacheIdentity.save(old, "identity", features, sidecar, null);
+		org.junit.Assert.assertThrows(IOException.class, () ->
+				ContextFeatureCacheIdentity.requireMatch(old, "identity", features, sidecar, null, detections));
+		ContextFeatureCacheIdentity.save(current, "identity", features, sidecar, null, detections);
+		ContextFeatureCacheIdentity.requireMatch(current, "identity", features, sidecar, null, detections);
+		Files.writeString(detections.toPath(), "partial report\n");
+		org.junit.Assert.assertThrows(IOException.class, () ->
+				ContextFeatureCacheIdentity.requireMatch(current, "identity", features, sidecar, null, detections));
+		Files.delete(detections.toPath());
+		org.junit.Assert.assertThrows(IOException.class, () ->
+				ContextFeatureCacheIdentity.requireMatch(current, "identity", features, sidecar, null, detections));
+	}
+
 	@Test
 	public void detectsChangedInputAndCompanionArtifact() throws Exception {
 		File library = file("source.elib", "library");
@@ -42,6 +61,19 @@ public class ContextFeatureCacheIdentityTest {
 		String changed = ContextFeatureCacheIdentity.inputs(library, run, fasta, massList,
 				SearchParameterParser.getDefaultParametersObject(), options);
 		assertInvalid(manifest, changed, features, sidecar);
+	}
+
+	@Test public void archivesDetectionWithAnIncompleteRunAndPreservesItsContents() throws Exception {
+		File features = file("incomplete.features.tsv", "partial features");
+		File detections = file("incomplete_assay.detections.tsv", "report before manifest failure");
+		File marker = new File(features + ".context.inprogress");
+		File sidecar = new File(features + ".pairs.tsv");
+		File manifest = new File(features + ".context.sha256");
+		String base = new File(temporaryFolder.getRoot(), "incomplete").getAbsolutePath();
+		ContextFeatureCacheIdentity.markInProgress(marker, "a".repeat(64), false);
+		File archive = ContextFeatureCacheIdentity.archiveIncomplete(marker, features, sidecar, manifest, base, detections);
+		assertEquals("report before manifest failure", Files.readString(new File(archive, detections.getName()).toPath()));
+		assertTrue(!detections.exists());
 	}
 
 	@Test

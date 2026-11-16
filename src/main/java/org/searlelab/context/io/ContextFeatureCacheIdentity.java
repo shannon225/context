@@ -140,6 +140,10 @@ final class ContextFeatureCacheIdentity {
 	}
 
 	static File archiveIncomplete(File marker, File features, File sidecar, File manifest, String baseName) throws IOException {
+		return archiveIncomplete(marker, features, sidecar, manifest, baseName, null);
+	}
+
+	static File archiveIncomplete(File marker, File features, File sidecar, File manifest, String baseName, File detections) throws IOException {
 		if (!marker.isFile() || manifest.isFile()) return null;
 		List<String> lines = Files.readAllLines(marker.toPath(), StandardCharsets.UTF_8);
 		if (lines.size() != 2 || !lines.get(0).matches("[0-9a-f]{64}")
@@ -151,7 +155,7 @@ final class ContextFeatureCacheIdentity {
 				features.getName() + ".failed-").toFile();
 		for (File file : new File[] {features, sidecar, new File(prefix + ".elib"),
 				new File(prefix + "_predictions.tsv"),
-				"true".equals(lines.get(1)) ? new File(prefix + "_candidates.tsv") : null, marker}) {
+				"true".equals(lines.get(1)) ? new File(prefix + "_candidates.tsv") : null, detections, marker}) {
 			if (file != null && file.exists()) {
 				Files.move(file.toPath(), new File(archive, file.getName()).toPath());
 			}
@@ -160,10 +164,14 @@ final class ContextFeatureCacheIdentity {
 	}
 
 	static void save(File manifest, String inputIdentity, File features, File sidecar, File diagnostic) throws IOException {
+		save(manifest, inputIdentity, features, sidecar, diagnostic, null);
+	}
+
+	static void save(File manifest, String inputIdentity, File features, File sidecar, File diagnostic, File detections) throws IOException {
 		if (manifest.exists()) throw new IOException("Feature cache manifest already exists: " + manifest);
 		File temporary = File.createTempFile(manifest.getName(), ".tmp", manifest.getAbsoluteFile().getParentFile());
 		try {
-			Files.writeString(temporary.toPath(), expected(inputIdentity, features, sidecar, diagnostic),
+			Files.writeString(temporary.toPath(), expected(inputIdentity, features, sidecar, diagnostic, detections),
 					StandardCharsets.UTF_8);
 			Files.move(temporary.toPath(), manifest.toPath(), StandardCopyOption.ATOMIC_MOVE);
 		} finally {
@@ -178,18 +186,26 @@ final class ContextFeatureCacheIdentity {
 	}
 
 	static void requireMatch(File manifest, String inputIdentity, File features, File sidecar, File diagnostic) throws IOException {
+		requireMatch(manifest, inputIdentity, features, sidecar, diagnostic, null);
+	}
+
+	static void requireMatch(File manifest, String inputIdentity, File features, File sidecar, File diagnostic, File detections) throws IOException {
+		if (detections != null && !detections.isFile()) {
+			throw new IOException("Context feature cache lacks its assay detection report: " + detections);
+		}
 		requireCompanions(manifest, features, sidecar);
 		if (diagnostic != null && !diagnostic.isFile()) {
 			throw new IOException("Context feature cache lacks its candidate diagnostic: " + diagnostic);
 		}
-		if (!expected(inputIdentity, features, sidecar, diagnostic).equals(Files.readString(manifest.toPath(), StandardCharsets.UTF_8))) {
+		if (!expected(inputIdentity, features, sidecar, diagnostic, detections).equals(Files.readString(manifest.toPath(), StandardCharsets.UTF_8))) {
 			throw new IOException("Context feature cache input or artifact identity differs: " + features);
 		}
 	}
 
-	private static String expected(String inputIdentity, File features, File sidecar, File diagnostic) throws IOException {
+	private static String expected(String inputIdentity, File features, File sidecar, File diagnostic, File detections) throws IOException {
 		return inputIdentity + "\n" + artifact(features) + "\n" + artifact(sidecar) + "\n"
-				+ (diagnostic == null ? "-" : artifact(diagnostic)) + "\n";
+				+ (diagnostic == null ? "-" : artifact(diagnostic)) + "\n"
+				+ (detections == null ? "" : "assay-detections-v1|" + artifact(detections) + "\n");
 	}
 
 	private static void stream(MessageDigest digest, File file) throws IOException {
