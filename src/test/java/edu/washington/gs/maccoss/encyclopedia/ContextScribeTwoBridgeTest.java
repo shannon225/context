@@ -18,7 +18,8 @@ public class ContextScribeTwoBridgeTest {
 			ContextScribeTwoBridge.requirePrealignment(Optional.empty());
 			fail("Required prealignment must fail");
 		} catch (IOException expected) {
-			assertTrue(expected.getMessage().contains("Full search has not started."));
+			assertTrue(expected.getMessage().contains("calibration/prealignment model"));
+			assertTrue(expected.getMessage().contains("The calibrated full search has not run."));
 		}
 	}
 	

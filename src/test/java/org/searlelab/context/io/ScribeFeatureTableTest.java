@@ -5,7 +5,6 @@ import static org.junit.Assert.*;
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
-import java.util.List;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
@@ -28,16 +27,27 @@ public class ScribeFeatureTableTest {
         assertTrue(table.rows().get(0).getOriginalLine().endsWith("P1\tP2"));
     }
 
-    @Test public void rejectsInvalidLabelsAndNonfiniteScoresWithRowContext() throws Exception {
-        for (String row : List.of("a+2\t0\t1\t5\t400\t10\tPEPK\tP",
-                "a+2\t1\t1\tNaN\t400\t10\tPEPK\tP",
-                "a+2\t1")) {
-            try {
-                ContextFeatureScorer.readFeatures(table(row));
-                fail("Should reject " + row);
-            } catch (IOException expected) {
-                assertTrue(expected.getMessage().contains("row 2"));
-            }
+    @Test public void rejectsInvalidLabelWithRowContext() throws Exception {
+        assertRejectedRow("a+2\t0\t1\t5\t400\t10\tPEPK\tP", "1 or -1");
+    }
+
+    @Test public void rejectsNonfiniteScoreWithRowContext() throws Exception {
+        assertRejectedRow("a+2\t1\t1\tNaN\t400\t10\tPEPK\tP", "Non-finite required numeric value");
+    }
+
+    @Test public void rejectsTruncatedRowWithRowContext() throws Exception {
+        assertRejectedRow("a+2\t1", "Truncated row");
+    }
+
+    private void assertRejectedRow(String row, String reason) throws Exception {
+        File input = table(row);
+        try {
+            ContextFeatureScorer.readFeatures(input);
+            fail("Should reject " + row);
+        } catch (IOException expected) {
+            assertTrue(expected.getMessage().contains(input + ": row 2: "));
+            assertTrue(expected.getCause() instanceof IllegalArgumentException);
+            assertTrue(expected.getCause().getMessage().contains(reason));
         }
     }
 
@@ -73,7 +83,8 @@ public class ScribeFeatureTableTest {
             fail("Missing runtime should fail");
         } catch (IOException expected) {
             assertTrue(expected.getMessage().contains("JavaPot"));
-            assertTrue(expected.getMessage().contains("no uncalibrated fallback"));
+            assertTrue(expected.getMessage().contains("No uncalibrated fallback was run."));
+            assertTrue(expected.getCause() instanceof ClassNotFoundException);
         }
     }
 

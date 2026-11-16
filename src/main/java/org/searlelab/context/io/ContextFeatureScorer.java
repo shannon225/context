@@ -513,7 +513,7 @@ public class ContextFeatureScorer {
 					rows.add(new ScoredFeature(precursorMz, charge, targetLabel == -1, score, retentionTime, columns[sequence], columns[proteins], line));
 					
 				} catch (RuntimeException e) {
-						throw new IOException(file + ": row" + row + ": " + e.getMessage(), e);
+						throw new IOException(file + ": row " + row + ": " + e.getMessage(), e);
 				}
 			}
 			return new FeatureTable(header, rows);
