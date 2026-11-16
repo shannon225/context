@@ -55,6 +55,8 @@ public class EncyclopediaTwoPointOneScoringTask extends AbstractLibraryScoringTa
 	private final float dutyCycle;
 	private final Range precursorIsolationRange;
 	private final Consumer<java.util.List<ScoredPSM>> diagnosticSink;
+	private final Range assayWindow;
+	private final boolean retainWeakAssayCandidate;
 	
 	/**
 	 * NOTE: Entries now compete (target/decoy competition). Make sure all entries are appropriate to compete against each other!
@@ -76,10 +78,25 @@ public class EncyclopediaTwoPointOneScoringTask extends AbstractLibraryScoringTa
 			Range precursorIsolationRange, float dutyCycle, PrecursorScanMap precursors,
 			BlockingQueue<AbstractScoringResult> resultsQueue, SearchParameters parameters,
 			Consumer<java.util.List<ScoredPSM>> diagnosticSink) {
+		this(scorer, entries, stripes, precursorIsolationRange, dutyCycle, precursors, resultsQueue,
+				parameters, diagnosticSink, null, false);
+	}
+
+	/** The caller supplies a precursor map restricted to the same assay window. */
+	public EncyclopediaTwoPointOneScoringTask(PSMScorer scorer, ArrayList<LibraryEntry> entries,
+			ArrayList<FragmentScan> stripes, Range precursorIsolationRange, float dutyCycle,
+			PrecursorScanMap precursors, BlockingQueue<AbstractScoringResult> resultsQueue,
+			SearchParameters parameters, Consumer<java.util.List<ScoredPSM>> diagnosticSink,
+			Range assayWindow, boolean retainWeakAssayCandidate) {
 		super(scorer, entries, stripes, precursors, resultsQueue, parameters);
 		this.dutyCycle=dutyCycle;
 		this.precursorIsolationRange=new Range(precursorIsolationRange.getStart(), precursorIsolationRange.getStop());
 		this.diagnosticSink=diagnosticSink;
+		this.assayWindow=assayWindow;
+		this.retainWeakAssayCandidate=retainWeakAssayCandidate;
+		if (assayWindow != null && (!Float.isFinite(dutyCycle) || dutyCycle <= 0)) {
+			throw new IllegalArgumentException("Assay scoring requires a finite positive duty cycle");
+		}
 	}
 	
 	private static final int peaksKept=12;
@@ -173,140 +190,33 @@ public class EncyclopediaTwoPointOneScoringTask extends AbstractLibraryScoringTa
 			float[] predictedIsotopeDistribution=IsotopicDistributionCalculator.getIsotopeDistribution(entry.getPeptideModSeq(), parameters.getAAConstants());
 			predictedIsotopeDistribution=IsotopicDistributionCalculator.normalizeToMax(predictedIsotopeDistribution);
 			
-			// extract chromatograms
-			double[][] allMasses=new double[super.stripes.size()][];
-			float[][] allSqrtIntensities=new float[super.stripes.size()][];
-			float[] retentionTimes=new float[super.stripes.size()];
-			for (int i=0; i<super.stripes.size(); i++) {
-				FragmentScan stripe=super.stripes.get(i);
-				
-				Pair<double[], float[]> results=extract(stripe, ions);
-				double[] masses=results.x;
-				float[] intensities=results.y;
-				
-				allMasses[i]=masses;
-				allSqrtIntensities[i]=intensities;
-				retentionTimes[i]=super.stripes.get(i).getScanStartTime();
-			}
-			
-			float[][] transposeChromatograms=General.transposeMatrix(allSqrtIntensities);
-			float[][] transposeNormalizedChromatograms=new float[transposeChromatograms.length][];
-			
-//			ArrayList<XYTrace> traces=new ArrayList<XYTrace>();
-			for (int i = 0; i < transposeChromatograms.length; i++) {
-				if (parameters.isSmoothIntegrations()) {
-					transposeChromatograms[i]=SkylineSGFilter.paddedSavitzkyGolaySmooth(transposeChromatograms[i]);
-				}
-				if (parameters.isSubtractBackground()) {
-					transposeChromatograms[i]=BackgroundSubtractionFilter.backgroundSubtractMovingMedian(transposeChromatograms[i], movingAverageLength*10);
-				}
-				
-				// pad moving normalizer by 50%
-				float[] movingAverageSum=BackgroundSubtractionFilter.movingCenteredSum(transposeChromatograms[i], Math.round(movingAverageLength*1.5f));
-
-				transposeNormalizedChromatograms[i]=new float[transposeChromatograms[i].length];
-				for (int j = 0; j < transposeNormalizedChromatograms[i].length; j++) {
-					if (movingAverageSum[j]>0) {
-						transposeNormalizedChromatograms[i][j]=transposeChromatograms[i][j]/movingAverageSum[j];
-					}
-				}
-//				Color c = RandomGenerator.randomColor(i);
-//				traces.add(new XYTrace(General.divide(retentionTimes, 60f), transposeNormalizedChromatograms[i], GraphType.line, getTaskName(), new Color(c.getRed(), c.getGreen(), c.getBlue(), 122), 2f));
-			}
-			allSqrtIntensities=General.transposeMatrix(transposeChromatograms);
-			float[][] allNormalizedIntensities=General.transposeMatrix(transposeNormalizedChromatograms);
-			
-			int targetTransitions=Math.max(parameters.getMinNumOfQuantitativePeaks(), (int)Math.ceil(parameters.getNumberOfQuantitativePeaks()/2.0));
-			float[] medianChromatogram=new float[super.stripes.size()];
-			for (int i = 0; i < medianChromatogram.length; i++) {
-				TFloatArrayList nonZeros=new TFloatArrayList();
-				for (int j = 0; j < allNormalizedIntensities[i].length; j++) {
-					if (allNormalizedIntensities[i][j]>0) {
-						nonZeros.add(allNormalizedIntensities[i][j]);
-					}
-				}
-				
-				if (targetTransitions>nonZeros.size()) {
-					medianChromatogram[i]=0;
-				} else {
-					float targetFraction=1.0f-targetTransitions/(float)nonZeros.size(); // get closest to max
-					medianChromatogram[i]=QuickMedian.select(nonZeros.toArray(), targetFraction);
-				}
-			}
-
-			float[] correlationSumAcrossTime=new float[medianChromatogram.length];
-			float[] numberOfHighlyCorrelatedFragments=new float[medianChromatogram.length];
-			for (int i = 0; i < transposeChromatograms.length; i++) {
-				float[] correlationAcrossTime=new float[transposeChromatograms[i].length];
-				for (int j = 0; j < transposeChromatograms[i].length-movingAverageLength; j++) {
-					IntRange range=new IntRange(j, j+movingAverageLength);
-					
-					int center=j+movingAverageLength/2;
-					
-					if (medianChromatogram[center]>medianChromatogram[range.getStart()]&&medianChromatogram[center]>medianChromatogram[range.getStop()]) {
-						correlationAcrossTime[center]=TransitionRefiner.calculateCorrelation(range, medianChromatogram, transposeChromatograms[i]);
-						if (Float.isNaN(correlationAcrossTime[center])) {
-							correlationAcrossTime[center]=0.0f;
-						}
-					}
-					if (correlationAcrossTime[center]>TransitionRefiner.quantitativeCorrelationThreshold) {
-						numberOfHighlyCorrelatedFragments[center]+=1.0f;
-					} else if (correlationAcrossTime[center]>TransitionRefiner.identificationCorrelationThreshold) {
-						numberOfHighlyCorrelatedFragments[center]+=0.1f;
-					} else if (correlationAcrossTime[center]>TransitionRefiner.weakIdentificationCorrelationThreshold) {
-						numberOfHighlyCorrelatedFragments[center]+=0.01f;
-					} else if (correlationAcrossTime[center]>0.0f) {
-						numberOfHighlyCorrelatedFragments[center]+=0.001f;
-					}
-				}
-				correlationSumAcrossTime=General.add(correlationSumAcrossTime, correlationAcrossTime);
-			}
-			correlationSumAcrossTime=BackgroundSubtractionFilter.fastMovingCenteredAverage(correlationSumAcrossTime, movingAverageLength/2);
-			correlationSumAcrossTime=General.divide(correlationSumAcrossTime, (float)targetTransitions);
-			
-			// score time points
-			float[] primary=new float[super.stripes.size()];
-			for (int i=0; i<super.stripes.size(); i++) {
-				FragmentScan stripe=super.stripes.get(i);
-				FloatPair scores=score(allMasses[i], allSqrtIntensities[i], predictedIntensities, correlation);
-				
-				primary[i]=scores.getTwo();
-				
-				if (primary[i] > 0.0f && modificationSpecificIons.isPresent()) {
-					// if modified signal represents less than 25% of the score then don't trust it
-					Pair<double[], float[]> modSpecificResults=extract(stripe, modIons);
-					FloatPair modSpecificScores=score(modSpecificResults.x, modSpecificResults.y, modPredictedIntensities, modCorrelation);
-					
-					float scoreFromModIons=modSpecificScores.getTwo();
-					if (scoreFromModIons/primary[i]<0.25f) {
-						primary[i]=0.0f;
-					}
-				}
-			}
-			
-			if (parameters.getInstrument().hasLowresFragments()) {
-				// additional tuning for higher-noise instruments
-				primary=General.multiply(General.multiply(primary, correlationSumAcrossTime), numberOfHighlyCorrelatedFragments);
-			} else {
-				primary=General.multiply(primary, correlationSumAcrossTime);
-			}
-
-//			traces.add(new XYTrace(General.divide(retentionTimes, 60f), correlationSumAcrossTime, GraphType.boldline, getTaskName(), Color.black, 4f));
-//			traces.add(new XYTrace(General.divide(retentionTimes, 60f), primary, GraphType.boldline, getTaskName(), Color.red, 4f));
-//			Charter.launchChart("time", "score", false, traces.toArray(new XYTrace[0]));
+			ArrayList<FragmentScan> scans=super.stripes;
+			Signal signal=scoreChromatograms(scans, ions, predictedIntensities, correlation,
+					modificationSpecificIons, modIons, modPredictedIntensities, modCorrelation, movingAverageLength);
+			float[] primary=signal.scores();
 
 			TFloatFloatHashMap map=new TFloatFloatHashMap();
-			ArrayList<ScoredIndex> goodStripes=new ArrayList<ScoredIndex>();
-			for (int i=0; i<primary.length; i++) {
-				goodStripes.add(new ScoredIndex(primary[i], i));
-				map.put(i, primary[i]);
-			}
-			Collections.sort(goodStripes);
-
+			for (int i=0; i<primary.length; i++) map.put(i, primary[i]);
 			EValueCalculator calculator=new EValueCalculator(map, 0f, 0.5f);
+			if (assayWindow != null) {
+				scans=new ArrayList<>();
+				for (FragmentScan scan : super.stripes) {
+					if (assayWindow.contains(scan.getScanStartTime())) scans.add(scan);
+				}
+				if (scans.isEmpty()) continue;
+				signal=scoreChromatograms(scans, ions, predictedIntensities, correlation,
+						modificationSpecificIons, modIons, modPredictedIntensities, modCorrelation, movingAverageLength);
+				primary=signal.scores();
+			}
+			float[][] allSqrtIntensities=signal.intensities();
+			float[] retentionTimes=signal.times();
+			ArrayList<ScoredIndex> goodStripes=new ArrayList<>();
+			for (int i=0; i<primary.length; i++) goodStripes.add(new ScoredIndex(primary[i], i));
+			Collections.sort(goodStripes);
 
 			float bestScore=-Float.MAX_VALUE;
 			float[] bestAuxScores=null;
+			float bestDeltaPrecursor=0, bestDeltaFragment=0;
 			FragmentScan bestStripe=null;
 			
 			TIntHashSet takenScans=new TIntHashSet();
@@ -317,7 +227,7 @@ public class EncyclopediaTwoPointOneScoringTask extends AbstractLibraryScoringTa
 				if (index<0) index=-(index+1);
 				
 				int lowerWindow=Math.max(0, index-2*movingAverageLength);
-				int upperWindow=Math.min(super.stripes.size()-1, index+2*movingAverageLength);
+				int upperWindow=Math.min(scans.size()-1, index+2*movingAverageLength);
 				// block out a 40 scan window
 				for (int j=lowerWindow; j<=upperWindow; j++) {
 					takenScans.add(j);
@@ -333,10 +243,10 @@ public class EncyclopediaTwoPointOneScoringTask extends AbstractLibraryScoringTa
 					continue;
 					
 				} else {	
-					FragmentScan stripe=super.stripes.get(index);
+					FragmentScan stripe=scans.get(index);
 					int lowerWindow=Math.max(0, index-2*movingAverageLength);
-					int upperWindow=Math.min(super.stripes.size()-1, index+2*movingAverageLength);
-					int range=Math.max(1, upperWindow-lowerWindow);
+					int upperWindow=Math.min(scans.size()-1, index+2*movingAverageLength);
+					int range=Math.max(1, upperWindow-lowerWindow+(assayWindow == null ? 0 : 1));
 					float[] localRetentionTimes=new float[range];
 					float[][] localRawIntensities=new float[range][]; // raw intensities, not sqrt
 					System.arraycopy(retentionTimes, lowerWindow, localRetentionTimes, 0, range);
@@ -350,7 +260,7 @@ public class EncyclopediaTwoPointOneScoringTask extends AbstractLibraryScoringTa
 					float[][] chromatograms=General.transposeMatrix(localRawIntensities);
 					ArrayList<float[]> chromatogramList=new ArrayList<float[]>();
 					for (int j = 0; j < chromatograms.length; j++) {
-						if (General.sum(chromatograms[j])>0.0f) {
+						if (assayWindow != null || General.sum(chromatograms[j])>0.0f) {
 							if (parameters.isSmoothIntegrations()) {
 								chromatograms[j]=SkylineSGFilter.paddedSavitzkyGolaySmooth(chromatograms[j]);
 							}
@@ -397,8 +307,10 @@ public class EncyclopediaTwoPointOneScoringTask extends AbstractLibraryScoringTa
 							
 							// zero outside peak
 							Peak[] peaks=precursors.getIsotopePacket(entry.getPrecursorMZ(), localRetentionTimes[j], entry.getPrecursorCharge(), parameters.getPrecursorTolerance());
-							precursor[j]=peaks[PrecursorScanMap.monoisotopicIndex].intensity;
-							precursorPlusOne[j]=peaks[PrecursorScanMap.plusOneIndex].intensity;
+							if (assayWindow == null || peaks.length > PrecursorScanMap.monoisotopicIndex)
+									precursor[j]=peaks[PrecursorScanMap.monoisotopicIndex].intensity;
+							if (assayWindow == null || peaks.length > PrecursorScanMap.plusOneIndex)
+									precursorPlusOne[j]=peaks[PrecursorScanMap.plusOneIndex].intensity;
 						}
 					}
 					
@@ -463,10 +375,18 @@ public class EncyclopediaTwoPointOneScoringTask extends AbstractLibraryScoringTa
 						}
 					}
 					
+					if (assayWindow != null) {
+						for (float value : auxScoreArray) {
+							if (!Float.isFinite(value)) throw new IllegalStateException(
+									"Nonfinite assay feature for " + entry.getPeptideModSeq() + " at " + stripe.getScanStartTime());
+						}
+					}
 					if (bestStripe==null || score > bestScore) {
 						bestStripe=stripe;
 						bestAuxScores=auxScoreArray;
 						bestScore=score;
+						bestDeltaPrecursor=deltaPrecursorMass;
+						bestDeltaFragment=deltaFragmentMass;
 					}
 
 					if (consideredPeaks>peaksConsidered) {
@@ -502,21 +422,146 @@ public class EncyclopediaTwoPointOneScoringTask extends AbstractLibraryScoringTa
 				}
 			}
 			
-//			if (identifiedPeaks==0) {
-				// add the best data if we can't find any valid peaks
-//				float deltaPrecursorMass=auxScorer.getParentDeltaMassIndex()>=0?bestAuxScores[auxScorer.getParentDeltaMassIndex()]:0.0f;
-//				float deltaFragmentMass=auxScorer.getFragmentDeltaMassIndex()>=0?bestAuxScores[auxScorer.getFragmentDeltaMassIndex()]:0.0f;
-//				if (entry.getPeptideModSeq().equals("VVDESDETENQEEKAK")||entry.getPeptideModSeq().equals("VAKEEQNETEDSEDVK")) {
-//					System.out.println(">"+entry.getPeptideModSeq()+" --> "+(bestStripe.getScanStartTime()/60f)+", "+bestScore);	
-//				}
-//				result.addStripe(entry, bestScore, bestAuxScores, deltaPrecursorMass, deltaFragmentMass, bestStripe);
-//			}
+			if (assayWindow != null && retainWeakAssayCandidate && identifiedPeaks == 0 && bestStripe != null) {
+				result.addStripe(entry, bestScore, bestAuxScores, bestDeltaPrecursor, bestDeltaFragment, bestStripe);
+			}
+
 			
 		}
 		if (diagnosticSink!=null) diagnosticSink.accept(result.getGoodMSMSCandidates());
 		result.trim(1);
 		resultsQueue.add(result);
 		return Nothing.NOTHING;
+	}
+
+	private record Signal(float[][] intensities, float[] times, float[] scores) {}
+
+	private Signal scoreChromatograms(ArrayList<FragmentScan> scans, FragmentIon[] ions,
+			float[] predictedIntensities, float[] correlation, Optional<FragmentIon[]> modificationSpecificIons,
+			FragmentIon[] modIons, float[] modPredictedIntensities, float[] modCorrelation, int movingAverageLength) {
+			// extract chromatograms
+			double[][] allMasses=new double[scans.size()][];
+			float[][] allSqrtIntensities=new float[scans.size()][];
+			float[] retentionTimes=new float[scans.size()];
+			for (int i=0; i<scans.size(); i++) {
+				FragmentScan stripe=scans.get(i);
+
+				Pair<double[], float[]> results=extract(stripe, ions);
+				double[] masses=results.x;
+				float[] intensities=results.y;
+
+				allMasses[i]=masses;
+				allSqrtIntensities[i]=intensities;
+				retentionTimes[i]=scans.get(i).getScanStartTime();
+			}
+
+			float[][] transposeChromatograms=General.transposeMatrix(allSqrtIntensities);
+			float[][] transposeNormalizedChromatograms=new float[transposeChromatograms.length][];
+
+//			ArrayList<XYTrace> traces=new ArrayList<XYTrace>();
+			for (int i = 0; i < transposeChromatograms.length; i++) {
+				if (parameters.isSmoothIntegrations()) {
+					transposeChromatograms[i]=SkylineSGFilter.paddedSavitzkyGolaySmooth(transposeChromatograms[i]);
+				}
+				if (parameters.isSubtractBackground()) {
+					transposeChromatograms[i]=BackgroundSubtractionFilter.backgroundSubtractMovingMedian(transposeChromatograms[i], movingAverageLength*10);
+				}
+
+				// pad moving normalizer by 50%
+				float[] movingAverageSum=BackgroundSubtractionFilter.movingCenteredSum(transposeChromatograms[i], Math.round(movingAverageLength*1.5f));
+
+				transposeNormalizedChromatograms[i]=new float[transposeChromatograms[i].length];
+				for (int j = 0; j < transposeNormalizedChromatograms[i].length; j++) {
+					if (movingAverageSum[j]>0) {
+						transposeNormalizedChromatograms[i][j]=transposeChromatograms[i][j]/movingAverageSum[j];
+					}
+				}
+//				Color c = RandomGenerator.randomColor(i);
+//				traces.add(new XYTrace(General.divide(retentionTimes, 60f), transposeNormalizedChromatograms[i], GraphType.line, getTaskName(), new Color(c.getRed(), c.getGreen(), c.getBlue(), 122), 2f));
+			}
+			allSqrtIntensities=General.transposeMatrix(transposeChromatograms);
+			float[][] allNormalizedIntensities=General.transposeMatrix(transposeNormalizedChromatograms);
+
+			int targetTransitions=Math.max(parameters.getMinNumOfQuantitativePeaks(), (int)Math.ceil(parameters.getNumberOfQuantitativePeaks()/2.0));
+			float[] medianChromatogram=new float[scans.size()];
+			for (int i = 0; i < medianChromatogram.length; i++) {
+				TFloatArrayList nonZeros=new TFloatArrayList();
+				for (int j = 0; j < allNormalizedIntensities[i].length; j++) {
+					if (allNormalizedIntensities[i][j]>0) {
+						nonZeros.add(allNormalizedIntensities[i][j]);
+					}
+				}
+
+				if (targetTransitions>nonZeros.size()) {
+					medianChromatogram[i]=0;
+				} else {
+					float targetFraction=1.0f-targetTransitions/(float)nonZeros.size(); // get closest to max
+					medianChromatogram[i]=QuickMedian.select(nonZeros.toArray(), targetFraction);
+				}
+			}
+
+			float[] correlationSumAcrossTime=new float[medianChromatogram.length];
+			float[] numberOfHighlyCorrelatedFragments=new float[medianChromatogram.length];
+			for (int i = 0; i < transposeChromatograms.length; i++) {
+				float[] correlationAcrossTime=new float[transposeChromatograms[i].length];
+				for (int j = 0; j < transposeChromatograms[i].length-movingAverageLength; j++) {
+					IntRange range=new IntRange(j, j+movingAverageLength);
+
+					int center=j+movingAverageLength/2;
+
+					if (medianChromatogram[center]>medianChromatogram[range.getStart()]&&medianChromatogram[center]>medianChromatogram[range.getStop()]) {
+						correlationAcrossTime[center]=TransitionRefiner.calculateCorrelation(range, medianChromatogram, transposeChromatograms[i]);
+						if (Float.isNaN(correlationAcrossTime[center])) {
+							correlationAcrossTime[center]=0.0f;
+						}
+					}
+					if (correlationAcrossTime[center]>TransitionRefiner.quantitativeCorrelationThreshold) {
+						numberOfHighlyCorrelatedFragments[center]+=1.0f;
+					} else if (correlationAcrossTime[center]>TransitionRefiner.identificationCorrelationThreshold) {
+						numberOfHighlyCorrelatedFragments[center]+=0.1f;
+					} else if (correlationAcrossTime[center]>TransitionRefiner.weakIdentificationCorrelationThreshold) {
+						numberOfHighlyCorrelatedFragments[center]+=0.01f;
+					} else if (correlationAcrossTime[center]>0.0f) {
+						numberOfHighlyCorrelatedFragments[center]+=0.001f;
+					}
+				}
+				correlationSumAcrossTime=General.add(correlationSumAcrossTime, correlationAcrossTime);
+			}
+			correlationSumAcrossTime=BackgroundSubtractionFilter.fastMovingCenteredAverage(correlationSumAcrossTime, movingAverageLength/2);
+			correlationSumAcrossTime=General.divide(correlationSumAcrossTime, (float)targetTransitions);
+
+			// score time points
+			float[] primary=new float[scans.size()];
+			for (int i=0; i<scans.size(); i++) {
+				FragmentScan stripe=scans.get(i);
+				FloatPair scores=score(allMasses[i], allSqrtIntensities[i], predictedIntensities, correlation);
+
+				primary[i]=scores.getTwo();
+
+				if (primary[i] > 0.0f && modificationSpecificIons.isPresent()) {
+					// if modified signal represents less than 25% of the score then don't trust it
+					Pair<double[], float[]> modSpecificResults=extract(stripe, modIons);
+					FloatPair modSpecificScores=score(modSpecificResults.x, modSpecificResults.y, modPredictedIntensities, modCorrelation);
+
+					float scoreFromModIons=modSpecificScores.getTwo();
+					if (scoreFromModIons/primary[i]<0.25f) {
+						primary[i]=0.0f;
+					}
+				}
+			}
+
+			if (parameters.getInstrument().hasLowresFragments()) {
+				// additional tuning for higher-noise instruments
+				primary=General.multiply(General.multiply(primary, correlationSumAcrossTime), numberOfHighlyCorrelatedFragments);
+			} else {
+				primary=General.multiply(primary, correlationSumAcrossTime);
+			}
+
+//			traces.add(new XYTrace(General.divide(retentionTimes, 60f), correlationSumAcrossTime, GraphType.boldline, getTaskName(), Color.black, 4f));
+//			traces.add(new XYTrace(General.divide(retentionTimes, 60f), primary, GraphType.boldline, getTaskName(), Color.red, 4f));
+//			Charter.launchChart("time", "score", false, traces.toArray(new XYTrace[0]));
+
+		return new Signal(allSqrtIntensities, retentionTimes, primary);
 	}
 
 	public Pair<double[], float[]> extract(Spectrum spectrum, FragmentIon[] ions) {
