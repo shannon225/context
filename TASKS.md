@@ -778,3 +778,60 @@ Ariana asked to move to Phase 3 once Phase 2 was pushed (`abcd1e3`). The Phase 2
   - If generating here, which prediction settings: Context's defaults (NCE 27, charge 2) or the library's (NCE 33, charge 3)?
   - Either gives valid input for the parity comparison, since both tools read the same feature files. Her setting is what matches her pipeline.
 - **Next:** on Ariana's choice, produce or download the background/reference feature files and pair sidecars, then run the `CTX018-018` comparison-file steps.
+
+## CTX-020 — Forced assay XIC extraction (precursor and predicted fragments)
+
+- Google implementation record: https://docs.google.com/document/d/1h2OXg2m2EvRqcr8FEKG4MQvB-xdnbjReCI3TC-yJqa8/edit (draft r1, 2026-11-16; Docs revisionId `AHj4eMTSXUHfTyDlhKDuFWQjOIFMtAlVtdevsWTZrLThEDecpuoUAMc6cboxGV3dHjClijCxTXei0GbwuRfteV8s_2zRWpf0sYkMYGR6MHY`). Drafted by Claude at Ariana's request, starting from the template.
+- Canonical plan: `docs/uu-ctx-020-forced-assay-xic.md`, draft r1 (2026-11-16). Not frozen; pending approval and open questions 1–4. Workflow: Until Useful (Ariana, 2026-11-16).
+- Google record r2 (2026-11-16; Docs revisionId `AHj4eMS2Ifc_f59LtBkVSOf3TcAP9foGcKaGdLkeVg5idxaz8oJhZfgMxaxphu09tLsAKvj8MxAH2-L38OhEKEvqoJZtI4x4osVZQ8hxUSg`): adds the propose-phase findings (Q1–Q9) and supersedes draft r1's plan.
+- Branch: `ctx020`, created from `ariana/scoring` at `7d0f5240411e8177db4744bcc6500166f9e5255a`. Ariana authorized committing and pushing the CTX-020 planning docs to `origin/ctx020` on 2026-11-16. Implementation commits are not authorized.
+- Approval status: **Pending**.
+- Populations: forced extraction applies to every assay row. Targets and isDecoy rows are both kept and labeled. Training and scoring populations are unchanged unless the guide is revised (open question 3).
+
+### Acceptance criteria (proposed)
+
+1. Both mass-list forms parse: 7-column user lists and 8-column Targeted Bootstrapper lists with `isDecoy`. Sequence (including modifications), charge, m/z, RT window, and isDecoy are preserved. 7-column rows are targets.
+2. Each assay row produces exactly one XIC result, including rows with no signal.
+3. The MS1 precursor (isotope) XIC and MS2 XICs for library-predicted fragments are extracted inside the RT window, using a documented m/z tolerance.
+4. Fragments are selected by documented quality criteria. All quantifiable fragments are kept, and the minimum count is documented.
+5. Extraction goes through EncyclopeDIA 6.9.23 and MSRawJava 26.7.31 APIs. No dependency changes.
+6. The XIC logic lives in its own class and is called from `ContextFeatureScorer`. Existing scorer behavior and tests are unchanged.
+7. Ariana's file-specific acceptance test (guide section 7) passes.
+
+### Checklist — draft r1 (Superseded 2026-11-16 by the propose-phase checklist below)
+
+- [ ] CTX020-001 **Superseded.** Fixtures. Add the user-format (96 rows, 7 columns) and bootstrapper-format (576 rows) lists under `src/test/resources/ctx020/`, with a provenance README: source file `astral_1mz_hela_96peptides_masked1_assay.txt`, CRLF line endings stripped, isDecoy=true rows removed, isDecoy column dropped. Check: row and column counts.
+- [ ] CTX020-002 **Superseded.** Parser tests (JUnit 4) for `IsolationWindowReader.parseMassList`: both forms, identity, isDecoy, CRLF, and malformed rows failing loudly. Depends on 001.
+- [ ] CTX020-003 **Superseded.** Check how `ChromatogramExtractor` and `TransitionRefiner` behave in 6.9.23 on a small .dia fixture, and record the findings in the guide. Needs a fixture from Ariana.
+- [ ] CTX020-004 **Superseded.** `AssayXic` record and `AssayXicExtractor` bridge in a new package (name pending open question 1). Depends on 003.
+- [ ] CTX020-005 **Superseded.** Fragment selection from the predicted library, with thresholds documented. Depends on 004 and open question 2.
+- [ ] CTX020-006 **Superseded.** Minimal call site in `ContextFeatureScorer`. Depends on 004 and 005.
+- [ ] CTX020-007 **Superseded.** Behavior tests: every row extracted, RT window honored, tolerance applied, identities kept, absent targets retained.
+- [ ] CTX020-008 **Superseded.** (Optional) Long-format trace TSV export and an R ggplot/patchwork script (theme_bw, Arial).
+- [ ] CTX020-009 **Superseded.** README and CLI docs if usage changes; `mvn -Ppackage verify`.
+- [ ] CTX020-010 **Superseded.** Diff review (smallest change, reuse, no dependency change); record findings.
+- [ ] CTX020-011 **Superseded.** Report outside the repo (location to be decided); Ariana's final review.
+
+### Checklist — propose phase (pending approval; numbering continues)
+
+Superseded mapping: 001 and 002 were dropped (existing IL2A fixtures and `IsolationWindowReaderTest` are reused); 003 → 012; 004 and 005 → 013 and 014; 006 → 016; 007 → 017; 008 → 015; 009–011 → 018–021.
+
+- [ ] CTX020-012 Freeze the canonical plan once Ariana approves it and answers open questions 1–4. Record the approved revision here and in the Google record.
+- [ ] CTX020-013 Verify the EncyclopeDIA 6.9.23 behavior on the IL2A fixtures: `ChromatogramExtractor` precursor and fragment extraction (targetRT null), `TransitionRefiner.identifyTransitions`, the normalization convention, the polarity of `adjustInferredRTBoundaries`, and the minimum-points rule. Record findings in the Google record. Check: findings logged. Depends on 012.
+- [ ] CTX020-014 `xic/AssayXic` record and `xic/AssayXicExtractor` bridge: per-window reads (`getPrecursors`, `getStripes`), predicted fragments, `ChromatogramExtractor`, `TransitionRefiner`; every row yields a result. Check: tests Q5.1–Q5.6. Depends on 013.
+- [ ] CTX020-015 `visualization/XicChartWriter` (JFreeChart, headless; format per open question 2). Check: test Q5.7. Depends on 014.
+- [ ] CTX020-016 Guarded, opt-in call site in `ContextFeatureScorer` (and a CLI flag if approved). Check: test Q5.8, output byte-identical with the feature off. Depends on 014.
+- [ ] CTX020-017 Ariana's file-specific acceptance check (Google record section 7). Depends on 014–016 and open question 4.
+- [ ] CTX020-018 Docs: README, plus CLI help if a flag is added. Run `mvn -Ppackage verify`.
+- [ ] CTX020-019 Until Useful review: diff scope (`git diff --stat ariana/scoring...ctx020`), reuse, no dependency change. Record findings and dispositions.
+- [ ] CTX020-020 Report outside the repo (location to be decided).
+- [ ] CTX020-021 Ariana's final review.
+
+### Log
+
+- 2026-11-16 — Prep. Created branch `ctx020`. Derived a target-only user-format list (96 rows, 7 columns) in the session scratchpad. The first filter attempt kept all 576 rows because the input has CRLF line endings; it worked after stripping `\r`. `BufferedReader.readLine` in the parser handles CRLF. Surveyed the XIC APIs in EncyclopeDIA 6.9.23: `ChromatogramExtractor`, `TransitionRefiner`. Drafted guide r1. Next: Ariana reviews the guide and checklist.
+- 2026-11-16 — Propose phase (Until Useful). Read the bytecode of EncyclopeDIA 6.9.23 and MSRawJava 26.7.31 (`javap -c`; no source jars).
+  - Findings: `ChromatogramExtractor` performs the XIC. MSRawJava only provides reads. `TransitionRefiner.extractMedianChromatogram` and `identifyTransitions` perform the refinement. JFreeChart 1.0.19 is a transitive dependency, so the Java visualization needs no dependency change.
+  - Wrote `docs/uu-ctx-020-forced-assay-xic.md` (draft r1) and updated the Google record to r2. Draft-r1 tasks 001–011 are superseded and 012–021 appended.
+  - Ariana authorized committing and pushing the planning docs to `origin/ctx020`. That does not cover implementation.
+  - Next: Ariana answers open questions 1–4 and approves.
