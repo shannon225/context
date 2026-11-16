@@ -226,6 +226,106 @@ public class TargetedBootstrapperTest {
 	}
 
 	@Test
+	public void replacementContinuesSeedInsteadOfStartingNextSeed() throws Throwable {
+		ArrayList<LibraryEntry> entries = replacementLibrary(false);
+		RecordingBootstrapper bootstrapper = new RecordingBootstrapper();
+		List<IsolationWindow> selected = selectMask(bootstrapper, entries, 1, 1);
+		assertEquals(2, bootstrapper.draws.size());
+		assertEquals(List.of(sequenceAt(7)), bootstrapper.draws.get(0));
+		assertEquals(List.of(sequenceAt(2)), bootstrapper.draws.get(1));
+		assertEquals(sequenceAt(2), selected.get(0).getCompound());
+		assertEquals(2, selected.size());
+		assertTrue(selected.get(1).isDecoy());
+		List<IsolationWindow> nextSeed = selectMask(new TargetedBootstrapper(), entries, 2, 1);
+		assertEquals(sequenceAt(10), nextSeed.get(0).getCompound());
+		assertFalse(selected.get(0).getCompound().equals(nextSeed.get(0).getCompound()));
+	}
+
+	@Test
+	public void multipleReplacementRoundsContinueTheSameStream() throws Throwable {
+		ArrayList<LibraryEntry> entries = replacementLibrary(true);
+		RecordingBootstrapper bootstrapper = new RecordingBootstrapper();
+		List<IsolationWindow> selected = selectMask(bootstrapper, entries, 1, 1);
+		assertEquals(List.of(List.of(sequenceAt(7)), List.of(sequenceAt(2)), List.of(sequenceAt(3))),
+				bootstrapper.draws);
+		assertEquals(sequenceAt(3), selected.get(0).getCompound());
+		assertEquals(2, selected.size());
+	}
+
+	@Test
+	public void seedWithoutReplacementRetainsCapturedFixtureTargets() throws Throwable {
+		Path output = tempFolder.newFolder("seed-two-baseline").toPath();
+		Path acquisition = output.resolve("fixture.dia");
+		Files.copy(Paths.get(Objects.requireNonNull(getClass().getResource(
+				"/org/searlelab/context/io/IL2A_GPFDIA_0combined_masked0_assay.dia")).toURI()), acquisition);
+		String library = Paths.get(Objects.requireNonNull(getClass().getResource(
+				"/org/searlelab/context/io/IL2_and_IL15_Combo.elib")).toURI()).toString();
+		new TargetedBootstrapper().execute(library, acquisition.toString(), 2, 5, HALF_RT, HALF_MZ, 2);
+		// CTX019-002 captured these seed-2 targets before the seed fix; no replacement occurred.
+		List<String> targets = Files.readAllLines(output.resolve("fixture_masked2_assay.txt")).stream()
+				.skip(1).map(line -> line.split("\t", -1)).filter(fields -> fields[7].equals("false"))
+				.map(fields -> fields[0]).collect(Collectors.toList());
+		assertEquals(List.of("LAQSPQVK", "SVGAQNDTYTMK", "LTLEDDKPAAER", "DLLAEQR", "FSTPEQAAK"), targets);
+	}
+
+	@Test(expected = IllegalArgumentException.class)
+	public void rejectsMoreTargetsThanLibraryEntries() throws Exception {
+		new TargetedBootstrapper().selectTargets(2, CONSTANTS, new int[] {2},
+				new ArrayList<>(List.of(entry("PEPTIDEK", 500, (byte) 2, 1800))), HALF_RT, HALF_MZ, new HashSet<>());
+	}
+
+	@Test
+	public void uniquePeptideExhaustionPreservesAdvancedState() throws Exception {
+		int[] state = {2};
+		ArrayList<LibraryEntry> entries = new ArrayList<>(List.of(
+				entry("PEPTIDEK", 500, (byte) 2, 1800), entry("PEPTIDEK", 600, (byte) 3, 1800)));
+		try {
+			new TargetedBootstrapper().selectTargets(2, CONSTANTS, state, entries, HALF_RT, HALF_MZ, new HashSet<>());
+			org.junit.Assert.fail("Duplicate modified sequences must not fulfill two target slots");
+		} catch (IllegalStateException expected) {
+			assertTrue(expected.getMessage().contains("unique peptides"));
+			assertFalse("Failed selection must retain consumed random state", state[0] == 2);
+		}
+	}
+
+	private static String sequenceAt(int index) {
+		return "A".repeat(index + 1) + "K";
+	}
+
+	private static ArrayList<LibraryEntry> replacementLibrary(boolean twoRounds) {
+		ArrayList<LibraryEntry> entries = new ArrayList<>();
+		for (int j = 0; j < 11; j++) entries.add(entry(sequenceAt(j), 800 + j * 20, (byte) 2, 1800));
+		// With 11 entries, seed 1 draws indices 7, 2, 3; seed 2 starts at 10.
+		// Index 7 is isolated. Index 2 is isolated only in the two-round case.
+		entries.set(2, entry(sequenceAt(2), twoRounds ? 450 : 500, (byte) 2, 1800));
+		entries.set(3, entry(sequenceAt(3), 600, (byte) 2, 1800));
+		entries.set(10, entry(sequenceAt(10), 700, (byte) 2, 1800));
+		entries.set(0, entry(sequenceAt(0), 500.001, (byte) 2, 3600));
+		entries.set(1, entry(sequenceAt(1), 600.001, (byte) 2, 3600));
+		entries.set(4, entry(sequenceAt(4), 700.001, (byte) 2, 3600));
+		return entries;
+	}
+
+	private static ArrayList<IsolationWindow> selectMask(TargetedBootstrapper bootstrapper,
+			ArrayList<LibraryEntry> entries, int seed, int targets) throws Throwable {
+		ArrayList<LibraryEntry> byMz = new ArrayList<>(entries);
+		byMz.sort(Comparator.comparingDouble(LibraryEntry::getPrecursorMZ));
+		return bootstrapper.selectMask(targets, CONSTANTS, seed, entries, byMz, HALF_RT, HALF_MZ, 1);
+	}
+
+	private static class RecordingBootstrapper extends TargetedBootstrapper {
+		private final List<List<String>> draws = new ArrayList<>();
+
+		@Override
+		public ArrayList<IsolationWindow> selectDecoys(ArrayList<IsolationWindow> targets,
+				AminoAcidConstants constants, int seed, ArrayList<LibraryEntry> entries, float rtHalfWidth,
+				double mzHalfWidth, ArrayList<IsolationWindow> unmatched, int traps) throws Exception {
+			draws.add(compounds(targets));
+			return super.selectDecoys(targets, constants, seed, entries, rtHalfWidth, mzHalfWidth, unmatched, traps);
+		}
+	}
+
+	@Test
 	public void warnsOnlyForIsolationWindowsWiderThanTwoMz() {
 		// 2.0009 m/z matches the stored window width in the IL2 GPF fixture.
 		assertFalse(TargetedBootstrapper.isolationWindowWarning(List.of(new Range(430.4455, 432.4464), new Range(432.4465, 434.4474)), "narrow.dia").isPresent());

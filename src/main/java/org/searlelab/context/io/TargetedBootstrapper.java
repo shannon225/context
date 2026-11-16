@@ -101,13 +101,13 @@ public class TargetedBootstrapper {
 		}
 	}
 
-	public ArrayList<IsolationWindow> selectTargets(int numberOfPeptides, AminoAcidConstants aaConstants, int i,
+	public ArrayList<IsolationWindow> selectTargets(int numberOfPeptides, AminoAcidConstants aaConstants, int[] randomState,
 			ArrayList<LibraryEntry> entries, float halfWindowWidthRT, double halfWindowWidthMz,
 			HashSet<String> excludedTargetSequences) throws Exception {
 
 		ArrayList<IsolationWindow> targetWindows = new ArrayList<>();
 
-		int randomValue = 1 + i; // Add haliburton's number +1 to get a random number
+		int randomValue = randomState[0];
 
 		HashSet<Integer> simulatedAssaySet = new HashSet<>();
 		HashSet<String> targetSequencesSelected = new HashSet<>();
@@ -180,6 +180,7 @@ public class TargetedBootstrapper {
 					"There was an error with selecting targets. Check the file path for the library. If it fails again, you may not have enough peptides in your dataset to bootstrap a synthetic assay.");
 			throw e;
 		} finally {
+			randomState[0] = randomValue;
 			System.out.println(targetWindows.size() + " Precursors marked for extraction.");
 		}
 		return targetWindows;
@@ -361,16 +362,15 @@ public class TargetedBootstrapper {
 		// START TIMER 1
 		long startTime = System.nanoTime();
 		HashSet<String> rejectedTargetSequences = new HashSet<>();
+		int[] randomState = {1 + i};
 
-		ArrayList<IsolationWindow> targetWindows = selectTargets(numberOfPeptides, aaConstants, i, entries,
+		ArrayList<IsolationWindow> targetWindows = selectTargets(numberOfPeptides, aaConstants, randomState, entries,
 				halfWindowWidthRT, halfWindowWidthMz, rejectedTargetSequences);
 		ArrayList<IsolationWindow> isolationWindows = new ArrayList<>();
 		
 		if (trapsPerTarget >= 0) {
 			ArrayList<IsolationWindow> decoyWindows;
 		
-		int replacementRound = 0;
-
 		while (true) {
 
 			ArrayList<IsolationWindow> unmatchedTargets = new ArrayList<>();
@@ -400,10 +400,8 @@ public class TargetedBootstrapper {
 
 			int replacementsNeeded = numberOfPeptides - targetWindows.size();
 
-			replacementRound++;
-
 			ArrayList<IsolationWindow> replacementTargets = selectTargets(replacementsNeeded, aaConstants,
-					i + replacementRound, entries, halfWindowWidthRT, halfWindowWidthMz,
+					randomState, entries, halfWindowWidthRT, halfWindowWidthMz,
 					unavailableTargetSequences);
 
 			targetWindows.addAll(replacementTargets);

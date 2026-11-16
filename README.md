@@ -417,7 +417,10 @@ java -jar context.jar bootstrap <library> <acquisition.dia> [seeds] [peptides] [
 Only the library and acquisition are required; the defaults are 1 seed, 100 peptides, 0.5 min, 1.0 m/z,
 and 1 entrapment per target. For each seed from 1 to `seeds`, it draws target precursors from the library,
 assigns entrapment peptides, and writes `<acquisition>_masked<seed>_assay.dia`, `_assay.txt`, and
-`_entrapment_assignments.tsv` next to the acquisition.
+`_entrapment_assignments.tsv` next to the acquisition. Each seed starts its own deterministic random stream;
+replacement targets continue that stream rather than restarting at another seed. Outputs made before
+this fix change only if replacement rounds occurred (identified by "Only found … entrapment peptides"
+log messages); regenerate those outputs when using seeds as replicate assays.
 
 The acquisition should use narrow (1-2 m/z) MS2 isolation windows, as in PRM. `bootstrap` checks the
 acquisition before loading the library and prints a warning when its widest window is larger than 2 m/z; it still
