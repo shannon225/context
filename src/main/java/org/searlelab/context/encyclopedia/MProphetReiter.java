@@ -7,7 +7,9 @@ import java.io.PrintWriter;
 import java.io.UnsupportedEncodingException;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Optional;
 
 import edu.washington.gs.maccoss.encyclopedia.algorithms.percolator.MProphetDataset;
@@ -31,15 +33,55 @@ public class MProphetReiter implements Runnable {
 	private final MProphetExecutionData settings;
 	private final AminoAcidConstants aaConstants;
 	private final int seed;
+	// CTX-018 Context-only mode: on only for the Context mProphet workflow; every other caller keeps the legacy path.
+	private final boolean contextMode;
+	private final List<MProphetDataset[]> suppliedFolds;
+	private final ArrayList<String> iterationRecords = new ArrayList<>();
 	
 	private Throwable error;
 	private MProphetResult result;
 	
 	public MProphetReiter(MProphetExecutionData settings, float peptideFDRThreshold, int seed, AminoAcidConstants aaConstants) {
+		this(settings, peptideFDRThreshold, seed, aaConstants, false, null);
+	}
+
+	private MProphetReiter(MProphetExecutionData settings, float peptideFDRThreshold, int seed, AminoAcidConstants aaConstants,
+			boolean contextMode, List<MProphetDataset[]> suppliedFolds) {
 		this.settings = settings;
 		this.peptideFDRThreshold=peptideFDRThreshold;
 		this.aaConstants=aaConstants;
 		this.seed=seed;
+		this.contextMode=contextMode;
+		this.suppliedFolds=suppliedFolds;
+	}
+
+	/** Training iterations; also the number of iterations a diagnostic fold file must describe. */
+	public static final int ITERATIONS = 50;
+
+	/**
+	 * CTX-018 Context-only training on a dataset Context built itself. Differences from the legacy path: models are
+	 * ranked by passing count alone with ties in iteration order (Context-MS), folds are not capped in size, and
+	 * {@code folds} (one {training, testing} pair per iteration, from a diagnostic fold file) replaces the random
+	 * split when given. A training failure is thrown rather than logged and returned as null.
+	 */
+	public static ContextTraining executeContextTraining(MProphetDataset background, MProphetExecutionData settings,
+			float threshold, int seed, AminoAcidConstants aaConstants, List<MProphetDataset[]> folds) throws EncyclopediaException {
+		if (folds != null && folds.size() != ITERATIONS) {
+			throw new EncyclopediaException("A fold plan needs " + ITERATIONS + " iterations, not " + folds.size());
+		}
+		MProphetReiter prophet = new MProphetReiter(settings, threshold, seed, aaConstants, true, folds);
+		MProphetResult result = prophet.calculateProbabilities(background, seed);
+		return new ContextTraining(result, List.copyOf(prophet.iterationRecords));
+	}
+
+	/** Applies a background model to a reference dataset Context built with the same feature names, without retraining. */
+	public static MProphetResult applyContextModel(MProphetDataset reference, MProphetExecutionData settings, float threshold,
+			LinearDiscriminantAnalysis lda, AminoAcidConstants aaConstants) throws EncyclopediaException {
+		return new MProphetReiter(settings, threshold, 1, aaConstants, true, null).calculateProbabilitiesWithModel(reference, lda);
+	}
+
+	/** The trained result plus one tab-separated record per iteration: iteration, trained passing, seed passing, kept, kept passing. */
+	public record ContextTraining(MProphetResult result, List<String> iterations) {
 	}
 	
 	// Run the excuteMProphetTSV function with a fixed seed
@@ -120,14 +162,34 @@ public class MProphetReiter implements Runnable {
 		}
 		LinearDiscriminantAnalysis seedModel=new LinearDiscriminantAnalysis(coefficients, 0.0);
 		
+		boolean seedUsable=!(General.checkNaN(seedModel.getCoefficients())||General.checkIfAllX(seedModel.getCoefficients(), 0.0));
 		ArrayList<ScoredObject<LinearDiscriminantAnalysis>> models=new ArrayList<ScoredObject<LinearDiscriminantAnalysis>>();
 		for (int n = 0; n < iterationCount; n++) {
 			randomSeed=RandomGenerator.randomInt(randomSeed);
-			MProphetDataset[] folds=MProphetDataset.splitKFold(dataset, 2, randomSeed, settings.getParameters().getPercolatorTrainingSetSize());
+			MProphetDataset[] folds;
+			if (contextMode && suppliedFolds != null) {
+				folds=suppliedFolds.get(n);
+			} else {
+				int maximumFoldSize=contextMode ? Math.max(dataset.getTargetData().size(), dataset.getDecoyData().size())
+						: settings.getParameters().getPercolatorTrainingSetSize();
+				folds=MProphetDataset.splitKFold(dataset, 2, randomSeed, maximumFoldSize);
+			}
 			
 			MProphetDataset trainingDataset=folds[0];
 			MProphetDataset testingDataset=folds[1];
+			if (contextMode && trainingDataset.getStartingScoreIndex() < 0) {
+				// No preferred starting score: Context-MS picks the best-separating feature on each training fold.
+				trainingDataset=new MProphetDataset(new ArrayList<>(trainingDataset.getFeatureNames()),
+						bestSeparatingFeature(trainingDataset), trainingDataset.allData());
+			}
 			
+			if (contextMode && (trainingDataset.getTargetData().isEmpty() || trainingDataset.getDecoyData().isEmpty())) {
+				// Context-MS skips an iteration whose training fold lacks targets or decoys.
+				Logger.logLine("Iteration "+(n+1)+": training fold has no targets or no decoys; skipped");
+				iterationRecords.add(n + "\t\t\t\t");
+				continue;
+			}
+
 			LinearDiscriminantAnalysis lda;
 			if(General.checkNaN(seedModel.getCoefficients())||General.checkIfAllX(seedModel.getCoefficients(), 0.0)) {
 				lda=null;
@@ -166,6 +228,10 @@ public class MProphetReiter implements Runnable {
 					// make sure the decoy data doesn't get too out of hand in size
 					decoyData=new ArrayList<float[]>(decoyData.subList(0, scoredData.size()*10));
 				}
+				if (contextMode && (scoredData.isEmpty() || decoyData.isEmpty())) {
+					// Context-MS's build_lda returns no model without positives or negatives; keep the current model.
+					break;
+				}
 				LinearDiscriminantAnalysis model=LinearDiscriminantAnalysis.buildModel(scoredData, decoyData);
 				
 				if (!General.checkNaN(model.getCoefficients())&&!General.checkIfAllX(model.getCoefficients(), 0.0)) {
@@ -179,10 +245,16 @@ public class MProphetReiter implements Runnable {
 			
 			if (lda==null) {
 				Logger.logLine("Iteration "+(n+1)+": Failed to generate a meaningful model!");
+				iterationRecords.add(n + "\t\t\t\t");
 			} else {
 				Pair<ArrayList<ScoredMProphetData>, Float> data=testingDataset.getPassingTargetsByFDR(Optional.ofNullable(lda), 0.01f);
-				Pair<ArrayList<ScoredMProphetData>, Float> seedData=testingDataset.getPassingTargetsByFDR(Optional.ofNullable(seedModel), 0.01f);
-				if (seedData.x.size()>data.x.size()) {	
+				// Context-MS compares the seed model on the test fold only when the seed model is usable.
+				Pair<ArrayList<ScoredMProphetData>, Float> seedData=contextMode && !seedUsable ? null
+						: testingDataset.getPassingTargetsByFDR(Optional.ofNullable(seedModel), 0.01f);
+				boolean preferSeed=seedData!=null && seedData.x.size()>data.x.size();
+				iterationRecords.add(n + "\t" + data.x.size() + "\t" + (seedData==null ? "" : Integer.toString(seedData.x.size()))
+						+ "\t" + (preferSeed ? "seed" : "trained") + "\t" + (preferSeed ? seedData.x.size() : data.x.size()));
+				if (preferSeed) {
 					models.add(new ScoredObject<LinearDiscriminantAnalysis>(seedData.x.size(), seedModel));
 					Logger.logLine("Iteration "+(n+1)+": prefer seed model, "+seedData.x.size()+"/"+testingDataset.getTargetData().size()+" passing, pi0:"+cappedPi0(seedData.y));
 				} else {
@@ -193,12 +265,15 @@ public class MProphetReiter implements Runnable {
 		}
 		
 		LinearDiscriminantAnalysis averageModel;
+		if (models.size()==0 && contextMode && !seedUsable) {
+			throw new EncyclopediaException("mProphet training failed: no usable model was trained and the seed model is unusable "
+					+ "(none of its seed features are present). Check that the background has enough targets and decoys.");
+		}
 		if (models.size()==0) {
 			Logger.logLine("No meaningful models generated, falling back on seed model for separation!");
 			averageModel=seedModel;
 		} else {	
-			Collections.sort(models);
-			Collections.reverse(models);
+			rankModels(models, contextMode);
 			// keep the N best models
 			ArrayList<LinearDiscriminantAnalysis> bestModels=new ArrayList<LinearDiscriminantAnalysis>();
 			for (ScoredObject<LinearDiscriminantAnalysis> scoredModel : models) {
@@ -275,6 +350,68 @@ public class MProphetReiter implements Runnable {
 		}
 		
 		return new MProphetResult(detectedPeptides, averageModel, dataset.getFeatureNames(), pi0);
+	}
+
+	/**
+	 * Best model first. Legacy: EncyclopeDIA's order (ties broken by the sum of the coefficients, then reversed).
+	 * Context mode (CTX018-022): passing count alone, as Context-MS; a stable sort keeps tied models in iteration order.
+	 */
+	static void rankModels(ArrayList<ScoredObject<LinearDiscriminantAnalysis>> models, boolean contextMode) {
+		if (contextMode) {
+			models.sort(Comparator.comparingDouble((ScoredObject<LinearDiscriminantAnalysis> m) -> m.getScore()).reversed());
+		} else {
+			Collections.sort(models);
+			Collections.reverse(models);
+		}
+	}
+
+	/**
+	 * Context-MS mprophet._auto_main_score: among features whose range exceeds 1e-6 in both targets and decoys, the one
+	 * with the largest |mean difference| / mean of the two population SDs; feature 0 when none qualifies.
+	 */
+	static int bestSeparatingFeature(MProphetDataset dataset) {
+		ArrayList<float[]> targets = dataset.getTargetData();
+		ArrayList<float[]> decoys = dataset.getDecoyData();
+		int features = dataset.getFeatureNames().size();
+		int best = 0;
+		double bestScore = Double.NEGATIVE_INFINITY;
+		boolean anyValid = false;
+		for (int f = 0; f < features; f++) {
+			double[] t = column(targets, f);
+			double[] d = column(decoys, f);
+			boolean valid = range(t) > 1e-6 && range(d) > 1e-6;
+			double score = valid ? Math.abs(mean(t) - mean(d)) / Math.max((sd(t) + sd(d)) / 2.0, 1e-12) : -1.0;
+			anyValid |= valid;
+			if (score > bestScore) {
+				bestScore = score;
+				best = f;
+			}
+		}
+		return anyValid ? best : 0;
+	}
+
+	private static double[] column(ArrayList<float[]> rows, int feature) {
+		double[] values = new double[rows.size()];
+		for (int i = 0; i < values.length; i++) values[i] = rows.get(i)[feature];
+		return values;
+	}
+
+	private static double range(double[] values) {
+		double min = Double.POSITIVE_INFINITY, max = Double.NEGATIVE_INFINITY;
+		for (double v : values) { min = Math.min(min, v); max = Math.max(max, v); }
+		return values.length == 0 ? 0 : max - min;
+	}
+
+	private static double mean(double[] values) {
+		double sum = 0;
+		for (double v : values) sum += v;
+		return sum / values.length;
+	}
+
+	private static double sd(double[] values) {
+		double m = mean(values), squares = 0;
+		for (double v : values) squares += (v - m) * (v - m);
+		return Math.sqrt(squares / values.length);
 	}
 
 	private static float cappedPi0(float pi0) {

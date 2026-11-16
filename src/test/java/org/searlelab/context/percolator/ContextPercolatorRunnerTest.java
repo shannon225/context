@@ -77,6 +77,46 @@ public class ContextPercolatorRunnerTest {
 		} 
 	} 
 	
+	@Test public void contextTrainingUsesContextMSArgumentsOnly() {
+		File executable = new File(temp.getRoot(), "executable with spaces");
+		PercolatorVersion version = new PercolatorVersion() {
+			public int getMajorVersion() { return 3; }
+			public File getPercolator() { return executable; }
+		};
+		ContextPercolatorExecutionData data = data(temp.getRoot());
+		String[] expected = { executable.getAbsolutePath(), "--seed", "17",
+				"--results-peptides", data.getPeptideOutputFile().getAbsolutePath(),
+				"--weights", data.getWeightsFile(1).getAbsolutePath(),
+				"--decoy-results-peptides", data.getPeptideDecoyFile().getAbsolutePath(),
+				"--post-processing-tdc", "--override", "--protein-report-duplicates",
+				data.getInputTSV().getAbsolutePath() };
+		assertArrayEquals(expected, ContextPercolatorRunner.generateContextTrainingCommand(version, data, 1, 17));
+
+		// EncyclopeDIA's training options must not leak in, whatever the parameters say.
+		java.util.List<String> command = Arrays.asList(ContextPercolatorRunner.generateContextTrainingCommand(version, data, 1, 1));
+		for (String absent : new String[] { "-N", "--maxiter", "--trainFDR", "--testFDR", "--no-terminate", "-y", "-Y", "--init-weights" }) {
+			assertFalse(absent + " in " + command, command.contains(absent));
+		}
+		// The standard command is still EncyclopeDIA's (checked against upstream above).
+		assertTrue(Arrays.asList(ContextPercolatorRunner.generateCommand(version, data, 1, 1)).contains("--no-terminate"));
+	}
+
+	@Test public void contextTrainingRejectsPercolatorTwoAndInvalidSeeds() {
+		ContextPercolatorExecutionData data = data(temp.getRoot());
+		PercolatorVersion two = new PercolatorVersion() {
+			public int getMajorVersion() { return 2; }
+			public File getPercolator() { return new File(temp.getRoot(), "percolator-2"); }
+		};
+		IllegalArgumentException error = assertThrows(IllegalArgumentException.class,
+				() -> ContextPercolatorRunner.generateContextTrainingCommand(two, data, 1, 1));
+		assertTrue(error.getMessage(), error.getMessage().contains("Percolator 3"));
+		PercolatorVersion three = new PercolatorVersion() {
+			public int getMajorVersion() { return 3; }
+			public File getPercolator() { return new File(temp.getRoot(), "percolator-3"); }
+		};
+		assertThrows(IllegalArgumentException.class, () -> ContextPercolatorRunner.generateContextTrainingCommand(three, data, 1, 0));
+	}
+
 	@Test public void preservesVersionThroughDependencyType() { 
 		ContextPercolatorExecutionData data = data(temp.getRoot()); data.setPercolatorExecutableVersion("test-version"); 
 		PercolatorExecutionData base = data; 

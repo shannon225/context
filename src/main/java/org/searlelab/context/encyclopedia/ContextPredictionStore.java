@@ -6,8 +6,9 @@ import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
-import java.nio.file.StandardCopyOption;
 import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.time.Duration;
 import java.util.ArrayList;
@@ -29,12 +30,13 @@ import edu.washington.gs.maccoss.encyclopedia.utils.Logger;
 /**
  * Persistent per-precursor prediction store shared across source libraries. It holds raw predicted spectra keyed by
  * modified sequence and precursor charge, with no accessions or decoy links, in Encyclopedia's prediction-cache file.
- * A Context profile file beside that cache guards reuse: Encyclopedia replaces rows by key without checking how they
+ * A Context profile in the cache metadata guards reuse: Encyclopedia replaces rows by key without checking how they
  * were predicted, so a store written under another profile is refused rather than mixed.
  */
 public final class ContextPredictionStore implements AutoCloseable {
 	public static final String DEFAULT_DIRECTORY_NAME = "prediction-cache";
 	static final String PROFILE_SUFFIX = ".context-profile";
+	static final String PROFILE_METADATA_KEY = "ContextPredictionProfile";
 	private static final String PROFILE_VERSION = "Context-prediction-store-v1|Encyclopedia-6.9.23|JChronologer-1.0.10";
 
 	private final LibraryFile cache;
@@ -55,28 +57,21 @@ public final class ContextPredictionStore implements AutoCloseable {
 				!settings.adjustNceForDia());
 		File profileFile = profileFile(cacheFile);
 		String expected = profile(settings);
-		if (profileFile.isFile()) {
+		boolean existed = cacheFile.exists();
+		boolean hasLegacyProfile = profileFile.isFile();
+		if (hasLegacyProfile) {
 			String found = Files.readString(profileFile.toPath(), StandardCharsets.UTF_8);
 			if (!expected.equals(found)) {
 				throw new IOException("Prediction store " + cacheFile + " was written under a different profile; use another"
 						+ " prediction store directory. Expected:\n" + expected + "Found:\n" + found);
 			}
-		} else if (cacheFile.exists()) {
-			throw new IOException("Prediction cache " + cacheFile + " has no Context profile (" + profileFile.getName()
-					+ "); it was not created by Context. Use another prediction store directory.");
-		} else {
-			if (!directory.isDirectory() && !directory.mkdirs()) throw new IOException("Cannot create prediction store directory " + directory);
-			writeAtomically(profileFile, expected);
+			if (!existed) throw new IOException("Legacy prediction profile exists without its cache: " + profileFile);
 		}
+		if (!directory.isDirectory() && !directory.mkdirs()) throw new IOException("Cannot create prediction store directory " + directory);
 		LibraryFile cache = JChronologerWorkingLibrary.openOrCreatePredictionCache(Optional.of(directory), settings.nce(),
 				settings.defaultCharge(), settings.adjustNceForDia());
 		try {
-			Optional<PredictionCacheWriteLock> lock = cache.getPredictionCacheWriteLock();
-			if (lock.isPresent()) {
-				if (!clearStaleLock) throw lockedException(cacheFile, lock.get());
-				cache.clearPredictionCacheWriteLock();
-				Logger.logLine("Cleared prediction store write lock on request (" + describe(lock.get()) + "): " + cacheFile);
-			}
+			verifyProfile(cache, cacheFile, expected, existed, hasLegacyProfile, clearStaleLock);
 			return new ContextPredictionStore(cache, cacheFile);
 		} catch (IOException | SQLException | RuntimeException e) {
 			try {
@@ -160,6 +155,64 @@ public final class ContextPredictionStore implements AutoCloseable {
 				+ "\nadjustNceForDia=" + settings.adjustNceForDia() + "\n";
 	}
 
+	private static void verifyProfile(LibraryFile cache, File cacheFile, String expected, boolean existed,
+			boolean hasLegacyProfile, boolean clearStaleLock) throws IOException, SQLException {
+		Connection c = cache.getImmediateConnection();
+		try {
+			String found = null;
+			int count = 0;
+			try (PreparedStatement statement = c.prepareStatement("SELECT Value FROM metadata WHERE Key=?")) {
+				statement.setString(1, PROFILE_METADATA_KEY);
+				try (ResultSet rows = statement.executeQuery()) {
+					while (rows.next()) {
+						found = rows.getString(1);
+						count++;
+					}
+				}
+			}
+			if (count > 1) throw new IOException("Prediction cache has duplicate Context profiles: " + cacheFile);
+			if (count == 1 && !expected.equals(found)) {
+				throw new IOException("Prediction store " + cacheFile + " was written under a different profile; use another"
+						+ " prediction store directory. Expected:\n" + expected + "Found:\n" + found);
+			}
+			if (count == 0 && existed && !hasLegacyProfile) {
+				throw new IOException("Prediction cache " + cacheFile + " has no Context profile in its metadata or legacy sidecar;"
+						+ " it was not created by Context. Use another prediction store directory.");
+			}
+
+			Optional<PredictionCacheWriteLock> lock = cache.getPredictionCacheWriteLock(c);
+			if (lock.isPresent()) {
+				if (!clearStaleLock) throw lockedException(cacheFile, lock.get());
+				cache.clearPredictionCacheWriteLock(c);
+			}
+			if (!cache.acquirePredictionCacheWriteLock(c, hostName(), Long.toString(ProcessHandle.current().pid()),
+					System.currentTimeMillis(), "Context prediction profile")) {
+				throw new IOException("Prediction store write lock could not be acquired: " + cacheFile);
+			}
+			if (count == 0) {
+				try (PreparedStatement statement = c.prepareStatement("INSERT INTO metadata (Key, Value) VALUES (?, ?)")) {
+					statement.setString(1, PROFILE_METADATA_KEY);
+					statement.setString(2, expected);
+					statement.executeUpdate();
+				}
+			}
+			cache.clearPredictionCacheWriteLock(c);
+			c.commit();
+			if (lock.isPresent()) {
+				Logger.logLine("Cleared prediction store write lock on request (" + describe(lock.get()) + "): " + cacheFile);
+			}
+		} catch (IOException | SQLException | RuntimeException e) {
+			try {
+				c.rollback();
+			} catch (SQLException cleanupFailure) {
+				e.addSuppressed(cleanupFailure);
+			}
+			throw e;
+		} finally {
+			c.close();
+		}
+	}
+
 	private static IOException lockedException(File cacheFile, PredictionCacheWriteLock lock) {
 		return new IOException("Prediction store is locked (" + describe(lock) + "): " + cacheFile
 				+ ". If no other run is using it, the lock was left by an interrupted run; rerun with"
@@ -181,13 +234,4 @@ public final class ContextPredictionStore implements AutoCloseable {
 		}
 	}
 
-	private static void writeAtomically(File file, String content) throws IOException {
-		File temporary = File.createTempFile(file.getName(), ".tmp", file.getAbsoluteFile().getParentFile());
-		try {
-			Files.writeString(temporary.toPath(), content, StandardCharsets.UTF_8);
-			Files.move(temporary.toPath(), file.toPath(), StandardCopyOption.ATOMIC_MOVE);
-		} finally {
-			Files.deleteIfExists(temporary.toPath());
-		}
-	}
 }

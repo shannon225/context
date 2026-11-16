@@ -36,6 +36,15 @@ public class ContextPercolatorExecutor {
 			PyIsoPEPRunner pyIsoPEP, float fdr, File outputDirectory, String prefix, boolean generateDecoys,
 			HashMap<String, String> encyclopediaArgs, int shuffledSeed, ContextFeatureScorer.Options scoringOptions)
 					throws Exception {
+		return runContextPercolator(library, fasta, dia, massList, pyIsoPEP, fdr, outputDirectory, prefix, generateDecoys,
+				encyclopediaArgs, shuffledSeed, scoringOptions, TrainingSeeds.DEFAULT_SEED);
+	}
+
+	/** {@code shuffledSeed} drives feature scoring; {@code trainingSeed} drives background model training. */
+	public static ContextPercolatorResult runContextPercolator(File library, File fasta, File dia, File massList,
+			PyIsoPEPRunner pyIsoPEP, float fdr, File outputDirectory, String prefix, boolean generateDecoys,
+			HashMap<String, String> encyclopediaArgs, int shuffledSeed, ContextFeatureScorer.Options scoringOptions,
+			int trainingSeed) throws Exception {
 
 		if (!dia.exists()) throw new IOException("Input file not found: " + dia);
 		if (!library.exists()) throw new IOException("Library file not found: " + library);
@@ -57,7 +66,7 @@ public class ContextPercolatorExecutor {
 		File referenceFeatures = new File(baseName + "_reference.features.txt");
 
 		return ContextPercolator.trainAndApply(backgroundFeatures, referenceFeatures, fasta, encyclopediaArgs,
-				pyIsoPEP, fdr, outputDirectory, resolvedPrefix);
+				pyIsoPEP, fdr, outputDirectory, resolvedPrefix, trainingSeed);
 	}
 
 	

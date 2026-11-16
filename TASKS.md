@@ -1,539 +1,22 @@
 # Context implementation tasks
 
-## CTX-016 — EncyclopediaTwo matched decoys and competition
+## CTX-016 — EncyclopediaTwo matched decoys and competition (archived; closed 2026-11-01)
 
-- Guide: `docs/ctx-016-encyclopediatwo-matched-decoys.md`, approved r7 (2026-09-30); r6 is historical.
-- Google implementation record: https://docs.google.com/document/d/1u04aFpKACUNP8Qtfl463GUPGoW5WW3zGEcpELGkKPH4/edit
-- Approval status: Ariana approved draft r6 on 2026-09-29, clarified winner-only engine inputs on 2026-09-30, then paused implementation for a Context-only correction. Ariana explicitly approved guide r7 and resumed implementation on 2026-09-30 in this chat. Git delivery is not authorized.
-- Canonical Until Useful plan: `docs/uu-ctx-016-encyclopediatwo-matched-decoys.md`, revision 2, approved 2026-09-30 for Context-only implementation; revision 1 is retained as history. Do not treat the CTX-015 plan as this feature's plan.
-- Scope boundary: CTX-016 replaces CTX-015 as the active implementation. Preserve CTX-015 documents for history. Source edits stay in Context, including Context-owned scoring/preparation and the authorized narrow `TargetedBootstrapper` assignment change. Encyclopedia source stays unchanged; Percolator and mProphet classes are validation targets.
+- Moved verbatim to [`docs/TASKS-archive.md`](docs/TASKS-archive.md) on 2026-11-01 at Ariana's request, together with the `CLI-FOLLOWUP-001`/`002` and `CLASS-GUIDE-001` follow-ups recorded in the same block.
+- Closed by Ariana on 2026-11-01 after her independent global-file entrapment review. `CTX016-009`, `010`, `040`, `053` and the last acceptance item are checked in the archive, with her evidence and its limits in the archive's last log entry. No CTX-016 work remains open.
+- Closing note appended to the Google implementation record on 2026-11-01. Report addendum: [`docs/2026-11-01-CTX-016-Report-addendum.md`](docs/2026-11-01-CTX-016-Report-addendum.md), at Ariana's direction; the external Report on her machine is unchanged.
+
+## CTX-018 — Percolator and mProphet parity with Context-MS
+
+- Google implementation record: https://docs.google.com/document/d/1wbZsg6TDiMx8mZ-__cl8tGexxWRcIw7IESnbO_-c_Pk/edit — revision r1 (2026-10-31; Docs revisionId `AHj4eMTbkMMjX3KFGMxxlDHakDZnFcFFatKh4gPIsg8RwRbx9X4R7ek4cRPFIj0JO_qdBzlUQalCrih-jVWsLky1g59LZhJU5ny44ZlDrmg`). Updated to r2 on 2026-10-31 (Docs revisionId `AHj4eMQTP-eUhkBt9VX-0P7taQSTpmvCewKWqDrIDwxLQc2L3GEZh11_cVMi5W71gxUKlVY1aGWWcMvbJSHEncpJno1exHhK-76pc83u92o`; later edits that only record commits do not change the plan).
+- Canonical Until Useful plan: `docs/uu-ctx-018-percolator-mprophet-parity.md`, revision 1 (frozen 2026-10-31).
+- Approval status: **Approved** by Ariana on 2026-10-31 in chat ("I approve of the plan"). Ariana will have an independent agent review the plan before implementation; implementation has not started. Git delivery is not authorized.
+- Revision 2 approval status: **Approved** by Ariana on 2026-10-31 in chat ("You have my approval"). r2 is now canonical in `docs/uu-ctx-018-percolator-mprophet-parity.md`, with r1 kept below it as history. Earlier pending wording, kept as history: The independent review (2026-10-31) proposed r2: `docs/ctx-018-canonical-r2-proposal.md`, adding tasks `CTX018-017`–`027` below. Ariana approved the H2 and H7 directions and asked for the r2 files; approval of the full r2 text is pending. Until then, r1 (`docs/uu-ctx-018-percolator-mprophet-parity.md`) stays frozen and canonical, and no implementation starts.
+- Baselines: Context `ariana/scoring` at `a57ef953b29b091d6ea0284030d8082a422062b6`; Context-MS `main` at `d207f47291b6a1716e4a09e326fc3eda518a197f`; EncyclopeDIA 6.9.23 jar (unchanged).
+- Scope boundary: Context-only. Out of scope: `TargetedBootstrapper` and its CLI/tests; decoy generation (CTX-016); EncyclopeDIA source; Context-MS source; the standard and targeted Percolator/mProphet workflows; changing Context's default Percolator version (v3.01); porting numpy's random generator (option A). Language-specific differences are deferred unless the final criteria fail.
+- Populations: background trains the discriminant; the model is applied without retraining to reference targets and decoys; q-values and PEPs are estimated on the scored reference, at PSM level and again after best-per-peptide de-duplication.
 
 ### Acceptance criteria
-
-- [ ] Context uses a pinned unchanged Encyclopedia 6.9.23 artifact and its Context-owned feature-only scoring path without invoking upstream protein TDC or changing Encyclopedia source.
-- [ ] The working library is regenerated and target/decoy spectrum predictions are requested before search; Encyclopedia's predicted/shuffled strategy and target-only case are preserved, counted, and recorded. Targets lacking usable spectra are excluded with reasons.
-- [ ] Stable upstream precursor/pair keys map to existing feature `id` values in a sidecar that survives every relevant writer/rescorer. Empirical assay entrapment assignments from a narrow `TargetedBootstrapper` change remain distinct, including one-to-many assignments.
-- [ ] An optional diagnostic captures retained peak-group candidates, while only winner rows reach the engines; the setting is recorded and cache reuse is guarded.
-- [ ] Competition occurs once after all target and decoy candidates are scored and before `ContextFeatureScorer` reports features, for every population. Percolator and mProphet receive valid features, retain reference/background roles, and do not apply a second pairwise competition; their classes remain unmodified unless a new finding and plan revision are approved.
-- [ ] Legacy inputs, direct feature-file reuse, malformed/missing mapping, duplicates, ties, modifications, charge, and fallback cases have defined behavior and tests.
-- [ ] Documentation, Java 17 tests/package checks, representative scientific comparisons, diff review, and final human review are recorded with their actual limits.
-
-### Approved implementation checklist — r6 with 2026-09-30 clarification
-
-- [ ] `CTX016-001` Settle the two relationship schemas, `id` sidecar join, regeneration interface, exact filter output stage, and confidence-stage boundaries. Files: guide, Google record, this checklist. Check: Ariana approves a dated revision and, if applicable, a frozen canonical plan; CTX-016 replaces CTX-015.
-- [ ] `CTX016-002` Establish Context/upstream Java 17 and package baselines at the stated revisions. Files: log only. Check: exact versions, commands, and results recorded.
-- [ ] `CTX016-003` Superseded by proposed Context-only tasks `CTX016-014` and `CTX016-015`: the upstream preparation/API/scoring edits in this task are no longer authorized.
-- [ ] `CTX016-004` Superseded by proposed Context-only tasks `CTX016-015` and `CTX016-016`: the copied Context feature-only class will remain; no new upstream API is planned.
-- [ ] `CTX016-005` Superseded by proposed Context-only task `CTX016-016`: the search-pair sidecar remains required, but its producer and integration change.
-- [x] `CTX016-006` Persist `TargetedBootstrapper` empirical entrapment assignments through the authorized narrow change. Files: bootstrapper assignment writer and tests. Check: one-to-many mapping, stable keys, and no confusion with search decoys.
-- [ ] `CTX016-007` Validate Percolator/mProphet peptide handling and `id` retention without editing engine classes. Files: focused tests/log. Check: background training, reference application, peptide confidence, and no unintended second pairwise filter. Any proven required engine change triggers a guide revision for Ariana's approval.
-- [ ] `CTX016-008` Document CLI/configuration, metadata schemas, winner-only default, prediction/fallback/target-only behavior, and migration. Files: README, help, guide, fixture provenance. Check: examples and actual output names match.
-- [ ] `CTX016-009` Run focused JUnit 4, upstream compatibility, full Context Java 17 package checks, and representative scientific comparisons. Files: tests/fixtures/log. Check: commands, seeds, data, numeric tolerances, outcomes, skips, and limits recorded.
-- [ ] `CTX016-010` Review the complete diff for minimal scope, dependency justification, scientific behavior, and artifacts; perform applicable Until Useful review. Files: guide and log. Check: findings, corrections, and residual risks recorded.
-- [ ] `CTX016-011` Create the external CTX-016 Report after implementation/review. Check: full checklist/log copied verbatim to a unique Downloads path and verified.
-- [ ] `CTX016-012` Await Ariana's final human review. Do not mark complete on her behalf.
-- [x] `CTX016-013` Before implementation, inventory and discard uncommitted work outside `docs/`, `TASKS.md`, and root `AGENTS.md`, as Ariana instructed. Check: exact retained/discarded paths logged; allowed documents and instruction file preserved. This is a prerequisite for `CTX016-002` and source implementation, not a code commit.
-
-### Proposed commit groups — scope planning only
-
-- Group A: `CTX016-003` — upstream feature API and focused tests. Proposed message: `Expose EncyclopediaTwo matched-decoy feature results`.
-- Group B: `CTX016-004`, `CTX016-005` — dependency pin, Context bridge, mapping sidecar, and tests. Proposed message: `Integrate matched EncyclopediaTwo features in Context`.
-- Group C: `CTX016-006` — empirical entrapment assignment output and tests. Proposed message: `Record empirical entrapment assignments`.
-- Group D: `CTX016-007`, `CTX016-008`, `CTX016-009`, `CTX016-010` — engine validation without engine edits, documentation, verification evidence, review corrections. Proposed message: `Document and validate CTX-016 competition semantics`.
-- Planning, baseline logs, external Report, and final human review stay outside code commit groups. Each actual commit will require separate explicit authorization and a reviewed scope.
-
-### Work log
-
-#### 2026-09-30 — `CTX016-001` approval reconfirmed
-
-- Ariana explicitly reconfirmed approval of the CTX-016 plan in this chat and confirmed that the winner-only clarification in this log is correct. Implementation remains on Context branch `ariana/scoring` at `138e34f581d9623bf9d47d72ef26300effd6f7d2`; the related Encyclopedia checkout is on `master` at `65d6346d2883cfda37ece0f9f2cc674bc5567899`. This is scope approval, not Git delivery authorization.
-
-#### 2026-09-30 — `CTX016-001` Chat-model implementation resumed
-
-- Attempt/change: Ariana directed this implementation to use Chat models only and to set aside the unavailable Claude Code runtime. Re-read the frozen CTX-016 plan, this checklist, the Google implementation record, Context and Encyclopedia instructions, current Git status, and the upstream preparation/search path. No source edits were made in this step.
-- Result/observation: Context remains at `138e34f581d9623bf9d47d72ef26300effd6f7d2`; the upstream working tree is clean. The Google record still contains its earlier planning-only wording, while this checklist records the later approval and winner-only clarification. Upstream `ScribeTwoLibraryPreparation.appendPredictedPairs` currently drops both entries when either prediction is absent; upstream `EncyclopediaTwo.generateFeatureFile` selects mapped versus shuffled search and counts target-only entries, while its scoring task trims to one result before the feature writer. Context `partitionFeatures` then reduces rows by sequence before partitioning.
-- Conclusion/next action: Resolve the preparation interface, stable feature-row join, and diagnostic capture contract against source before editing Java. The existing baseline failures remain recorded under `CTX016-002`; no unrelated baseline fixes are included in CTX-016.
-
-#### 2026-09-29 — `CTX016-001` implementation approval and contract clarification
-
-- Attempt/change: Retrieved the corrected Google CTX-016 record and read local draft r6. Ariana explicitly confirmed CTX-016 is the approved feature. Rechecked Context HEAD (`138e34f581d9623bf9d47d72ef26300effd6f7d2`), current changes, upstream instructions, `ScribeTwoLibraryPreparation.prepare`/`appendPredictedPairs`, upstream scoring-task `result.trim(1)`, and `ContextFeatureScorer.partitionFeatures`.
-- Result/observation: The approved guide both requests retained candidates for downstream comparison and requires competition before ContextFeatureScorer output for all populations. Source inspection confirms upstream currently trims the shared result to one winner; Context then separately reduces by sequence. Whether experimental-mode losers reach the engines remains scientifically consequential and cannot be resolved from source. Requested Ariana's choice between unfiltered engine inputs and diagnostic-only retained candidates with winner-only engine inputs.
-- Conclusion/next action: Scope approval is recorded; `CTX016-001` remains incomplete pending the experimental-mode contract and canonical plan. No source files, dependencies, or existing user work were changed or discarded. No tests were run. Resume the contract and canonical plan when the answer arrives, then perform the approved cleanup and baseline tasks.
-
-#### 2026-09-29 — `CTX016-001` planning started
-
-- Attempt/change: Confirmed Context `138e34f581d9623bf9d47d72ef26300effd6f7d2` and Encyclopedia `65d6346d2883cfda37ece0f9f2cc674bc5567899`; inspected the copied/upstream feature generator, upstream matched-decoy strategy, Context partitioning and peptide selection, README, and the implementation-record template. Created draft r1 and this pending checklist.
-- Result/observation: Context pins Encyclopedia 6.6.24 and uses its copied feature generator; upstream feature generation is package-private. Upstream predicted-pair selection is conditional and can fall back to shuffled or target-only behavior. Context's sequence-only partitioning does not carry explicit predicted pairing. No build or scientific validation was run.
-- Conclusion/next action: Resolve the five open design questions in draft r1, revise and approve this checklist, then begin implementation. No Java or dependency edits were made.
-
-#### 2026-09-29 — `CTX016-001` revised to draft r3
-
-- Attempt/change: Ariana authorized clearing the completed CTX-014 tasks while retaining documents. Verified the entire CTX-014 section was present in `/Users/arianashannon/Downloads/2026-09-13-CTX-014-Report.md` before clearing it from this file. Ariana confirmed winner-only peak-group output as the default and a clear error if a target or decoy spectrum cannot be predicted. Inspected upstream preparation and search paths to distinguish prediction from fallback.
-- Result/observation: Upstream ScribeTwo preparation requests and persists target/decoy spectra; EncyclopediaTwo search itself does not predict a missing pair. Its strategy may choose shuffled decoys below 97.5% mapped coverage or with extra decoy libraries, and predicted mode may search an individual target without a mapped decoy. CTX-016 draft r3 now requires complete-pair preparation and strict preflight before search. No source implementation or tests were run.
-- Conclusion/next action: Resolve preparation interface, feature-row key, filter output stage, and peptide confidence semantics; seek approval of the settled guide/checklist before implementation.
-
-#### 2026-09-29 — `CTX016-001` revised to draft r4
-
-- Attempt/change: Ariana clarified that Context should request predictions before search, then use Encyclopedia's shuffled fallback and target-only search when a predicted decoy is absent. Inspected `ScribeTwoLibraryPreparation` and `EncyclopediaTwo` for the distinction between preparation and search.
-- Result/observation: Search already supports global all-shuffled fallback and an individual target-only case in predicted mode. The current ScribeTwo preparation omits both target and decoy when either prediction is missing; it would need a narrow change, or a different supported preparation path, to retain a target for the requested target-only search. Draft r4 records this gap and supersedes r3's strict-failure criterion. No implementation or tests were run.
-- Conclusion/next action: Settle the preparation API and missing-target policy, then approve the plan/checklist before implementation.
-
-#### 2026-09-29 — `CTX016-001` record formatting correction
-
-- Attempt/change: Ariana noted that answers in the Google implementation record inherited the template's Subtitle style. Changed all 22 answer/metadata paragraphs with that style to Normal Text while retaining heading styles and table labels.
-- Result/observation: Google Docs readback shows zero Subtitle paragraphs; sampled answers are Normal Text and 42 heading paragraphs remain. No planning content or Java source changed.
-- Conclusion/next action: Continue reviewing draft r4's open design questions.
-
-#### 2026-09-29 — `CTX016-001` template bullet placement correction
-
-- Attempt/change: Ariana pointed out that responses sat above the template's answer bullets. Restored the original prompt text and moved 25 responses into their corresponding native bullet paragraphs, including the implementation-concept bullet. Left the two future work-log entries blank with `YYYY-MM-DD` placeholders.
-- Result/observation: Google Docs readback confirms sampled prompts are followed by populated Normal Text bullets, no answer remains in the sampled prompt positions, and only six intended future-work bullets remain empty. Headings and template tables were retained.
-- Conclusion/next action: Continue review of draft r4; implementation approval remains pending.
-
-#### 2026-09-29 — `CTX016-001` revised to draft r6
-
-- Attempt/change: Ariana settled library regeneration, the upstream pair/precursor key with a verified `id`-keyed sidecar, competition timing before `ContextFeatureScorer` reports for all populations, CTX-016 replacing CTX-015, and target-spectrum exclusion with a report. She authorized only a narrow `TargetedBootstrapper` exception to the scoring-focused edit scope and confirmed `AGENTS.md` should be preserved with `docs/` and `TASKS.md` during pre-implementation cleanup. Rechecked Context's feature and engine paths before removing `ContextPercolator.java` and mProphet classes from planned edits.
-- Result/observation: Current `ContextFeatureScorer.partitionFeatures` reduces by sequence before writing partitions. The upstream writer emits an `id`; Context's Percolator rescored-feature writer preserves that column, and mProphet parses it as metadata. Adding a pair-key TSV column would enter the numerical feature set, so r6 uses an `id`-keyed sidecar and requires join checks at every writer/rescorer. Engine classes are validation targets only. No files were discarded, and no implementation or tests were run.
-- Conclusion/next action: Ariana reviews r6; approval remains pending. Before any source implementation, complete `CTX016-013`, then establish baseline and implement the approved scope.
-
-
-#### 2026-09-30 — `CTX016-001` winner-only contract settled
-
-- Attempt/change: Ariana specified, "Only winners should reach the engines". Appended the clarification to the local guide and froze canonical scope revision 1, preserving r6 text. Retained candidates are diagnostic only; winner selection and engine inputs must be identical with diagnostics enabled or disabled.
-- Result/observation: Upstream `EncyclopediaTwoPointOneScoringTask.call` trims once before queuing results; this is the intended diagnostic capture boundary. Current Context and upstream HEADs still match the recorded baselines; upstream working tree is clean. Interface/schema verification remains part of `CTX016-001`.
-- Baseline prerequisite issue: `bash -n build.sh` fails at line 124; `bash build.sh maven` fails first at line 44 (`MAVEN_REPO: readonly variable`). These are pre-existing and have not been repaired. Existing Maven 3.9.9 at `/Users/arianashannon/.codex/worktrees/42b7/context/build-cache/apache-maven-3.9.9/bin/mvn` runs on Oracle Java 17, so direct Maven invocation can establish the baseline without editing build tooling.
-- Next action: Complete the authorized cleanup inventory and baseline checks, then verify the smallest upstream API/preparation and sidecar contracts. No Java changes yet.
-
-
-#### 2026-09-30 — `CTX016-013` approved cleanup inventory
-
-- Retained: all `docs/` contents, root `TASKS.md`, and root `AGENTS.md`. Ignored build artifacts are outside this cleanup. No Eclipse process was found in the process check.
-- Exact uncommitted paths to discard (a deleted tracked file is restored):
-
-  - ` D CTX-008-seed-implementation.patch`
-  - `?? .Rhistory`
-  - `?? .metadata/.lock`
-  - `?? .metadata/.lock_info`
-  - `?? .metadata/.mylyn/.taskListIndex/segments_1`
-  - `?? .metadata/.mylyn/.taskListIndex/write.lock`
-  - `?? .metadata/.mylyn/repositories.xml.zip`
-  - `?? .metadata/.mylyn/tasks.xml.zip`
-  - `?? .metadata/.plugins/org.eclipse.buildship.core/gradle/versions.json`
-  - `?? .metadata/.plugins/org.eclipse.core.resources/.projects/.org.eclipse.egit.core.cmp/.location`
-  - `?? .metadata/.plugins/org.eclipse.core.resources/.root/.indexes/history.version`
-  - `?? .metadata/.plugins/org.eclipse.core.resources/.root/.indexes/properties.index`
-  - `?? .metadata/.plugins/org.eclipse.core.resources/.root/.indexes/properties.version`
-  - `?? .metadata/.plugins/org.eclipse.core.resources/.root/1.tree`
-  - `?? .metadata/.plugins/org.eclipse.core.resources/.safetable/org.eclipse.core.resources`
-  - `?? .metadata/.plugins/org.eclipse.e4.workbench/last_nl.properties`
-  - `?? .metadata/.plugins/org.eclipse.e4.workbench/workbench.xmi`
-  - `?? .metadata/.plugins/org.eclipse.egit.ui/dialog_settings.xml`
-  - `?? .metadata/.plugins/org.eclipse.jdt.core/assumedExternalFilesCache`
-  - `?? .metadata/.plugins/org.eclipse.jdt.core/externalFilesCache`
-  - `?? .metadata/.plugins/org.eclipse.jdt.core/javaLikeNames.txt`
-  - `?? .metadata/.plugins/org.eclipse.jdt.core/nonChainingJarsCache`
-  - `?? .metadata/.plugins/org.eclipse.jdt.core/variablesAndContainers.dat`
-  - `?? .metadata/.plugins/org.eclipse.jdt.launching/.install.xml`
-  - `?? .metadata/.plugins/org.eclipse.jdt.launching/libraryInfos.xml`
-  - `?? .metadata/.plugins/org.eclipse.jdt.ui/OpenTypeHistory.xml`
-  - `?? .metadata/.plugins/org.eclipse.jdt.ui/QualifiedTypeNameHistory.xml`
-  - `?? .metadata/.plugins/org.eclipse.jdt.ui/dialog_settings.xml`
-  - `?? .metadata/.plugins/org.eclipse.m2e.core/workspaceState.ser`
-  - `?? .metadata/.plugins/org.eclipse.m2e.logback/logback.2.7.101.20251017-1242.xml`
-  - `?? .metadata/.plugins/org.eclipse.mylyn.github.ui/avatars.ser`
-  - `?? .metadata/.plugins/org.eclipse.oomph.setup/workspace.setup`
-  - `?? .metadata/.plugins/org.eclipse.tips.ide/dialog_settings.xml`
-  - `?? .metadata/.plugins/org.eclipse.ui.ide/dialog_settings.xml`
-  - `?? .metadata/.plugins/org.eclipse.ui.intro/introstate`
-  - `?? .metadata/.plugins/org.eclipse.ui.workbench/dialog_settings.xml`
-  - `?? .metadata/.plugins/org.eclipse.ui.workbench/workingsets.xml`
-  - `?? .metadata/version.ini`
-
-- Result: Discarded the inventoried untracked files and restored the tracked root patch. Preserved every allowed document and ignored file. Cleanup complete.
-
-
-#### 2026-09-30 — `CTX016-002` baseline results and dependency blocker
-
-- Goal check: Work remains confined to CTX-016 setup, approved cleanup, and baseline validation. No Java, POM, engine, upstream source, or build-script edits have been made. No staging, commits, pushes, or external document writes occurred.
-- Environment: Existing Maven 3.9.9 at `/Users/arianashannon/.codex/worktrees/42b7/context/build-cache/apache-maven-3.9.9/bin/mvn`, Oracle Java 17, macOS 15.7.9 x86_64. Context HEAD `138e34f581d9623bf9d47d72ef26300effd6f7d2`; Encyclopedia HEAD `65d6346d2883cfda37ece0f9f2cc674bc5567899` with clean source working tree.
-- Context attempt: `<mvn> -o -B -Dmaven.repo.local=build-cache/m2-repository -Ppackage verify` failed on uncached resources plugin. Online retry initially failed sandbox DNS; approved network retry resolved public dependencies, then failed on JavaPot 1.0.5 unavailable in declared repositories. Copied the already-installed jar/POM from `~/.m2/repository/org/searlelab/javapot/1.0.5` into the project-local cache. Jar SHA-256: `7cdfc154858c2028055166f87d122659c4fbd671e48df47e1fd77c020d91c410`; POM SHA-256: `9d51635c1f7490731198dc009276036a7b765a2889d9e0a75c55f46ecb5260b9`. This is an installed artifact baseline, not verification of the source revision named in build.sh.
-- Context result: `<mvn> -B -Dmaven.repo.local=build-cache/m2-repository -Ppackage verify` compiled production/test sources and ran 88 tests: 3 failures, 2 errors, 8 skips. Verification failed in the test phase; packaging/vendor-binary checks did not run. Full final log: `tmp/ctx016/ctx016-context-baseline-cached-javapot.log`; reports: `target/surefire-reports/`.
-- Failing baseline cases: `ContextScribeTwoBridgeTest.absentPreAlignmentCannotBecomeUncalibratedSuccess`; `ScribeFeatureTableTest.missingRuntimeHasActionableError`; `ScribeFeatureTableTest.rejectsInvalidLabelsAndNonfiniteScoresWithRowContext`. Errors: `ScribeCalibratedWorkflowTest.realCalibratedTableSupportsPartitionAndBackgroundModelApplication` (missing classpath resource); `ContextPercolatorRunnerTest.commandMatchesPinnedDependencyExceptSeedForBothRounds` (could not preserve executable for debugging). No root-cause fixes attempted. Asked Ariana whether to record these or investigate separately.
-- Upstream attempt: In Encyclopedia, `<mvn> -o -B -Dmaven.test.skip=true compile` failed because JChronologer 1.0.10 is uncached. Approved online retry `<mvn> -B -Dmaven.test.skip=true compile` failed resolving its POM with GitHub Packages HTTP 401. Upstream compilation/tests have not run. Full log: `tmp/ctx016/ctx016-upstream-baseline.log`.
-- Blocker/next action: Asked Ariana for an accessible JChronologer 1.0.10 artifact or source checkout. Do not substitute cached 1.0.9 or change dependency requirements. `CTX016-002` remains incomplete; source implementation awaits the approved upstream baseline prerequisite. Continue interface/schema verification when the dependency is available. Canonical revision 1 remains unchanged.
-
-
-#### 2026-09-30 — `CTX016-002` requested JChronologer download retry
-
-- Attempt/change: At Ariana's request, retried from the Encyclopedia checkout with `/Users/arianashannon/.codex/worktrees/42b7/context/build-cache/apache-maven-3.9.9/bin/mvn -U -B -Dmaven.test.skip=true compile`, using approved network access. `-U` forces Maven to retry cached resolution failures.
-- Result: Exit 1. JChronologer 1.0.10 POM resolution still returns HTTP 401 Unauthorized from the configured GitHub Packages repository. The configured S3 repository also reports connection refused; the other configured repositories did not resolve the dependency. Compilation was not reached; no tests ran.
-- Evidence: `tmp/ctx016/ctx016-upstream-redownload.log`.
-- Next action: Obtain working package-repository access or an accessible JChronologer 1.0.10 artifact/source checkout. Dependency versions and source files remain unchanged.
-
-
-#### 2026-09-30 — `CTX016-002` Maven authentication diagnosis
-
-- At Ariana's request, checked repository IDs, credential configuration structure (without printing credential values), environment-variable presence, and artifact provenance. `~/.m2/settings.xml` has a server ID `github` matching upstream pom.xml. Its username/password reference `GITHUB_PACKAGES_USER` and `GITHUB_PACKAGES_TOKEN`; both are absent in the tool shell, including an explicitly checked unsandboxed shell matching the retry environment. This explains why the GitHub request lacks the configured authentication inputs; valid-token/package access remains untested.
-- Context's Encyclopedia 6.6.24 and MSRawJava core-nolice 26.7.31 resolved from repository-local `libs/`, not fresh authenticated remote downloads. Upstream MSRawJava core 26.7.31 and JavaPot 1.0.5 cache metadata records prior downloads through repository ID `github` dated 2026-09-21; current remote access for those artifacts was not tested. The upstream Encyclopedia project is built from source.
-- Conclusion: GitHub is reachable and returns HTTP 401; this is an authentication failure, distinct from the fallback S3 connection-refused error. Supply the configured environment variables securely to the Maven process and retry before considering dependency or repository changes. No credentials displayed or modified.
-
-
-#### 2026-09-30 — `CTX016-002` JChronologer available; upstream compile passes
-
-- Attempt/change: After Ariana reported successful terminal compilation and updated Maven settings, reran `/Users/arianashannon/.codex/worktrees/42b7/context/build-cache/apache-maven-3.9.9/bin/mvn -U -B -Dmaven.test.skip=true compile` in Encyclopedia from this chat's execution environment.
-- Result: BUILD SUCCESS, exit 0; compiled 670 source files. JChronologer 1.0.10 is now present in the local Maven cache (jar SHA-256 `a4d90e69e1721d107d88cc0abc36daf962b0782493767ae53151c693aa909253`). This verifies dependency availability and upstream compilation; the command reused the cached release artifact, so it does not independently verify a fresh authenticated download. No tests ran under `maven.test.skip=true`.
-- Evidence: `tmp/ctx016/ctx016-upstream-access-recheck.log`.
-- Next action: The missing-dependency blocker is cleared. Continue remaining CTX-016 baseline/interface verification under the approved plan. Previously recorded Context baseline test failures remain unresolved; no source or dependency declarations changed in this check.
-
-
-#### 2026-09-30 — `CTX016-006` empirical assignment output
-
-- Attempt/change: Added `<acquisition>_masked<seed>_entrapment_assignments.tsv` beside each bootstrapper assay list. Each row has relation type `EMPIRICAL_ASSAY_ENTRAPMENT` plus modified target/entrapment sequences and charges. The writer validates that every selected target has the requested number of ordered entrapments before writing. Added a synthetic one-to-many test and checked that the existing bootstrapper run creates the sidecar.
-- Result: `/Users/arianashannon/.codex/worktrees/42b7/context/build-cache/apache-maven-3.9.9/bin/mvn -B -Dmaven.repo.local=build-cache/m2-repository -Dtest=TargetedBootstrapperTest test` passed: 2 tests, 0 failures/errors/skips. `git diff --check` passed. This tests assignment persistence and a small existing fixture; it does not validate the later search-pair sidecar or peptide confidence estimates.
-- Next action: Continue `CTX016-001` upstream preparation and feature-identity contract, then `CTX016-003` upstream implementation. Document the new sidecar path and schema under `CTX016-008`.
-
-
-#### 2026-09-30 — `CTX016-001` material plan correction and implementation pause
-
-- Trigger: Ariana paused CTX-016 implementation and directed that source changes be confined to Context, with no edits to `ScribeTwoLibraryPreparation.java` or other Encyclopedia classes. This replaces the r6 upstream-change architecture while preserving the scientific outcome and winner-only engine boundary.
-- Action/evidence: The only Encyclopedia edits made in this implementation were to `ScribeTwoLibraryPreparation.java` and `ScribeTwoLibraryPreparationResult.java`. Ariana explicitly requested their removal. Restored exactly those two files from Encyclopedia `HEAD`; `git status --short --branch` now shows clean `master...origin/master`, and `git diff --stat` is empty. No upstream tests were run on the discarded edits.
-- Impact/next action: Frozen canonical revision 1 remains unchanged as history. Proposed local guide r7 and replacement tasks `CTX016-014`–`CTX016-016` are pending approval. No further implementation or upstream source changes while paused. Context's `TargetedBootstrapper` assignment output and passing 2-test result remain in the working tree because Ariana requested only Encyclopedia changes be discarded; it will be reviewed against r7 before resuming. The earlier `CTX016-006` log's next action is superseded by this pause.
-
-
-### Approved r7 replacement tasks — 2026-09-30
-
-- [ ] `CTX016-014` Add Context-owned working-library regeneration and prediction orchestration using unchanged public Encyclopedia APIs. Files: new Context scoring/preparation class, focused tests, fixture notes. Check: exact modified-sequence/charge requests, target retention after missing decoy, reasoned target exclusion, mapping coverage, bounded failure isolation, deterministic cache/provenance.
-- [ ] `CTX016-015` Update only Context's copied feature-only `EncyclopediaTwo` and scoring task/factory to use the unmodified 6.9.23 matched-decoy strategy and to emit typed pair/mode metadata plus optional pre-trim candidate diagnostics. Files: Context scoring classes, `pom.xml`, focused tests. Check: predicted/shuffled/target-only cases, winner parity with diagnostics on/off, no upstream FDR call, no Encyclopedia source diff.
-- [ ] `CTX016-016` Produce and validate the search-pair sidecar from the Context search result; join by existing feature `id` through partitioning and reusable inputs. Files: `ContextFeatureScorer` and Context scoring IO/tests. Check: modifications, charge, duplicates, ties, missing/ambiguous joins, cache identity, legacy path, and both rescorers' `id` retention without engine-class edits.
-
-### Approved r7 commit groups — Scope planning only; execution requires separate authorization
-
-- Earlier Groups A and B are superseded because they included upstream edits or removal of Context's copied feature generator. Do not execute them.
-- Group E: `CTX016-014` — Context working-library preparation and prediction tests. Proposed message: `Prepare matched search libraries in Context`.
-- Group F: `CTX016-015` — Context feature-only scoring, mode/pair results, diagnostics, and unmodified dependency pin. Proposed message: `Score matched decoys through Context feature path`.
-- Group G: `CTX016-016` — `id`-keyed pair sidecar, partition/cache handling, and tests. Proposed message: `Track search pair identity through Context features`.
-- Existing completed `CTX016-006` remains its own Group C scope. Existing `CTX016-007`–`CTX016-012` remain pending downstream validation, documentation, review, Report, and final human review tasks; applicable review will use Chat models only. Each actual commit still requires separate explicit authorization.
-
-#### 2026-09-30 — `CTX016-001`, `CTX016-014`–`CTX016-016` Context-only approval and resume
-
-- Ariana explicitly approved the Context-only r7 guide and told Codex to continue. Canonical revision 2 records that scope and the winner-only engine boundary; revision 1 and the older task/commit groups remain historical. The Encyclopedia checkout remains clean, and no Encyclopedia source edits are authorized.
-- `CTX016-014` starts with verification of the unchanged prediction and library APIs. Next action: implement Context-owned working-library preparation, then the Context feature and sidecar tasks. Chat-model review replaces the unavailable Claude Code scripted review. No Git delivery action is authorized.
-
-#### 2026-09-30 — `CTX016-014`, `CTX016-015` unchanged dependency compatibility
-
-- Inspected the unchanged Encyclopedia 6.9.23 APIs: `LibraryFile` exposes target metadata and batched persistence; `JChronologerLibraryPredictionClient.ScribeTwoPredictionSession` accepts exact modified-sequence/charge requests and general `SearchParameters`; `EncyclopediaTwoDecoyStrategy` selects mapped mode only at at least 97.5% unique coverage with matching metadata and no extra decoy libraries. Context's current copied search still generates shuffled decoys and requires adaptation.
-- Built the unchanged Encyclopedia checkout with Java 17. `mvn -Dmaven.test.skip=true package` was interrupted after it began downloading a large Maven S3 transport graph; the offline package attempt compiled 670 source files but stopped at missing Surefire plugin dependencies. A focused `mvn jar:jar` completed successfully and produced `target/encyclopedia-6.9.23.jar`. The upstream Git tree remained clean.
-- Added the pinned 6.9.23 jar and Maven descriptor to Context `libs/`, plus JChronologer 1.0.10 required by the new prediction API. Added the previously locally built JavaPot 1.0.5 artifact to `libs/` because the initial Context compile could not resolve that existing direct dependency from Maven Central. Updated `pom.xml` to 6.9.23 and removed its JChronologer exclusion. Context `mvn -B -U -Dmaven.repo.local=/Users/arianashannon/.m2/repository -Dmaven.test.skip=true compile` passed with Java 17 (39 source files). This is compilation only, not package or runtime validation. Next: implement and test Context-owned working-library preparation and feature scoring.
-
-#### 2026-09-30 — `CTX016-014`, `CTX016-015` first Context implementation slice
-
-- Added Context-owned `ContextWorkingLibraryPreparer` using unchanged public prediction and `LibraryFile` APIs. It predicts exact modified-sequence/charge requests in bounded batches, isolates request failures, retains a target if its decoy is unavailable, excludes a target without a spectrum, writes a run-local library and assignment report, and rejects existing output paths. Added a small synthetic JUnit 4 test; `ContextWorkingLibraryPreparerTest` passed 2 tests, 0 failures/errors/skips. This class is not yet connected to `ContextFeatureScorer`; cache identity, source/version provenance, and batch failure detail remain to complete `CTX016-014`.
-- Updated only Context's copied `EncyclopediaTwo` to resolve the unchanged upstream strategy and select mapped predicted decoys, a target-only candidate when mapping is missing, or shuffled decoys. Added a typed selection callback and focused strategy tests. `EncyclopediaTwoMatchedDecoyTest` and the preparer test passed together: 4 tests, 0 failures/errors/skips. Diagnostic candidate capture, result metadata persistence, and the search-pair sidecar remain to complete `CTX016-015`/`CTX016-016`. No Encyclopedia source diff was made.
-- The first offline focused test command was unrun because several dependencies and Surefire artifacts were absent from that cache. The subsequent online `mvn -B -U -Dmaven.repo.local=/Users/arianashannon/.m2/repository -Dtest=ContextWorkingLibraryPreparerTest test` passed 2 tests; after the Context strategy change, offline `mvn -B -o -Dmaven.repo.local=/Users/arianashannon/.m2/repository -Dtest=ContextWorkingLibraryPreparerTest,EncyclopediaTwoMatchedDecoyTest test` passed 4 tests. These checks do not validate live JChronologer prediction or the end-to-end scoring path.
-
-#### 2026-09-30 — `CTX016-014`, `CTX016-016` prediction settings and feature-id join
-
-- Ariana specified Context prediction defaults: NCE 27, default charge 2, DIA NCE adjustment enabled. These replace the upstream ScribeTwo defaults for CTX-016. The values must be exposed at the Context entry point, included in cache identity, and documented; the preparer currently accepts them explicitly and its test uses older example values, so integration remains open.
-- Added a Context search-pair sidecar builder that collects typed target/decoy selections and joins each feature row using existing `id`, `Label`, modified sequence, and charge. It fails on missing relations, duplicate IDs, and inconsistent row identity. Focused `SearchPairSidecarTest` passed 2 tests, 0 failures/errors/skips with `mvn -B -o -Dmaven.repo.local=/Users/arianashannon/.m2/repository -Dtest=SearchPairSidecarTest test`. Production integration, cache validation, and partition/rescorer survival are still pending.
-
-#### 2026-09-30 — `CTX016-014`–`CTX016-016` feature path and population propagation
-
-- Connected the Context-owned working-library preparer to `ContextFeatureScorer.scoreFeaturesForContext` for new feature generation. The Context copied search now emits typed target/decoy selections; its `id` sidecar is written before partitioning. A SHA-256 manifest covers source library, DIA, FASTA, assay schedule, search parameters, Context prediction settings, generated features, sidecar, and optional diagnostic. Reuse requires a matching manifest; explicit `allowLegacyFeatures` permits an old feature file only when neither CTX-016 companion exists. Stale caches fail clearly rather than being silently reused.
-- Added Context CLI settings with Ariana's defaults (NCE 27, charge 2, DIA adjustment enabled), optional pre-trim candidate diagnostics, and explicit legacy reuse. The Context copied scoring task sends candidates to a separate diagnostic writer immediately before its unchanged `trim(1)` winner boundary; only trimmed results reach the feature writer. Diagnostic output is optional and included in cache identity.
-- Updated Context partitioning to use the sidecar's target modified-sequence/charge key when assigning reference versus background. Independently predicted decoys inherit their search target's population. The original sequence/reversal classification remains for legacy feature files. Reference/background sidecars contain the selected feature IDs. A synthetic paired-partition test with a non-reversed predicted decoy passed (2 reference rows, 0 background rows, both IDs retained). Focused preparer, strategy, sidecar, cache, and CLI tests passed together: 10 tests, 0 failures/errors/skips. `ContextFeatureScorerPairedPartitionTest` separately passed 1 test, 0 failures/errors/skips.
-- Remaining: end-to-end live prediction/search validation, stronger partial-output cleanup and resource handling, direct-input rescorer checks, documentation, Java 17 package verification, scientific comparison where data exist, and independent Chat-model review. No claim of FDR validity follows from these small tests.
-
-#### 2026-09-30 — `CTX016-014`–`CTX016-016` output integrity and predicted-mode callback correction
-
-- Review found that the Context copied search emitted pair selections only in the shuffled branch. Moved the callback after candidate construction so predicted, shuffled, and target-only selections are all recorded before scoring. This was a required correction within the approved Context-only path; no Encyclopedia source was changed.
-- Sidecar creation now writes a temporary file and publishes it atomically after every feature ID is validated. Partition sidecars are likewise published atomically and can be regenerated on verified cache reuse. The cache identity now hashes analysis settings without the legacy-reuse permission switch; its manifest is published atomically. Working-library preparation checks output paths before opening the predictor and removes its own partial library/report on failure.
-- Focused Java 17 tests after the callback and output corrections: `mvn -B -o -Dmaven.repo.local=/Users/arianashannon/.m2/repository -Dtest=ContextWorkingLibraryPreparerTest,EncyclopediaTwoMatchedDecoyTest,SearchPairSidecarTest,ContextFeatureCacheIdentityTest,ContextFeatureScorerCLITest,ContextFeatureScorerPairedPartitionTest test` passed 11 tests, 0 failures/errors/skips. A preceding run including `TargetedBootstrapperTest` passed 13 tests. Tests now cover failed joins leaving no sidecar and repeated partition output. Next: run broader package checks, validate live scoring and engine reuse, then document observed limits.
-
-#### 2026-09-30 — `CTX016-009` full verify and live-prediction limitation
-
-- Offline `-Ppackage verify` stopped before compilation because Maven jar plugin 3.4.1 was uncached. An online retry downloaded that project-local plugin and ran 98 tests: 4 failures, 3 errors, 8 skips, then stopped before packaging. Five failures/errors match the recorded preimplementation baseline (`ContextScribeTwoBridgeTest`, two `ScribeFeatureTableTest` cases, `ScribeCalibratedWorkflowTest`, and `ContextPercolatorRunnerTest`). `ContextMProphetExecutorTest.test` did not produce its expected output, and the old `ContextFeatureScorerTest.smokeTest` encountered a preexisting feature file without the new required sidecar/manifest. Those two cases require isolation before attributing them to CTX-016.
-- A new one-precursor integration test attempted the actual JChronologer 1.0.10 prediction session and failed before prediction: DJL reported no PyTorch 2.7.1 native library for `cpu-osx-x86_64`. JChronologer's descriptor ships natives for macOS ARM, Linux x86_64, and Windows x86_64, not this host. Docker is unavailable locally. Live prediction/search and representative scientific comparison are therefore unverified here. The integration test is gated to skip on Intel macOS and remains runnable on supported hosts; Ariana was asked whether one is available. No dependency or scientific fallback was substituted.
-
-#### 2026-09-30 — `CTX016-008`, `CTX016-009` package and documentation
-
-- `mvn -B -U -Dmaven.repo.local=/Users/arianashannon/.m2/repository -Ppackage -Dmaven.test.skip=true verify` passed Java 17 compilation, jar/shade creation, and the `verify-no-vendor-binaries` packaging task. This package check skipped tests and cannot establish live prediction. The shaded jar is 311 MB and contains the JChronologer model resources and supported-platform PyTorch libraries. Normal `-Ppackage verify` still fails in its test phase as recorded above.
-- Replaced the old smoke test, which depended on an unverified generated feature file under `target/test-classes`, with an isolated cache-guard check using copied input fixtures. Updated README with the approved prediction defaults, working-library/pair sidecars, winner-only diagnostics, cache migration, and platform limit. Focused CTX-016 tests including the replacement cache test passed 15 tests, 0 failures/errors, 1 platform-gated skip. Added a modified-sequence/two-charge sidecar check, which passed 3 sidecar tests. Scientific comparisons and both rescorer paths remain unverified.
-
-## Approved separate follow-up — Context feature and mProphet entry points
-
-- Ariana explicitly approved a separate fix on 2026-09-30 for the positional `features` command's out-of-range `args[7]` access and the `mprophet` command's disabled dispatcher route. This is separate from the frozen CTX-016 canonical plan. No backlog CTX ID was assigned. No Git delivery was authorized.
-- [x] `CLI-FOLLOWUP-001` Make the four-argument `features` command reach Context scoring and propagate failures. Check: Java 17 compilation and focused CLI checks.
-- [x] `CLI-FOLLOWUP-002` Provide a working `mprophet` command for raw and pre-split feature inputs using existing Context mProphet logic, with clear failures and output handling. Check: CLI tests, readable help, and integration where supported.
-- `CLI-FOLLOWUP-001` in progress: the positional command now uses its four declared arguments, passes seed 0 to the scorer, and propagates errors. `CLI-FOLLOWUP-002` needs an entry-point adapter because the existing `ContextMProphetExecutor` has no `main` method; its commented dispatcher line cannot simply be uncommented. Keep these fixes Context-only and record validation limits separately.
-
-#### 2026-09-30 — `CLI-FOLLOWUP-001`, `CLI-FOLLOWUP-002` implementation and direct-feature check
-
-- The positional `features` command no longer reads `args[7]` after requiring exactly four arguments. It passes seed 0 to `ContextFeatureScorer` and propagates failures instead of printing a stack trace and returning apparent success. Java 17 compilation passed; its live raw scoring path remains limited by the unsupported local JChronologer native runtime.
-- Added a Context-owned `mprophet` CLI adapter for raw or pre-split feature inputs. It checks paired sidecars by `id` or requires explicit legacy input, rejects an existing output directory, supports `-fdr`, and reuses `AllWorkflowExecutorCLI.runContextMProphet` for background model training and reference application. The latter now checks for missing model/results rather than dereferencing null. The mProphet engine class is unchanged. Focused CLI tests passed 5 tests, 0 failures/errors/skips.
-- Created a temporary alternating-row split of the existing `standard_percolator_test.features.txt` fixture (500 background and 500 reference rows; background 254 targets/246 decoys) under `tmp/ctx016/mprophet-direct/`. Packaged the current command with tests skipped, then ran the shaded jar with `mprophet -background ... -reference ... --allow-legacy-features true`. It exited 0, trained a background LDA, applied it to reference, and wrote four peptide target/decoy outputs under a fresh `context-mprophet` directory. All output `PSMId` values in both populations were present in their respective input feature files. This verifies the direct legacy CLI path and ID retention on a synthetic split; the alternating split is not a biological reference/background partition and does not validate calibration or FDR.
-
-#### 2026-09-30 — `CTX016-009`, `CLI-FOLLOWUP-002` broad rerun
-
-- After replacing the old cache-dependent smoke test and adding CLI checks, `mvn -B -o -Dmaven.repo.local=/Users/arianashannon/.m2/repository -Ppackage verify` ran 103 tests: 4 failures, 2 errors, 9 skips. Five failures/errors are the exact cases recorded in the preimplementation baseline. The additional `ContextMProphetExecutorTest.test` failure is the documented Intel-macOS JChronologer native-library limitation (its captured stderr reports `cpu-osx-x86_64:2.7.1`), because that older test starts raw prediction. No new CTX-016 focused test failed. The Maven lifecycle stopped before packaging; the separate package check with tests skipped passed.
-- Corrected the Context working-library path to preserve a completed exclusion report when every target prediction is unavailable; the focused missing-target test now checks that report. Added a direct diagnostic writer test to check pre-trim output does not mutate candidate order or the subsequent winner. Results of that latest diagnostic test are still pending at this log point.
-
-#### 2026-09-30 — `CLI-FOLLOWUP-002`, `CTX016-016` direct reuse validation
-
-- The direct mProphet adapter now verifies that every split feature `id`, `Label`, modified sequence, and charge agrees with its pair sidecar before engine execution. It rejects extra or missing sidecar rows, duplicate IDs, invalid labels, and malformed IDs as input errors. A focused sidecar test confirms that a changed feature label fails, while a matching file passes.
-- Java 17 focused command: `mvn -B -o -Dmaven.repo.local=/Users/arianashannon/.m2/repository -Dtest=SearchPairSidecarTest,ContextMProphetCLITest,ContextFeatureScorerCLITest,ContextWorkingLibraryPreparerTest,CandidateDiagnosticWriterTest,ContextFeatureScorerPairedPartitionTest test`. Result: 13 tests, 0 failures, 0 errors, 0 skips. `git diff --check` passed. The diagnostic writer test confirms candidate order and winner are unchanged by diagnostic capture.
-- `CLI-FOLLOWUP-002` is complete for its approved CLI scope: help/dispatch and error tests pass, and the shaded jar completed a direct pre-split mProphet run as logged above. Raw prediction remains unrun on this Intel Mac because the pinned JChronologer/PyTorch dependency lacks its native library; this is a CTX-016 platform validation limit, not a claim of raw-path success. No commit, push, or PR was made.
-
-#### 2026-09-30 — `CTX016-016`, `CTX016-008`, `CTX016-009` final preflight correction
-
-- Review found that direct `partitionFeatures` checked sidecar ID coverage but did not recheck Label, modified sequence, and charge. It now runs the shared sidecar/feature validator before partitioning. The first focused rerun compiled but failed one test because its expected error text still named the later ID-coverage check. Updated that assertion to the earlier validator's equivalent ID-mismatch error; the rerun passed 7 tests, 0 failures/errors/skips (`SearchPairSidecarTest`, `ContextFeatureScorerPairedPartitionTest`, `ContextMProphetCLITest`). This is a test-message correction; the corrupt sidecar remains rejected.
-- Updated README and top-level help to match the approved `mprophet` adapter. The direct legacy fixture run produced four files under `context-mprophet/` with `.peptide.<population>.<target|decoy>.txt` names; the previous README named a different directory and target filenames. Removed its unsupported `-seed` and pass-through flag claims for the new adapter.
-- Java 17 `mvn -B -o -Dmaven.repo.local=/Users/arianashannon/.m2/repository -Ppackage -Dmaven.test.skip=true verify` passed after the main CLI and sidecar changes, including shaded jar and vendor-binary verification. This package check skipped tests; the last partition validator line was then compiled and covered by the 7-test focused rerun. Full test-inclusive verify remains limited by the baseline cases and Intel-macOS native issue logged above.
-- The mProphet adapter now rejects `-generateDecoys` with direct pre-split inputs because that flag has meaning only during raw scoring. The focused 7-test suite was rerun after this check and passed with 0 failures/errors/skips. `git diff --check` passed, the Context branch remains `ariana/scoring`, and the separate Encyclopedia checkout remains clean.
-- CTX-016 is still in progress. Live JChronologer prediction/search needs a supported runtime, and the Percolator runtime check needs its executable and pyIsoPEP. The direct legacy mProphet run and source inspection do not establish representative calibration or FDR validity. The external completion Report and final human-review handoff therefore remain pending.
-
-#### 2026-10-06 — `CTX016-010` first Chat-model reviewer handoff prepared
-
-- Wrote `docs/ctx-016-first-reviewer-handoff.md` against the approved Context-only canonical revision 2 and local guide r7. It identifies the entire tracked and untracked CTX-016 change surface, separate approved CLI follow-up, scientific/compatibility review questions, known baseline failures, actual checks, and unverified live prediction, Percolator, and representative calibration work. This is a review request, not a reviewer finding or completion outcome.
-- Verified current Context checkout is `ariana/scoring` at `4cccfc7b5b10e63d33360bdec23d89494be2b13c` with CTX-016 changes still uncommitted. `git diff --check` passed; no tests or package build were rerun on this date. Next action: obtain first independent Chat-model review, record its findings and corrections, then complete remaining validation before the external Report and Ariana's final review. `CTX016-010` remains open.
-
-#### 2026-10-06 — `CTX016-010` first reviewer outcome and implementation-record sync
-
-- First Chat-model reviewer outcome: **REQUEST CHANGES** against approved r7/canonical revision 2. Findings: sequence-only best-feature reduction occurs before charge-aware reference/background partitioning and can discard an assayed charge; a failed feature run can leave a raw TSV without its pair sidecar/manifest and block retry; and direct Percolator split-file reuse lacks CTX-016 pair-sidecar preflight. The reviewer inspected tracked and untracked code, both engine entry paths, and the pinned `SearchParameters` API. `git diff --check` passed; tests were not rerun during this read-only review. These findings await implementation and verification; `CTX016-010` remains open.
-- Ariana approved the current local r7 implementation record and requested synchronization of the linked Google record. Updated that record in place to identify approved r7/canonical revision 2, retain r6 as historical, and describe the Context-only scope, work, validation limits, and pending reviewer corrections. Readback confirmed those markers and section headings. The frozen canonical plan was not edited; no Java, dependency, Git delivery, or external Report action occurred. Next action: address the three findings within approved scope, log focused checks, then continue the remaining review and scientific validation.
-
-#### 2026-10-06 — `CTX016-010` first reviewer corrections under approved r7
-
-- Corrected precursor reduction in `ContextFeatureScorer.partitionFeatures` to select the best feature per modified sequence and charge before reference/background partitioning. A synthetic regression gives the unassayed charge the higher score and verifies that the assayed charge remains in the reference output while the other charge goes to background.
-- Added a CTX-016 in-progress marker before feature generation. On retry, a marked attempt lacking a completed manifest moves its partial feature TSV, sidecar, working library, prediction report, optional diagnostic, and marker into a nearby unique `.failed-*` directory before regeneration. Existing unmarked outputs still fail preflight, and a completed cache still requires identity verification. A focused test verifies partial artifacts and the prediction report are preserved and the output path can be reused.
-- Added the existing pair-sidecar preflight to direct Percolator split-file reuse, sharing the check with mProphet. Both sidecars must match their feature files; explicit `--allow-legacy-features true` applies only when neither sidecar exists. The CLI test checks default rejection, explicit legacy acceptance, and rejection of a partial companion set. Updated README for the flag, precursor reduction, and retry behavior. No Percolator or mProphet engine class was changed.
-- Verification: Java 17 Maven focused affected suite (`-Dtest=SearchPairSidecarTest,ContextWorkingLibraryPreparerTest,CandidateDiagnosticWriterTest,ContextFeatureScorerCLITest,TargetedBootstrapperTest,ContextFeatureScorerTest,ContextFeatureCacheIdentityTest,ContextFeatureScorerPairedPartitionTest,ContextPercolatorExecutorCLITest,ContextMProphetCLITest test`) passed 20 tests, 0 failures/errors/skips. The initial four-class regression suite passed 8 tests. Live JChronologer prediction/search, Percolator/pyIsoPEP execution, and representative scientific calibration remain unverified; this correction does not establish them. The first-review findings are corrected locally, while `CTX016-010` remains open pending broader review and remaining validation.
-- Offline Java 17 `-Ppackage -Dmaven.test.skip=true verify` passed shaded jar creation and the vendor-binary check after these corrections. Tests were skipped in this package command; the separate 20-test run above supplies test evidence. Maven shade emitted overlapping metadata/resource warnings, as in the prior package check. No full test-inclusive verification was rerun because its recorded baseline and Intel-macOS JChronologer failures remain unresolved.
-- Synchronized the linked Google implementation record by appending the correction dispositions and validation limits under a new reviewer-correction heading; readback confirmed its heading style and text. Updated the local r7 guide and README, and `git diff --check` passed. The canonical revision 2 plan was not edited. Next action: independent review of these corrections and the remaining supported-host/live scientific checks before the completion Report and Ariana's final acceptance.
-
-#### 2026-10-06 — `CTX016-010` Reviewer #2 outcome and second correction pass
-
-- Reviewer #2 returned **REQUEST CHANGES** with three P2 findings: direct sidecar preflight accepted inconsistent target/decoy keys or a `LOSER` row; retry recovery could move output from an active invocation; and directory hashing plus the mProphet raw-input check rejected documented Bruker `.d` acquisitions. Reviewer #2 reported 15 focused tests passing from existing compiled classes, `git diff --check` passing, and temporary probes for the sidecar and directory failures. Their review did not rebuild or edit the repository. Ariana requested implementation of these corrections under the approved Context-only plan.
-- Accepted all three findings. `SearchPairSidecar` now validates `WINNER`, candidate-to-target/decoy key agreement, relation type, eligibility, mode, method, and key charge in both direct preflight and partition metadata reads. Negative regressions alter the target key, decoy key, and winner outcome of a generated sidecar. A row cannot prove that an absent paired counterpart was biologically generated from its claimed target; source generation and provenance remain the authority for that claim.
-- `ContextFeatureScorer` acquires an exclusive adjacent feature-output file lock before cache inspection or recovery and holds it through feature, sidecar, manifest, and split-file publication. A second overlapping invocation fails with an in-use error and leaves the first attempt's marker/output untouched; after release, retry can archive the incomplete attempt. The lock file persists so its identity remains stable across invocations. A two-thread regression covers overlap and subsequent recovery.
-- `ContextFeatureCacheIdentity` now hashes directory trees by sorted relative path, entry type, size, and file content, without timestamps; a `.d` fixture verifies stable identity and invalidation after nested content changes. The mProphet `-i` validator accepts readable `.d` directories while keeping other input flags file-only. README describes lock ownership and directory hashing. No Encyclopedia source or confidence engine class changed.
-- Java 17 source and test compilation passed. The affected 10-class suite passed 24 tests, 0 failures/errors/skips; the initial five-class correction suite passed 15 tests. Offline `-Ppackage -Dmaven.test.skip=true verify` passed shaded jar and vendor-binary checks with tests skipped. `git diff --check` passed. Full test-inclusive verification was not rerun; recorded baseline failures and the Intel-macOS JChronologer limitation remain. Live prediction/search, Percolator/pyIsoPEP, representative calibration, completion Report, and Ariana's final review remain open. `CTX016-010` stays unchecked.
-- Ariana asked for an implementation-record currency check before handoff. Updated the linked Google record's top status and r7 validation/next-action statements, labeled the first review outcome as historical, and added Reviewer #2 outcome and correction sections. Readback confirmed current status, section headings, and no remaining current-section claim that reviewer corrections are pending. The old r6 template still says approval/pending implementation because it is explicitly labeled superseded history, not current status. Added a matching current-status note to the top of the local guide. The Google and local records both leave `CTX016-010` open and distinguish completed checks from live/scientific validation still needed.
-
-#### 2026-10-06 — `CTX016-010` Git delivery draft and 6.9.23 alignment
-
-- Ariana requested a Git delivery draft, then specified that Encyclopedia 6.9.23 should be the active version everywhere. Wrote `docs/ctx-016-git-delivery-draft.md` with proposed r7/CLI commit groups, exact paths, exclusions, and readiness checks. No staging, commit, push, PR, or release occurred.
-- Aligned the active `build.sh` jar path, test/image/release workflow jar checks, and `ScribeTwoFeatureGenerator` dependency metadata/error with the already pinned 6.9.23 POM and CTX-016 provenance. The only remaining active-source text mentioning 6.6.24 is the historical attribution comment for `ContextPercolatorRunner`; old r6/task records also retain their original historical wording. The tracked 6.6.24 bundle remains unused and was not deleted.
-- Java 17 Maven recompiled 44 production and 30 test source files. A two-method `ScribeFeatureTableTest` run reported 1 pass and 1 known baseline failure: `missingRuntimeHasActionableError` expects lowercase `no uncalibrated fallback`, while the existing message begins uppercase `No`; line 75 failed. `bash -n build.sh` failed at its pre-existing line-124 syntax error. These outcomes do not verify full build-script or CI execution. The new 6.9.23 jar exists locally; a clean-repository dependency check and actual CI remain unrun. Next action: review the proposed commit scopes and validation gates, then seek explicit authorization for each actual commit.
-
-#### 2026-10-06 — `CTX016-006` Commit 1 staged draft; awaiting Ariana's approval
-
-- Ariana clarified that the six proposed commits should be drafted in Git on the command line and approved one at a time. The Google implementation record now contains the detailed six-commit proposal and exclusions; readback confirmed the new section and heading.
-- Staged only `src/main/java/org/searlelab/context/io/TargetedBootstrapper.java` and `src/test/java/org/searlelab/context/io/TargetedBootstrapperTest.java` for proposed message `Record empirical entrapment assignments`. `git diff --cached --check` passed; staged scope is exactly two files, 61 insertions and 2 deletions. `git commit --dry-run -m "Record empirical entrapment assignments"` succeeded and showed only those two files in the proposed commit. `-Dtest=TargetedBootstrapperTest test` passed 2 tests, 0 failures/errors/skips. No commit was created. Await Ariana's explicit approval before running `git commit` or staging Commit 2.
-
-#### 2026-10-06 — `CTX016-006` Commit 1 approved and created
-
-- Ariana explicitly approved the drafted Commit 1 message and two-file scope. Verified the staged names and `git diff --cached --check`, then ran `git commit -F tmp/ctx016/commit-1-message.txt`. Commit `07975eb9f1b5dcdf56257ce4e67cd56cd1a41890` contains only `TargetedBootstrapper.java` and `TargetedBootstrapperTest.java` (61 insertions, 2 deletions). The staged index was empty afterward. No push, PR, release, or other commit was made. Next action: draft Group E Commit 2 for Ariana's separate approval.
-
-#### 2026-10-06 — `CTX016-014`–`CTX016-016`, `CLI-FOLLOWUP-001`–`CLI-FOLLOWUP-002` remaining Git commits authorized and created
-
-- Ariana clarified that seeing one drafted commit was sufficient and explicitly authorized the remaining commits and push. The preparer imports a public class absent from the previously committed 6.6.24 jar, so the 6.9.23 dependency and build/CI alignment were committed with the preparer in Group 2. The revised scope is recorded in `docs/ctx-016-git-delivery-draft.md`. Each staged file list matched its group and each staged diff passed `git diff --cached --check`.
-- Commit `c4a0cde` (`Pin Encyclopedia 6.9.23 and prepare matched search libraries`) contains the 6.9.23, JavaPot 1.0.5, and JChronologer 1.0.10 bundled artifacts, active version paths, Context working-library preparer, and its tests. Four focused tests passed, with one platform-gated live test skipped on Intel macOS. The JavaPot and JChronologer artifacts are needed by the approved 6.9.23 dependency path.
-- Commit `860d728` (`Score matched decoys through Context feature path`) contains Context's copied scoring adaptations and diagnostic writer. `EncyclopediaTwoMatchedDecoyTest,CandidateDiagnosticWriterTest` passed 3 tests. This Maven run recompiled 44 production and 30 test classes using Java 17; missing dependencies were resolved into this checkout's Maven repository.
-- Commit `7b06e33` (`Track search pair identity through Context features`) contains sidecar validation, charge-aware partitioning, directory-content cache identity, exclusive output locking/recovery, Percolator direct-input preflight, and focused regressions. `SearchPairSidecarTest,ContextFeatureCacheIdentityTest,ContextFeatureScorerPairedPartitionTest,ContextFeatureScorerTest,ContextPercolatorExecutorCLITest` passed 12 tests. The positional `features` fix shares `ContextFeatureScorer.java` and is in this commit.
-- Commit `16275b1` (`Expose Context feature and mProphet CLI paths`) contains CLI dispatch, raw and split mProphet input validation, and CLI tests. `ContextFeatureScorerCLITest,ContextMProphetCLITest` passed 6 tests. No pull request or release is authorized. Next action: commit the documentation and task log, then push `ariana/scoring` to `origin` as requested. `CTX016-010`, supported-host live prediction/search, Percolator/pyIsoPEP, representative calibration, completion Report, and final human review remain open.
-
-#### 2026-10-06 — `CTX016-010` documentation commit and push credential blocker
-
-- Created documentation commit `891b1f4` (`Document CTX-016 implementation and review evidence`) with README, local guide, frozen canonical plan, first-review handoff, Git delivery record, and this task log. Its six-file staged diff passed `git diff --cached --check`. The unrelated `.gitignore` edit and local CTX-015/R-history files remain excluded.
-- `git push -u origin ariana/scoring` failed with HTTP 400; an HTTP/1.1 retry disconnected. A buffered HTTP/1.1 retry reached GitHub and returned the definitive rejection: the current Personal Access Token cannot update `.github/workflows/image.yml` without `workflow` scope. The remote `ariana/scoring` head remained `138e34f`; local HEAD is `891b1f4`. A read-only SSH check using GitHub's verified host key failed `Permission denied (publickey)`. No push succeeded. Next action: use a GitHub credential with workflow-file write permission and retry the same non-force push; do not remove the version-alignment workflow changes merely to bypass the rejection. No PR or release was attempted.
-
-#### 2026-10-07 — `CTX016-010` Git delivery verified
-
-- Ariana added the token's `workflow` permission and retried the push; her terminal still reported HTTP 400 and a disconnect. A buffered HTTP/1.1 retry returned `Everything up-to-date` and set the upstream tracking branch. A fresh `git ls-remote --heads origin ariana/scoring` independently confirmed remote HEAD `891b1f4652cecf1a4f19c2f8e6d663138b8f535d`, matching local HEAD. The six CTX-016 commits are therefore present on `origin/ariana/scoring`. The earlier failed-push entry remains as history. No PR or release was attempted. `CTX016-010`, supported-host live prediction/search, Percolator/pyIsoPEP, representative calibration, completion Report, and Ariana's final review remain open.
-
-#### 2026-10-10 — `CTX016-010` Reviewer 3 compatibility review
-
-- Ariana requested Reviewer 3 review of latest `ariana/scoring`, prioritizing Windows/macOS/Linux compatibility and required libraries. Authorized fast-forward pull returned already up to date at `891b1f4652cecf1a4f19c2f8e6d663138b8f535d`; preserved existing changes. Read current Google record, local guide, canonical revision 2, and source/dependency APIs. Review outcome: **REQUEST CHANGES**, detailed in `docs/ctx-016-reviewer-3.md`.
-- Findings: shaded PyTorch platform metadata collision triggers download fallback on Windows/Linux despite bundled binaries; Intel macOS prediction unsupported; Apple Silicon Percolator needs x86_64 translation or a compatible executable; packaged platform runtime validation/setup guidance incomplete. Metadata-only JVM probe confirmed Windows/Linux placeholder detection against the existing shaded artifact. No Windows/Linux native execution or Maven rebuild was performed.
-- Java 17 manual compilation of current production/test sources passed. Focused JUnitCore run reported `OK (19 tests)` with the live prediction test assumption-skipped on Intel macOS. Logs are under `/private/tmp/ctx016-reviewer3/`. Maven verification unrun because the documented Maven executable and system Maven are absent. Initial manual harness classpath errors were corrected; they are not repository defects.
-- Ariana supplied Windows console log `Downloads/Untitled.tsv`: PyTorch initializes, then `LibraryFile.getUniqueTargetPrecursorMetadata()` raises `NoSuchMethodError`. Verified that bundled/local cached 6.9.23 jars contain the API and have identical SHA-256; the Windows loaded jar remains unidentified. Requested launch command/IDE configuration to identify its runtime dependency origin. No fixes were implemented. Next: identify Windows class origin and prepare approved compatibility corrections; live engines/scientific validation and final human review remain open. Canonical plan unchanged; `CTX016-010` remains unchecked.
-
-
-### CTX-016 — uu-revise #3 corrective checklist (2026-10-10)
-
-Scope authorization: Ariana requested implementation of Reviewer 3 corrections through `uu-revise #3`, and approved the Linux container route for Intel Macs. Guide: r7, correction addendum R3; canonical revision 2 remains unchanged. No predictor version change or Git delivery is authorized. Acceptance: preserve the single-jar CLI and scientific behavior, expose each bundled native descriptor to DJL, identify incompatible Encyclopedia APIs, and provide platform setup and packaged validation.
-
-- [x] `CTX016-R3-01` Preserve native metadata during packaging and narrowly adapt discovery in Context. Files: POM, runtime helper, prediction entry point/tests. Check: packaged Windows x86_64, Linux x86_64, and macOS ARM metadata selection needs no download.
-- [x] `CTX016-R3-02` Check required Encyclopedia APIs before prediction and report the loaded artifact on mismatch. Files: runtime helper/tests and README. Check: incompatible API regression preserves cause/location; pinned API passes.
-- [ ] `CTX016-R3-03` Document Windows/macOS prerequisites and the approved Intel Mac container route; add packaged runtime platform checks. Files: README, CI, test helpers. Check: local checks pass; unavailable platform execution stays unrun.
-- [ ] `CTX016-R3-04` Review corrections, record dispositions/validation, and hand off for independent re-review. Files: guide/review/log. Check: canonical plan and unrelated work preserved; no claim of final acceptance or scientific validation.
-
-Proposed commit groups (scope only; no staging/commits): R3-A (`CTX016-R3-01`, `CTX016-R3-02`), `Preserve native discovery and diagnose incompatible prediction runtimes`; R3-B (`CTX016-R3-03`, `CTX016-R3-04`), `Validate and document Context platform prerequisites`.
-
-#### 2026-10-10 — `CTX016-R3-01`–`CTX016-R3-04` started
-
-- Read the conversation, invoked `uu-revise`, and inspected instructions, canonical plan, guide, review, source, and tests. Accepted the metadata collision and API mismatch. Intel native support is replaced by Ariana's approved Linux-container route. Reuse the Ant packaging plugin to retain classifier-specific descriptors and a narrow Context classloader adapter for DJL discovery, retaining a self-contained jar and pinned dependencies.
-- Downloaded repository-documented Maven 3.9.9 locally for validation. Existing build.sh syntax/setup defects remain outside this correction. The Windows log's exact loaded jar remains unidentified; diagnostics can improve but its environment cannot be claimed repaired.
-
-
-#### 2026-10-10 — `CTX016-R3-01`, `CTX016-R3-02` checks and approved engine-launch correction
-
-- Maven package verification passed 25 tests (0 failures/errors, 1 Intel-Mac live-prediction skip) and verified the rebuilt jar's three native descriptors and all listed native libraries. Four runtime-helper regressions passed after adding partial-metadata and Intel-route checks. Logs: `tmp/ctx016/revise3/package.log`, `runtime-tests.log`.
-- Reproduced a pre-existing clean-directory Percolator launch failure: `NoSuchFileException: target/debug-percolator.exe`. Ariana explicitly approved removing the unconditional debug copy and adding a clean-directory regression. This narrowly expands R3-A / `CTX016-R3-03` to ContextPercolatorRunner and its tests without changing engine parameters or scoring. The Docker JavaPot setup-step correction remains separately pending. Preserve all prior plan/history.
-
-
-### CTX-016 — runtime naming correction (2026-10-10)
-
-Approval: Ariana explicitly requested removal of tracking codes from all Context code, including CLI messages and internal strings. Tracking IDs remain in planning/history documents only. This extends the current corrective scope; canonical revision 2 remains unchanged.
-
-- [x] `CTX016-R3-05` Replace tracking-code messages, temporary names, cache names, and identity namespace with functional Context names in source, tests, and active CI. Update README migration guidance; verify sidecar/cache and CLI regressions plus a source scan. Proposed separate commit scope: `Use functional names in Context runtime code` (execution not authorized).
-
-#### 2026-10-10 — `CTX016-R3-05` started
-
-- Replaced tracking-code strings in runtime source and tests, including cache filenames and identity salt. Existing outputs are preserved; older raw caches require fresh generation, while valid split sidecars retain their unchanged schema. README documents naming and lock compatibility. No historical planning record or frozen canonical plan was renamed.
-
-#### 2026-10-10 — `CTX016-R3-05` regression results
-
-- Java 17 rebuilt production/test sources and ran 31 focused tests: 0 failures, 0 errors, 1 expected Intel-macOS live-prediction skip. This includes cache recovery/locking, sidecar validation, CLI parsing, runtime API/platform checks, and clean-directory Percolator command construction. Package verification is still running. `git diff --check` and the tracking-code scan of source/tests/build configuration pass. No classes were relocated.
-
-#### 2026-10-10 — `CTX016-R3-01`, `CTX016-R3-05` package verification
-
-- Java 17 targeted `-Ppackage verify` passed (31 tests, 0 failures/errors, 1 platform skip); shaded-artifact-only checks selected Windows x86_64, Linux x86_64, and macOS ARM descriptors without placeholders and verified all named native resources. Log: `tmp/ctx016/revise3/final-package.log`. These metadata checks do not execute the three native platforms. Naming scan and diff whitespace checks pass; canonical plan is unchanged.
-- Initial packaged mProphet execution completed but the new test helper rejected the established `pi_0` footer and FASTA I/L expansion. Corrected the helper to ignore the summary footer and compare peptide IDs within I/L equivalence; no analysis code changed. Engine rerun evidence is recorded separately below. Docker build-step approval remains pending and Docker is unavailable locally.
-
-#### 2026-10-10 — `CTX016-R3-03`, `CTX016-R3-04` packaged engine evidence and handoff
-
-- Both packaged engines completed on this Intel Mac from a fresh directory outside the repository root using the existing 1,000-row fixture split into 500 background/500 reference rows. mProphet's four peptide reports passed population-ID checks accounting for established I/L expansion and the summary footer. Percolator trained, rescored 500 reference rows, and completed both pyIsoPEP calls; reference-ID checks passed. Java 17, project-local pyIsoPEP 0.1.4; logs: `tmp/ctx016/revise3/final-engine-check-2.log` and `tmp/compatibility/platform-engines/run-_4vx35bj/`. This proves local launch/runtime integration, not representative calibration or cross-platform execution.
-- Reviewed the correction diff and added evidence to the Reviewer 3 handoff. No dependency version change, canonical-plan edit, class relocation, staging, commit, push, or remote CI execution occurred. Native Windows/Linux/Apple-Silicon prediction checks, full raw search and scientific validation remain unrun. Docker setup correction remains pending Ariana's earlier decision and cannot be tested locally without Docker. R3-03/R3-04 and final independent/human review remain open; no completed-feature Report is claimed.
-
-### Follow-up — functional class guide
-
-Requested by Ariana on 2026-10-10; documentation task only, with no class relocation authorized.
-
-- [ ] `CLASS-GUIDE-001` Create a concise document explaining every Context production class, grouped by function (CLI/input, library preparation/prediction, search/features, identity/cache, scoring/confidence, outputs), rather than by directory. Describe each class's responsibility and major collaborators, emphasizing classes added or changed in the implementation delivered through `891b1f4`. That exact commit changes documentation only; identify the preceding implementation commits explicitly. Include a function-to-current-package map and evidence-based restructuring observations for Ariana's review. Check completeness against production source inventory and Git history. Proposed documentation-only commit: `Document Context classes by responsibility`; no implementation or Git delivery is authorized by this follow-up task.
-
-
-### CTX-016 — supplied ten-file Linux validation (2026-10-10)
-
-Ariana supplied ten matched DIA/assay pairs, the library and FASTA, then authorized installing Docker and proceeding after freeing storage. Scope: local installation and validation only; no Git delivery or unrelated build-script repair.
-
-- [ ] `CTX016-R3-06` Install Intel Docker Desktop and validate the rebuilt Java 17 artifact in a Linux container using copied supplied inputs, seeds 1–10. Record runtime/image identity, input checksums, commands, outputs, and failures. Keep source inputs intact. This validates Linux-container execution, not native Windows/macOS prediction or general FDR calibration.
-
-#### 2026-10-10 — `CTX016-R3-06` started
-
-- Confirmed 70 GiB available on macOS 15.7.9 Intel. Downloading the official Intel Docker installer. Prepared isolated copies under `tmp/compatibility/ten-file-20261010` with SHA-256 input manifest. Test the current jar in a Java 17 Linux runtime directly; repository Dockerfile JavaPot correction remains separately pending.
-
-#### 2026-10-10 — `CTX016-R3-06` Docker installed; Linux check started
-
-- Installed verified official Intel Docker Desktop 4.94.0 (CLI/engine 29.8.2). Silent command-line installer was terminated before installation; documented app-copy method succeeded and Desktop initialized Linux x86_64 with approximately 4 GB RAM. Downloaded official `eclipse-temurin:17-jdk`, digest `sha256:5d6042fb8cdc14d614e4e421f52e3211fc5aeadddce44cbf9de8ed37c791f824`.
-- Started packaged live prediction/native executable smoke check with Java heap capped at 2 GB, fresh temporary native caches, networking disabled and read-only artifact/source mounts. Log: `tmp/compatibility/ten-file-20261010/linux-smoke.log`. Task-focus check: work remains the authorized supplied-data validation; no repository Dockerfile or scientific code changes.
-
-#### 2026-10-10 — `CTX016-R3-06` Linux smoke passed; supplied-data run launched
-
-- Offline Linux smoke exited 0: all native resources loaded from the jar, one target/decoy prediction persisted, and bundled Percolator launched. First dataset command mistakenly selected positional `features`; it exited 1 with usage before analysis (`features.log`). Corrected the harness to the source-verified `features-folder` dispatch and retained the first log. Current full run uses seeds 1–10, Java `-Xmx2g`, networking disabled, the pinned image digest and copied inputs. Log: `features-folder.log`; command: `test-command.txt`.
-
-#### 2026-10-10 — `CTX016-R3-06` long-running dataset status
-
-- Docker installation and offline Linux smoke validation are complete. Full supplied-data run remains active in local container `context-ten-file-validation` (exec session 52329), still on seed 1 with 8 completed 1,024-request prediction batches at the latest check and no logged errors. The source library has 99,147 distinct modified-sequence/charge entries. Observed container memory was approximately 872 MiB of 3.82 GiB. No seed is complete yet; full analysis remains unverified.
-- The container has networking disabled; only the current jar (read-only) and isolated validation workspace are mounted. Output log: `tmp/compatibility/ten-file-20261010/features-folder.log`. Keep the machine awake and Docker running for execution to continue. No background notification automation or completion claim was created. Resume by checking this container/log and validating final artifacts against `input-manifest.json`; do not start a duplicate run.
-
-
-### CTX-016 — supplied seed-1 all-workflow analysis (2026-10-11)
-
-- [x] `CTX016-R3-07` Run AllWorkflowExecutorCLI on the three supplied seed-1 feature tables with the matching FASTA, default 1% FDR and training seed 1. Validate pair sidecars before all six workflows, preserve source data through snapshots/checksums, record completion/failures and outputs. Ariana explicitly requested this analysis; no engine edits or Git delivery authorized.
-
-#### 2026-10-11 — `CTX016-R3-07` started
-
-- Inspected CLI: six workflows (Context/discovery/targeted Percolator and mProphet). Prepared immutable-source copies and SHA-256 manifest under `tmp/compatibility/all-workflows-20261011/inputs`. Use native Java 17 and existing project-local pyIsoPEP 0.1.4; this feature-only stage does not require predictor natives. Explicit `--seeds 1` supplies fresh-directory protection and experiment provenance.
-
-#### 2026-10-11 — `CTX016-R3-07` six workflows completed
-
-- Packaged AllWorkflowExecutorCLI exited 0; run.properties records COMPLETE. Java 17, native Intel macOS, pyIsoPEP 0.1.4, training seed 1, FDR 0.01. Sidecar preflights passed for all three input tables. Copied input checksums remained unchanged, and all six target peptide reports contain finite q-values/PEPs in [0,1].
-- Target peptide report rows with q <= 0.01: Context Percolator 89/200 reference; targeted Percolator 86/200 reference; Context mProphet 95/200 reference; targeted mProphet 98/200 reference; standard Percolator 1180/6210 combined; standard mProphet 1350/6210 combined. Combined-population counts must not be compared directly with reference-only counts as sensitivity evidence. These are reported q-value thresholds, not independently measured error rates.
-- Outputs: `tmp/compatibility/all-workflows-20261011/results/cd8_2mz_gpf_masked1_assay/seed_1/`. Root also contains exact command, input/artifact SHA-256 manifest, workflow log, exit code, summary.json, and summary.tsv. Processed only the seed-1 file set requested in the preceding message; no prediction rerun, source-code edit, Git delivery, or final feature-acceptance claim.
-
-
-### CTX-016 — ten-dataset non-entrapment PEP comparison (2026-10-11)
-
-- [x] `CTX016-R3-08` Ariana requested and clarified: process all ten datasets through all six workflows, then draw a violin of dataset-level counts of non-entrapment reference peptides at PEP <= 0.01. Fix training seed 1, reuse completed dataset 1, snapshot/preflight remaining datasets, and preserve input data. Define non-entrapments using assay isDecoy=false joined to reference target keys; count unique modified peptide sequences, collapsing charge states. Deliver PNG/PDF/SVG, source and counts; do not claim independent biological replication or calibrated FDR from the plot.
-
-#### 2026-10-11 — `CTX016-R3-08` started
-
-- All ten feature trios are present. Exact modified-sequence/charge matching accounts for every reference target; 98–100 non-entrapment reference feature rows per dataset. Sequential batch for datasets 2–10 started under `tmp/compatibility/reference-pep-20261011/`, with explicit training seed 1 and fresh output directories. Dataset 1 reuses the completed six-workflow analysis. Plotting script will require all ten COMPLETE manifests before rendering.
-
-#### 2026-10-11 — `CTX016-R3-08` scope reduced by Ariana
-
-- Ariana requested only three datasets instead of ten. Supersedes the ten-dataset scope above: use datasets 1–3 only, with identical PEP/non-entrapment/counting definitions. Stopped only the Python batch supervisor while dataset-2 Java continued; this prevents datasets 4–10 from starting. Dataset 2 completion will be verified through its COMPLETE experiment manifest and final log because its supervisor can no longer record process exit. Dataset 3 uses a separate single-dataset script. Plot will show all three observations and explicitly note the limited sample size.
-
-#### 2026-10-11 — `CTX016-R3-08` three-dataset plot completed
-
-- Dataset 2 completed with exit 0 before supervisor termination; dataset 3 was prepared/preflighted but not launched. An initial dataset-3 restart safely refused its existing directory; resumed using its checksum-verified copies, then all six workflows completed with exit 0. No dataset 4–10 directory was created. Dataset 1 reused existing complete results. All copied input checksums passed.
-- Exact reference ID and assay modified-sequence/charge joins passed across all 18 comparisons; eligible non-entrapment unique modified peptides = 98, 98, 99. Counts at PEP <= 0.01 by dataset 1/2/3: Context Percolator 75/80/85; standard Percolator 79/81/78; targeted Percolator 34/76/41; Context mProphet 90/95/90; standard mProphet 90/92/89; targeted mProphet 91/95/83. Counts collapse charge states and use PEP, not q-values.
-- Created and visually inspected PNG violin with all three observations shown, plus PDF/SVG, counts.tsv, peptide-level PEP evidence, reproducible Python and methodology README under `tmp/compatibility/reference-pep-20261011`. Installed matplotlib/seaborn only in the existing project-local Python environment; initial bundled Python lacked matplotlib. Font-cache warnings did not prevent successful rendering. These are descriptive masked-dataset results, not independent biological replicates or scientific calibration proof. No source-code changes or Git delivery.
-
-
-### CTX-016 — r8 proposal: per-peptide prediction store and shared working library (2026-10-11)
-
-- **Approval status: `Approved` — accepted by Ariana 2026-10-11** in chat ("update this record to r8 and note my acceptance"), after she answered the design decisions and the two open sub-questions (below). Guide revision r8 is recorded in the Google record https://docs.google.com/document/d/1u04aFpKACUNP8Qtfl463GUPGoW5WW3zGEcpELGkKPH4/edit (sections 15–19, added 2026-10-11) and in the local guide. The acceptance covers the r8 scope in `CTX016-017` to `CTX016-024`. It does not authorize Git delivery or constitute final feature acceptance. Implementation of r8 has not started. Canonical plan `docs/uu-ctx-016-encyclopediatwo-matched-decoys.md` stays frozen until the approved handoff. No code, dependency, or Git action has been performed.
-- **Trigger:** Ariana reports that feature generation takes very long and that she searches overlapping libraries. `ContextFeatureScorer.scoreFeaturesForContext` re-runs `ContextWorkingLibraryPreparer.prepare` for every raw file, although `prepare` reads neither the raw file nor the assay schedule. The working library name and cache identity include the raw file, so each seed re-predicts the same library and saves its own copy. `ContextFeatureScorerCLI` also processes seeds sequentially.
-- **Impact:** changes cache identity, file layout, and CLI options. It is a material plan change under CLAUDE.md. No existing task is superseded: `CTX016-014` to `CTX016-016` keep their approved behavior, and r8 changes where predictions come from and how the working library is cached.
-- **Out of scope for r8:** parallel runs (separate follow-up after r8), GPU/CUDA prediction (abandoned by Ariana), a change to Encyclopedia source, and any change to Percolator or mProphet classes.
-
-#### Proposed design (r8)
-
-1. **Per-peptide prediction store (shared across libraries).** A Context-owned `prediction-cache` folder created in the output directory (decision of 2026-10-11; see below for what "output directory" means today and the optional override). It is persistent, not a temporary location. It uses Encyclopedia 6.9.23's public prediction-cache API on `LibraryFile` (`openOrCreatePredictionCache`, `addPredictionCacheEntries`, `getPredictionCacheEntries(precursors, ...)`, `acquirePredictionCacheWriteLock`, `clearPredictionCacheWriteLock`). It does not use Encyclopedia's default per-user cache directory, so it never mixes with GUI predictions. It holds predicted spectra only, keyed by modified sequence and precursor charge, with no accessions and no decoy links.
-2. **Profile.** A Context manifest beside the store records the profile that produced it: NCE, default charge, DIA-adjustment flag, JChronologer version, Encyclopedia version, and Context cache-schema version. Encyclopedia's file name already encodes NCE, default charge, and DIA/DDA, and Context adds the rest. A store whose profile differs is a hard error, never a silent overwrite. `addPredictionCacheEntries` replaces rows with the same (sequence, charge) key without checking the profile, so Context must provide that guard.
-3. **Assembly per source library.** `ContextWorkingLibraryPreparer` keeps its current decoy selection (unchanged public `DecoyPeptideGenerator`), target retention, exclusion reasons, and assignment report. It looks up each exact (sequence, charge) target and decoy in the store, predicts only missing keys with the existing bounded batches and failure isolation, writes new spectra back under the store write lock, then builds the working library with this library's accessions and decoy links. Exact-precursor lookup is used. `getMissingPredictionCachePeptides` is not used: it matches by sequence only and treats a peptide as missing if any row lacks ion mobility.
-4. **Shared working library.** The assembled working library and assignment report are cached once per source library under a manifest hashing the source library content, the profile, and the store entries used. All raw files that use that library reuse it. The in-progress marker, archive-on-failure recovery, and exclusive lock apply at this level.
-5. **Per-run features.** Per-run feature manifests record the working-library hash. The raw file, assay schedule, FASTA, and diagnostics settings still define per-run identity.
-6. **Store lock policy.** Encyclopedia's write lock is a database row with host, PID, and start time. It is released in `finally` blocks and never expires. After a crash it remains until cleared. Interactive Encyclopedia prompts a person. Context runs headless, so it fails with the lock's host, PID, and age and clears a lock only with an explicit flag (`--clear-stale-store-lock`).
-
-#### Evidence from checks run 2026-10-11 (feeds r8; detail in log)
-
-- Prediction output varies slightly with batch composition. Same batch repeated: bit-identical. Different batch composition: 27 of 400 spectra differ; single-peptide vs batched: 60 of 60 differ. Maximum differences: intensity 1.7e-5, retention time 2.4e-4 s, ion mobility 6e-5; fragment m/z identical. A cached spectrum can therefore differ from a freshly predicted one in about the fifth decimal place. This is a recorded source of nondeterminism. Comparisons of old and new outputs use a tolerance of 1e-4 on intensity and retention time, not exact equality. **Correction 2026-10-11 (`CTX016-022`):** the 1e-4 tolerance is wrong for retention time; this same check measured retention-time differences of 2.4e-4 s. Per-quantity tolerances replace it: intensity 1e-4, ion mobility 1e-4, retention time 1e-3 s, fragment and precursor m/z 1e-6.
-- NCE, default charge, and the DIA adjustment flag change spectra substantially. Fragmentation type, fragment tolerance, fixed modifications, and thread count did not change any of the 400 predicted spectra. The acquisition parameter was not tested.
-- Encyclopedia cache round trip: 2,000 spectra stored and read back bit-identical including retention time; an unstored charge was correctly absent. About 700 bytes per entry (1.4 MB for 2,000). A 1,112-target library with decoys saved as a 1.27 MB working library (about 570 bytes per entry). Estimated store size is on the order of 0.7 GB per million spectra.
-- Search never writes the working library. `LibraryFile.openFile()` copies a user file to a temporary file unless opened in place; hash unchanged after open/read/close of an `.elib` fixture. Consequence: each run copies the whole working library to a temporary file, which costs time and disk.
-- Decoy collisions: `DecoyPeptideGenerator.getUniqueDecoyPeptideModSeq` (Bitbucket master, matches 6.9.23 bytecode) tries the reversed peptide, then up to 3 terminus-preserving scrambles seeded by the target's `hashCode()`, then returns empty (target-only). Tested with oxidized methionine, carbamidomethyl cysteine, phosphoserine, I/L swaps, and a palindrome: none missed a forced collision. Target order from `getUniqueTargetPrecursorMetadata` was sorted and stable across reopening on the fixture. Not investigated: some scrambled fallback decoys ended in a different residue than the reversed sequence.
-- Speed on this host (Linux x86_64, 4 cores, CPU, JDK 21): about 1,250 spectra/s; a full feature run on the repo's IL2 fixture (1,112 targets) took 8.4 s, of which about 3 s was prediction. Real-library profiling was skipped at Ariana's direction, so the speed-up from r8 on production-size runs is not measured.
-
-#### Design decisions — answered by Ariana 2026-10-11
-
-- [x] **Store location:** a `prediction-cache` folder in the output directory. Ariana asked whether Encyclopedia keeps this in a temporary directory and said to use the output-directory folder if unclear. Finding: Encyclopedia's default prediction cache is a persistent per-user directory (`~/Library/Application Support/EncyclopeDIA` on macOS, `%LOCALAPPDATA%\SearleLab\EncyclopeDIA` on Windows, `$XDG_DATA_HOME/EncyclopeDIA` or `~/.encyclopedia` on Linux), opened in place. The only temporary files are `LibraryFile`'s per-open working copies, deleted on close. A temporary store would lose its predictions after each run, so the decision stands as `prediction-cache` in the output directory. Note: Context writes outputs beside each acquisition file (`baseName` is the acquisition path minus its extension), so the "output directory" is that file's folder. Runs share a store only when their acquisition files are in the same folder. **Override accepted 2026-10-11:** an optional `--prediction-store <dir>` lets runs in different folders share one store; the default remains the `prediction-cache` folder in the output directory.
-- [x] **Migration:** accept regeneration. Existing per-run feature caches and per-run working libraries are not reused under r8, and no new legacy-read path is added. The existing r7 `--allow-legacy-features` flag (pre-CTX-016 feature files without sidecar or manifest) is not changed by r8; Ariana confirmed this reading on 2026-10-11.
-- [x] **Working-library retention:** keep the working library after the runs.
-- [x] **Stale-lock policy:** fail with details (lock host, PID, age) and clear the lock only on an explicit flag (`--clear-stale-store-lock`).
-
-#### Proposed r8 tasks (appended; IDs are new)
-
-- [x] `CTX016-017` Approve guide r8 and this checklist. Done 2026-10-11: Ariana answered the design decisions, added the `--prediction-store` override, confirmed the `--allow-legacy-features` reading, and accepted r8 in chat. r8 is recorded in the Google record (sections 15–19) and the local guide. Canonical plan adoption remains for the next approved handoff.
-- [x] `CTX016-018` Add a Context-owned prediction store, created as a `prediction-cache` folder in the output directory, around Encyclopedia's prediction-cache API: profile manifest and hash, profile-mismatch error, exact-precursor lookup, write-back, write lock with the headless stale-lock policy. Files: new Context class, focused tests. Check: bit-identical round trip, profile mismatch refused, missing charge absent, lock held/stale/cleared cases, no write when profile differs.
-- [x] `CTX016-019` Change `ContextWorkingLibraryPreparer` to assemble from the store and predict only missing keys; keep decoy selection, target-only, exclusion reasons, assignment file, and failure isolation unchanged. Files: preparer, tests. Check: full hit predicts nothing; partial hit (overlapping libraries) predicts only new keys; empty store matches current behavior within 1e-4; failure in one batch isolates and is recorded; same assignments as current code on the fixture.
-- [x] `CTX016-020` Add the shared working-library cache and manifest, in-progress marker, archive-on-failure, and lock at library level; open the cached library for each run; include the working-library hash in per-run feature identity; old per-run caches are regenerated and no new legacy-read path is added; the working library is kept after runs. Files: `ContextFeatureScorer`, `ContextFeatureCacheIdentity`, tests. Check: second raw file with the same library performs no prediction and no library rebuild; stale or partial library cache fails clearly and recovers; per-run feature outputs and pair sidecar match the current implementation within tolerance; concurrent library creation is serialized.
-- [x] `CTX016-021` Add and document the `prediction-cache` default location, the explicit stale-lock flag (`--clear-stale-store-lock`), and the approved optional `--prediction-store <dir>` override in the feature and workflow CLIs. No retention option is needed: the working library is kept. Files: CLI adapters, README, help. Check: required vs optional inputs documented; examples run; help matches behavior.
-- [x] `CTX016-022` Validate equivalence and overlap behavior: old vs new on the repo fixture within the recorded tolerance; two libraries sharing peptides; two seeds sharing one library; cache hit counts logged. Files: tests and log. Check: commands, tolerances, counts, skips, and failures recorded. This is functional validation, not scientific calibration.
-- [x] `CTX016-023` Run focused JUnit 4 tests and package checks on Java 17; review the diff for minimal scope and reuse of Encyclopedia APIs. Files: log. Check: actual Java version, commands, results, and residual risks recorded; passing tests are not claimed as FDR validation.
-- [ ] `CTX016-024` Record r8 evidence and outcome in the Google record, the local guide history, and the external Report at the existing handoff (`CTX016-011`, `CTX016-012`). Check: Report contains the full checklist and log; final acceptance remains Ariana's.
-
-Parallel raw-file processing (`--parallel-runs`) is not in this checklist. After r8, propose it separately: it would split the thread budget across runs, keep per-run outputs and locks, and share the library cache and store.
-
-#### Work log
-
-##### 2026-10-11 — `CTX016-017` r8 drafted, approval pending
-
-- Attempt/change: Investigated slow feature generation. Read the Google record, `ContextFeatureScorer`, `ContextFeatureScorerCLI`, `ContextWorkingLibraryPreparer`, `ContextFeatureCacheIdentity`, `ContextPredictionRuntime`, the bundled `jchronologer-1.0.10.jar` bytecode, and Encyclopedia source on Bitbucket master (`DecoyPeptideGenerator`, `JChronologerLibraryPredictionClient`, `JChronologerWorkingLibrary`, `LibraryFile`, `AnnotatedLibraryEntry`). Ran read-only experiments with scratch code outside the repo, using the repo's compiled classes and the bundled jars.
-- Environment: Linux x86_64, 4 cores, 15 GB RAM, JDK 21 (not the Java 17 baseline). `./build.sh maven` failed here with `MAVEN_REPO: readonly variable`; it was not edited. Maven 3.9.9 was fetched by hand into the ignored `build-cache/`. `mvn -DskipTests test-compile` succeeded; `ContextWorkingLibraryLiveTest` passed (1 test, live CPU prediction on Linux).
-- Result: see "Evidence from checks" above. No repo files other than this `TASKS.md` section were changed; `target/` and `build-cache/` are ignored. The experiment sources are in the session scratchpad and are not preserved in the repo; they can be turned into JUnit tests under `CTX016-018`/`CTX016-022` if approved.
-- Not run: Java 17 builds; real-library profiling; GPU/CUDA (abandoned); Percolator with pyIsoPEP; production-size prediction or search; the `-acquisition` parameter.
-- Next action: Ariana reviews r8 and answers the four decisions. No implementation until approval is recorded.
-
-##### 2026-10-11 — `CTX016-017` design decisions recorded; Google record update blocked
-
-- Attempt/change: Recorded Ariana's answers to the four r8 design decisions in this section, and updated tasks `CTX016-017`, `CTX016-018`, `CTX016-020`, `CTX016-021`. Checked her question about Encyclopedia's temporary directory against `JChronologerWorkingLibrary.getDefaultPredictionCacheDirectory` and `LibraryFile.openFile`: the prediction cache is persistent and per-user, and only `LibraryFile` working copies are temporary. Tried to add the r8 annotation to the Google implementation record.
-- Result: The Google Docs editor connector is not connected in this session (connectors listed: BioRender, Google Drive, PubMed; Scite not connected). Google Drive here can read, create, copy, rename and trash files but cannot edit a document's contents. The Google record was therefore not changed and no new file was created. The r8 text for it is in this section; a paste-ready copy is in the session scratchpad (`r8-google-record-block.md`).
-- Next action: Ariana pastes the r8 block into the Google record (or connects the Google Docs connector and asks again), confirms the two sub-questions, and approves or revises r8. No code changes, commits, or pushes.
-
-##### 2026-10-11 — `CTX016-017` r8 accepted; Google record updated
 
 - Attempt/change: With the Google Docs connector now connected, updated the Google implementation record in place (same document and link) under a revision guard: appended "CURRENT APPROVED REVISION: r8" with sections 15–19 (problem, approach, decisions, evidence, tasks and next action); changed the intro line and the Status table cell to name r8; relabeled the r7 heading "APPROVED REVISION: r7 (extended by r8 below)". Earlier sections, including the r6 history, were not otherwise changed. Updated this file and the local guide to record acceptance, the `--prediction-store` override, and the confirmed `--allow-legacy-features` reading.
 - Result: The batch applied with no errors; each of the three text replacements matched exactly once. Read back with Drive `read_file_content`: the new section, intro line, status cell, and r7 heading read as intended. Not checked: the rendered layout (no export or visual check was run), so heading and bullet styling is unverified visually. The record's existing title typo ("Featurm ,lme") and the raw asterisks in its table cells were left as they were.
@@ -667,77 +150,631 @@ Parallel raw-file processing (`--parallel-runs`) is not in this checklist. After
 - Local guide `docs/ctx-016-encyclopediatwo-matched-decoys.md`: appended "r8 implementation and validation — 2026-10-11". The frozen canonical plan was not edited.
 - Remaining for `CTX016-024`, `CTX016-011`, and `CTX016-012`: the external completion Report (CLAUDE.md: outside the repo; the usual `/Users/arianashannon/Downloads/` path does not exist in this cloud session, so the save location must come from Ariana), and Ariana's final review.
 
-### CTX-016 r8 — proposed commit groups (Git delivery stage, 2026-10-11)
-
-Ariana asked on 2026-10-11 to draft the commits for a push. **Draft only: no staging, commit, or push has been done.** Each commit and the push need Ariana's explicit approval. The remote branch `origin/ariana/scoring` equals local `HEAD` `4188f57` (fetched 2026-10-11), so a push would carry only these commits, and none of them touches `.github/workflows`. External Reports and `build-cache/` stay out of Git.
-
-Split check: in a temporary worktree from `HEAD`, applying the commit 1 files alone and then the commit 2 files, focused suites passed under Temurin 17.0.13. After commit 1: 12 classes, 0 failures/errors. After commit 2: 16 classes, 54 tests, 0 failures/errors. Every changed file is in exactly one commit.
-
-1. **Commit 1 — `CTX016-018`, `CTX016-019`** (plus the reuse-count logging and live test from `CTX016-022`).
-   - Files: `src/main/java/org/searlelab/context/encyclopedia/ContextPredictionStore.java`, `src/main/java/org/searlelab/context/encyclopedia/ContextWorkingLibraryPreparer.java`, `src/test/java/org/searlelab/context/encyclopedia/ContextPredictionStoreTest.java`, `src/test/java/org/searlelab/context/encyclopedia/ContextWorkingLibraryPreparerTest.java`, `src/test/java/org/searlelab/context/encyclopedia/ContextPredictionStoreLiveTest.java`.
-   - Proposed message:
-     ```
-     Reuse stored predictions when preparing working libraries
-
-     Add ContextPredictionStore, a persistent per-precursor store of
-     predicted spectra built on Encyclopedia 6.9.23's prediction-cache API.
-     A profile file records the prediction settings and Encyclopedia and
-     JChronologer versions; a store written under another profile is
-     refused. Writes take the store's write lock. A lock left by an
-     interrupted run fails with its host, process ID, and age, and is
-     cleared only on explicit request.
-
-     ContextWorkingLibraryPreparer gains a store-aware prepare that looks up
-     exact modified-sequence and charge keys, predicts only missing
-     precursors, stores them, and loads the prediction model only when
-     something is missing. Decoy selection, target-only and exclusion
-     handling, the assignment report, and the existing entry point are
-     unchanged. Each store-backed run logs reused and predicted counts.
-
-     Tasks: CTX016-018, CTX016-019, CTX016-022 (logging, live test).
-     ```
-2. **Commit 2 — `CTX016-020`, `CTX016-021`, `CTX016-025`** (plus the shared-library live test from `CTX016-022`).
-   - Files: `src/main/java/org/searlelab/context/io/SharedWorkingLibrary.java`, `src/main/java/org/searlelab/context/io/ContextFeatureCacheIdentity.java`, `src/main/java/org/searlelab/context/io/ContextFeatureScorer.java`, `src/main/java/org/searlelab/context/io/ContextFeatureScorerCLI.java`, `src/main/java/org/searlelab/context/io/ContextMProphetCLI.java`, `src/main/java/org/searlelab/context/percolator/ContextPercolatorExecutor.java`, `src/main/java/org/searlelab/context/percolator/ContextPercolatorExecutorCLI.java`, `src/test/java/org/searlelab/context/io/SharedWorkingLibraryTest.java`, `src/test/java/org/searlelab/context/io/ContextFeatureScorerCLITest.java`, `src/test/java/org/searlelab/context/io/ContextMProphetCLITest.java`, `src/test/java/org/searlelab/context/percolator/ContextPercolatorExecutorCLITest.java`, `src/test/java/org/searlelab/context/io/ContextFeatureScorerSharedLibraryLiveTest.java`.
-   - These are one commit because `ContextFeatureScorer.java` carries both the shared-library change and the option changes, and the option code depends on the CLI parser changes. Splitting them would need partial-file staging and leave a commit that does not compile.
-   - Proposed message:
-     ```
-     Share one predicted working library across runs of a library
-
-     SharedWorkingLibrary keeps one working library per source library,
-     FASTA, search parameters, and prediction settings under
-     prediction-cache/working-libraries, with a manifest, an in-progress
-     marker, preservation of partial output, and a blocking lock so
-     concurrent runs wait for a single build. ContextFeatureScorer resolves
-     it instead of predicting a run-local library, and each run's feature
-     identity now includes the working library's SHA-256. Raw feature
-     caches made before this change fail with "identity differs" and are
-     not moved or deleted.
-
-     Add --prediction-store and --clear-stale-store-lock to features,
-     features-folder, and raw mprophet and percolator runs; split-input
-     routes reject them. ContextPercolatorExecutor gains only an options
-     pass-through.
-
-     Tasks: CTX016-020, CTX016-021, CTX016-025, CTX016-022 (live test).
-     ```
-3. **Commit 3 — `CTX016-017`, `CTX016-022`, `CTX016-023`, `CTX016-024`** (documentation and records only).
-   - Files: `README.md`, `TASKS.md`, `docs/ctx-016-encyclopediatwo-matched-decoys.md`.
-   - Proposed message:
-     ```
-     Document the CTX-016 r8 prediction store and its validation
-
-     README describes the prediction store, shared working libraries, the
-     new options, the lock policy, the measured batch nondeterminism, and
-     how to migrate older raw feature caches. TASKS.md and the local guide
-     record r8 approval and decisions, the per-task log, the corrected
-     per-quantity tolerances, the Java 17 verification, and this commit
-     plan.
-
-     Tasks: CTX016-017, CTX016-022, CTX016-023, CTX016-024.
-     ```
-
-Each commit message ends with the session's attribution lines (`Co-Authored-By` and `Claude-Session`) when committed.
 
 ##### 2026-10-11 — r8 commits and push authorized
 
 - Ariana approved the three proposed commits and the push on 2026-10-11: "Leave the task numbers (CTX-016) out of the subjects and messages, but you have my approval. Please make the commits and push!" The commit subjects and bodies therefore omit the task IDs and the "Tasks:" lines shown in the draft above; the third subject is "Document the prediction store and its validation". File groups are unchanged. Commit hashes and the push result are recorded in the entry after this one.
+
+### Bug fix — TargetedBootstrapper temporary library leak (BOOTLEAK; no CTX ID or Google guide by Ariana's decision; started 2026-10-31)
+
+- Problem: on Windows, `TargetedBootstrapperCLI` failed with `FileSystemException: There is not enough space on the disk` after seed 38–39 with a 3,875,793-entry DLIB. `selectMask` opened a new `LibraryFile` for every seed and never closed it. In Encyclopedia 6.9.23 (checked by `javap`), the `LibraryFile` constructor creates `%TEMP%\encyclopedia_*.elib` (`deleteOnExit` only), `openFile` copies the whole library into it, and only `close()` deletes it. Each seed therefore left a full library copy on disk and also reparsed the full library.
+- Guide: none. Ariana approved the fix directly in chat on 2026-10-31: load the library once in `execute`, close it, and pass the in-memory entries to `selectMask` for every seed.
+- Acceptance: no temporary library copies remain after a multi-seed run; seed outputs (assay list, entrapment assignments, masked file contents) are unchanged; Java 17 tests pass.
+- Approval: Approved (Ariana, 2026-10-31).
+
+- [x] `BOOTLEAK-01` Load and close the library once in `TargetedBootstrapper.execute`; `selectMask` takes the loaded `ArrayList<LibraryEntry>` instead of the library path. Files: `src/main/java/org/searlelab/context/io/TargetedBootstrapper.java`. Check: diff review; seed outputs unchanged.
+- [x] `BOOTLEAK-02` Regression test that a three-seed run leaves no new `encyclopedia_*.elib` in `java.io.tmpdir`. Files: `src/test/java/org/searlelab/context/io/TargetedBootstrapperTest.java`. Check: fails on the original code, passes on the patch.
+- [x] `BOOTLEAK-03` Java 17 validation and before/after output comparison. Files: log only.
+- [x] `BOOTLEAK-04` Ariana reruns the large DLIB on Windows past seed 39. Check: run completes; `%TEMP%` holds at most one library copy, only during loading.
+- [x] `BOOTLEAK-05` Ariana's final review; then git delivery when requested.
+
+#### Work log
+
+##### 2026-10-31 — `BOOTLEAK-01`/`02`/`03` implemented and validated
+
+- Environment: Temurin 17.0.13 and Maven 3.9.9 downloaded into ignored `build-cache/` (system JDK is 21). `./build.sh maven` still fails at the pre-existing line-44 `MAVEN_REPO: readonly variable` error, not repaired here; Maven was downloaded from the same URL `build.sh` uses.
+- Baseline (original code): `mvn -B -Dmaven.repo.local=build-cache/m2-repository -Dtest=TargetedBootstrapperTest test` passed 2 tests. A scratch harness (`tmp/leakcheck/`, ignored) running `execute` with seeds 1–3, 1 peptide, 0.5 min RT, 1.0 m/z, 1 trap on the `IL2_and_IL15_Combo.elib` / `IL2A_GPFDIA_0combined_masked0_assay.dia` fixtures left 3 `encyclopedia_*.elib` copies before JVM exit.
+- Patched: same harness left 0. The library is closed right after `getAllEntries`, not at the end of the run, because the entries are fully in memory; this also frees the copy's disk space during masking. Load time is no longer inside `selectMask`'s timer.
+- Equivalence: seeds 1–3 assay lists and entrapment-assignment TSVs are byte-identical before vs after; selection and masking log lines (targets, entrapments, scan counts) are identical; masked `.dia` SQLite tables (`metadata`, `ranges`, `spectra`, `precursor`, `fractions`) have identical contents. Limitation: this fixture's masked files hold 0 fragment spectra and at most 3 precursor scans, so masking content is only weakly exercised. Selection is unchanged by construction: the same entries in the same order are passed for every seed, and selection code does not mutate them.
+- Tests: `TargetedBootstrapperTest` 3 tests, 0 failures/errors/skips on Java 17. With only `TargetedBootstrapper.java` reverted (stash), the new test failed listing 3 leftover `.elib` files, then the change was restored. `git diff --check` passed. Full `-Ppackage verify` not run (recorded baseline failures and native-runtime limits unchanged); no other caller of `selectMask` exists.
+- Not validated: the 3.9M-entry DLIB on Windows (`BOOTLEAK-04`). Still open, out of scope: `writeMaskedFile` closes `rawLibraryFile` outside a `finally`, so an exception during masking can leave one temp `.dia` copy.
+- Next: Ariana's Windows rerun and review; commit only on her instruction.
+
+##### 2026-11-01 — dates corrected
+
+- Ariana asked to keep the BOOTLEAK label with the start date 2026-10-31. The earlier entries above were first written as 2026-11-01 (UTC); the work ran about 22:30 America/Chicago on 2026-10-31, so their dates were corrected to 2026-10-31. No other content changed.
+
+#### BOOTLEAK follow-up — entrapments not matched by precursor m/z (2026-11-01)
+
+- Problem: commit `2e1b5fe` (2026-09-05) replaced `library.getEntries(libraryMzRange, ...)` in `selectDecoys` with a loop over every library entry and dropped the m/z test, so `libraryMzRange` is built but unused. Entrapments became the first eligible entries in library order (charge and target-overlap checks only), not entries near the target m/z. In the 2026-10-31 three-seed fixture run, entrapments were 22–42 m/z from their targets and `VFTTGFSR` served seeds 1 and 2. Bootstrap outputs made since 2026-09-05 are affected.
+- Decisions (Ariana, 2026-11-01): among eligible candidates, choose the closest precursor m/z first; keep the 10 ppm start, doubling to 320 ppm, inclusive bounds (Ariana allowed a 20 ppm start if faster); fix the "Only found" log line to report this target's entrapment count; no CTX ID or Google guide, keep the BOOTLEAK label.
+- Approach (approved 2026-11-01): `execute` makes one stable m/z-sorted copy of the loaded entries; `selectTargets` keeps library order so seeded target draws are unchanged; `selectDecoys` binary-searches the sorted copy for each tolerance window, orders candidates by |Δm/z|, and applies the existing eligibility checks unchanged.
+- Acceptance: every entrapment is within 320 ppm of its target, same charge, RT-separated from every target window by the existing buffer, not a target, not repeated within a seed, and the closest eligible candidate(s); unmatched targets are still replaced; Java 17 tests pass; README describes the rule. A passing build does not establish FDR validity.
+- Approval: Approved (Ariana, 2026-11-01).
+
+- [x] `BOOTLEAK-06` Build the m/z-sorted entry list once in `execute` and pass it through `selectMask` to `selectDecoys`. Files: `TargetedBootstrapper.java`. Check: diff review; target selection unchanged.
+- [x] `BOOTLEAK-07` In `selectDecoys`, restrict candidates to the ppm window via binary search, order by |Δm/z|, add Δppm to the "Decoy k of n" log line, and make "Only found" report this target's count. Files: `TargetedBootstrapper.java`. Check: tests in `BOOTLEAK-08`/`09`.
+- [x] `BOOTLEAK-08` Synthetic JUnit 4 tests: off-mass entry listed first is not chosen; in-window ineligible candidates rejected (charge, RT overlap, used sequence); closest-first order with 2 traps; widening finds ~150 ppm, ~400 ppm leaves the target unmatched; inclusive boundary. Files: `TargetedBootstrapperTest.java`. Check: regression test fails on the current code, all pass on the fix.
+- [x] `BOOTLEAK-09` Fixture integration test (IL2/IL15, seeds 1–3, 5 peptides, 2 traps): every assignment within 320 ppm, same charge, RT-separated, not a target, unique within seed. Files: `TargetedBootstrapperTest.java`.
+- [x] `BOOTLEAK-10` Java 17 focused tests, before/after comparison of targets and entrapments for seeds 1–3, diff review. Files: log only.
+- [x] `BOOTLEAK-11` README paragraph on how `bootstrap` chooses entrapments. Files: `README.md`.
+- [x] `BOOTLEAK-12` Ariana runs the large DLIB for a few seeds: Δppm distribution, replaced targets per seed, entrapment reuse across seeds, time per seed; then regenerates bootstrap outputs made since 2026-09-05.
+
+##### 2026-11-01 — `BOOTLEAK-06` to `BOOTLEAK-11` implemented and validated
+
+- Code: `execute` builds `entriesByMz` (stable sort by precursor m/z) once after loading; `selectMask` takes it as a new parameter after `entries` and passes it to `selectDecoys`. `selectDecoys` rejects an unsorted list with `IllegalArgumentException`, and for each 10→320 ppm window takes candidates from new package-private `candidatesInWindow` (binary search for the inclusive window, then stable sort by |Δm/z|; ties: lower m/z, then library order). Eligibility checks are unchanged. "Decoy k of n" now logs Δppm; "Only found" reports this target's count. The unused `libraryMzRange` was removed. README gains a "Simulated assays with `bootstrap`" section.
+- Note: with closest-first ordering, the doubling rounds give the same result as one 320 ppm window, so the start value (10 vs 20 ppm) affects only speed; 10 ppm was kept as approved.
+- Tests (Java 17, Temurin 17.0.13, Maven 3.9.9): `-Dtest=TargetedBootstrapperTest test` 9 tests, 0 failures/errors/skips. With only `TargetedBootstrapper.java` reverted (stash, then restored), 4 new tests failed as expected: off-mass entry chosen (`OFFMASSK`), fixture assignment far outside 320 ppm, unsorted input accepted, 321 ppm candidate accepted. The closest-first and in-window-rejection tests also pass on the old code because their inputs were already in m/z order; they fix the rule going forward.
+- Full suite: `mvn -B -Dmaven.repo.local=build-cache/m2-repository test` ran 148 tests, 4 failures, 1 error, 8 skips. All 5 are in `ScribeFeatureTableTest` (3), `ScribeCalibratedWorkflowTest` (missing resource), and `ContextScribeTwoBridgeTest`; the same 5 fail on unchanged commit `558ac27` in a temporary worktree, so they are pre-existing and unrelated.
+- Fixture comparison (seeds 1–3, 5 peptides, 2 traps, 0.5 min, 1.0 m/z; harness in ignored `tmp/mzfix/`): maximum |Δppm| per seed fell from 178,351 / 123,045 / 150,597 to 107.8 / 78.9 / 109.2; two entrapments are exact-mass (0.00 ppm). Six targets lacked 2 entrapments by 320 ppm and were replaced, so each seed's target list changed.
+- Timing (synthetic, not the real DLIB): 3.9M generated entries (m/z uniform 400–1200, z 2–3, RT 0–120 min, seed 42); sorting once took 3.5 s; `selectDecoys` for 100 targets × 2 traps took 125–411 ms per seed, including the sortedness check.
+- Findings for Ariana, not changed: (1) pre-existing: replacement targets are drawn with seed `i + replacementRound`, which repeats the next seed's draws; in the fixture, seed 1's replacements were seed 2's first targets and seed 2's were seed 3's, so seeds share targets and, under the deterministic rule, entrapments. (2) Closest-first prefers exact-mass candidates, including sequence isomers or isobars of the target, whenever they are RT-separated.
+- Next: `BOOTLEAK-12` on the real DLIB; Ariana's review; commit only on instruction.
+
+#### BOOTLEAK follow-up — 1000 ppm limit and recorded limitation (2026-11-01)
+
+- Decisions (Ariana, 2026-11-01): raise the final entrapment window from 320 to 1000 ppm with steps 10, 20, 40, 80, 160, 320, 640, 1000 ppm; keep closest-eligible-first. Accept that a target drawn in more than one seed gets the same entrapments; record this as a limitation in the commit message without describing its implications there. Accept that seeds share targets (finding 1: replacements use the next seed's draws), since assays from the same matrix often share targets. Keep exact-mass candidates, including sequence isomers (finding 2), because they must be RT-separated from the target.
+- Acceptance amendment: the 320 ppm bound in the earlier acceptance and in `BOOTLEAK-08`/`09` is now 1000 ppm.
+- Approval: Approved (Ariana, 2026-11-01).
+
+- [x] `BOOTLEAK-13` Final window 1000 ppm (doubling capped at 1000) with matching tests and README. Files: `TargetedBootstrapper.java`, `TargetedBootstrapperTest.java`, `README.md`. Check: focused tests; the widening test fails with the cap left at 320.
+- [x] `BOOTLEAK-14` Commit messages include a Limitations section stating that a target drawn in more than one seed receives the same entrapments. Check: at commit time, on Ariana's authorization.
+
+##### 2026-11-01 — `BOOTLEAK-13` implemented and validated
+
+- Code: `MAX_ENTRAPMENT_PPM = 1000`; after an insufficient round the tolerance becomes `min(2 × ppm, 1000)`, and the loop stops after the 1000 ppm round.
+- Tests (Java 17): `-Dtest=TargetedBootstrapperTest test` 9 tests, 0 failures/errors/skips. The widening test now also needs a candidate at −800 ppm (found only in the final round), one exactly at +1000 ppm (inclusive), and rejects +1001 ppm; with `MAX_ENTRAPMENT_PPM` temporarily set to 320 it failed as expected (`[ONEFIFTYK]` only), then the value was restored. Fixture integration bound changed to 1000 ppm.
+- Fixture comparison (seeds 1–3, 5 peptides, 2 traps): replaced targets fell from 6 (320 ppm) to 2 (1000 ppm); seed 2 kept all five initially drawn targets; maximum |Δppm| per seed was 771.1 / 736.3 / 109.2, the larger values only for targets that 320 ppm would have replaced.
+- Full suite not rerun after this step; only `TargetedBootstrapper` changed since the 148-test run, which had only the 5 pre-existing Scribe failures.
+- Next: Ariana's commit and push authorization (`BOOTLEAK-14`), then `BOOTLEAK-12` on the real DLIB.
+
+##### 2026-11-01 — `BOOTLEAK-14` commits and push authorized
+
+- Ariana approved both commits, with the revised first message naming `TargetedBootstrapper.execute` and `TargetedBootstrapper.selectDecoys`, and the push to `claude/targeted-bootstrapper-patch-20261031`. Both messages carry the Limitations section. No Google record exists for BOOTLEAK, so hashes are reported in chat only.
+
+#### BOOTLEAK follow-up — library loading and per-seed progress messages (2026-11-01)
+
+- Problem: opening the large DLIB takes about 2–5 minutes with no output, which looks like a hang; `selectTargets` logged "There are N entries from the library." on every call (each seed and each replacement round).
+- Approval: Approved (Ariana, 2026-11-01): add the opening and loaded messages; replace the repeated line, wording at Claude's discretion.
+
+- [x] `BOOTLEAK-15` In `TargetedBootstrapper.execute`, log "Opening the library <file name> (this may take a few minutes)..." before opening and "Loaded N library entries in X s." after loading; log "Seed s of N: selecting K targets." at the start of each seed; remove the repeated "There are N entries from the library." line from `selectTargets`. Files: `TargetedBootstrapper.java`. Check: focused tests; each message appears once (per run or per seed) on the fixture; outputs unchanged.
+
+##### 2026-11-01 — `BOOTLEAK-15` implemented and validated
+
+- Nothing in the repository matched the removed text, so no test or parser depended on it. The load time covers `openFile` (temp copy) and `getAllEntries`, not the m/z sort.
+- Tests (Java 17): `-Dtest=TargetedBootstrapperTest test` 9 tests, 0 failures/errors/skips.
+- Fixture run (seeds 1–3, 5 peptides, 2 traps): "Opening the library IL2_and_IL15_Combo.elib…" and "Loaded 2224 library entries in 0 s." appeared once each, "Seed s of 3" three times, "There are …" zero times. Assay lists and entrapment assignments for all three seeds are byte-identical to the previous 1000 ppm run.
+- Next: Ariana's commit and push authorization; `BOOTLEAK-12` continues on the real DLIB.
+
+##### 2026-11-01 — random entrapment selection declined; `BOOTLEAK-15` commit and push authorized
+
+- Ariana briefly considered adding random entrapment selection, then decided not to add it: closest-eligible-first stays, and the repeated-entrapment behavior remains recorded as a limitation. No tasks were added.
+- Ariana authorized committing and pushing the `BOOTLEAK-15` change with the proposed message.
+
+##### 2026-11-01 — `BOOTLEAK-04` Windows run on the full DLIB (reported by Ariana)
+
+- Environment: Ariana's Windows PC, launched from Eclipse 4.37 (Eclipse itself runs on Java 21.0.9), branch `claude/targeted-bootstrapper-patch-20261031` rebuilt after `55a503a`; library `Human_UP000005640_9606_entrapment.fasta.trypsin.z1-6_nce33_DIA.dlib` (3,875,793 entries).
+- Before the run, 62 leftover `encyclopedia_*` files from earlier killed runs were deleted from `%TEMP%` (count 0).
+- A 399-target, 1-entrapment run took about 85 s per seed and was stopped by Ariana to save time (not a failure). The rerun with 10 targets and 1 entrapment per assay completed all 50 seeds (last seed written 11:23): every seed has 10 target–entrapment pairs, matching the settings. This passes seed 39, where the original run failed with "not enough space on the disk". The "Opening the library…" message appeared.
+- Eclipse later failed at 11:50:54 with repeated `SWTError: No more handles` ("Unhandled event loop exception", `org.eclipse.ui`, raised while the Error Log view was redrawing). That is Windows graphics-handle exhaustion in Eclipse's UI after a ~19.5 h session, 27 minutes after the run finished; no frame came from Context. A fixture stress run here (80 seeds, 100 targets, 2 GB heap) completed with flat post-GC heap (~9 MB) and no leftover temp files. Advice given: run long jobs outside Eclipse with output to a file, or restart Eclipse, limit console output, and set an Output File.
+- Not yet confirmed: `%TEMP%` count after this run (needed to tick `BOOTLEAK-04`). Console output was lost, so `BOOTLEAK-12`'s "Only found" counts were not captured; Δppm can still be computed from the output files.
+- Output check (2026-11-01, from files Ariana uploaded: seed 1 assay list and assignments, seed 4 assignments): RT window 5.0 min (half-window 2.5 min). Seed 1: 10 targets and 10 entrapments; every pair has matching charge; |Δppm| 0.00–43.70 (7 of 10 within ±9 ppm; one exact-mass pair, `SYSVPLR` → `SLADLFR`), so all fell inside 80 ppm and none needed the 640–1000 ppm steps; every entrapment's RT is more than 3 half-windows (7.5 min) from every target within 11 m/z (smallest gap 7.52 min); entrapments are unique and never targets. Seed 4: 10 pairs, charges match, entrapments unique and never targets; no targets or entrapments shared with seed 1. Seed 4 Δppm was not computed (its assay list was not supplied).
+- `%TEMP%` check after the run (Ariana, WSL `ls /mnt/c/Users/m334793/AppData/Local/Temp/encyclopedia_* | wc -l`): 0 files. `BOOTLEAK-04` is complete. `BOOTLEAK-12` stays open: "Only found" counts were not captured, and outputs made since 2026-09-05 still need regenerating.
+- `BOOTLEAK-12` closed by Ariana's decision (2026-11-01): the full-DLIB runs and output checks above are sufficient. Not done within it: "Only found" (replaced-target) counts were not captured, the Δppm distribution covers seed 1 only, and regenerating bootstrap outputs made since 2026-09-05 is left to Ariana outside this checklist.
+
+##### 2026-11-01 — `BOOTLEAK-05` accepted
+
+- Ariana accepted the BOOTLEAK fix (commits on `claude/targeted-bootstrapper-patch-20261031`: temp-library leak fix, m/z-matched entrapments up to 1000 ppm, loading and seed progress messages) and authorized committing and pushing these `TASKS.md` updates. The Report location has not been chosen yet; it is not written. No pull request has been requested.
+
+#### BOOTLEAK follow-up — warn when isolation windows are wider than 2 m/z (2026-11-03)
+
+- Finding: a 169-target, 10-entrapment, 2.5 min, 1.0 m/z run on a 16 m/z staggered HeLa DIA file produced reference features for only 7 of 169 targets. `writeMaskedFile` keeps MS2 scans whose isolation-window centre is within ±`halfWindowWidthMz` of the target. A copy of the IL2 fixture with windows widened to 16 m/z kept 25 MS2 scans for a target at a window centre and 0 for targets 3 and 7 m/z off centre. Ariana confirmed `TargetedBootstrapper` is only meant for 1-2 m/z (PRM-like) acquisitions, so the masking rule is correct for supported input; the defect was that unsupported input ran without notice.
+- Approval: Approved (Ariana, 2026-11-03): check isolation windows before running and print a message that the tool is meant for narrow (1-2 m/z) windows and that larger windows may leave some scheduled targets without MS2 spectra. Implemented as a warning; the run continues.
+
+- [x] `BOOTLEAK-16` Before loading the library, `TargetedBootstrapper.execute` reads the acquisition's isolation windows (`EncyclopeDIAFile.getRanges()`) and logs a warning through `Logger.errorLine` when the widest is above 2.01 m/z (allowance for stored widths such as 2.0009 m/z); README notes the requirement. Files: `TargetedBootstrapper.java`, `TargetedBootstrapperTest.java`, `README.md`. Check: unit test for 2.0009 vs 16 m/z windows; end-to-end runs on the fixture and a 16 m/z copy.
+
+##### 2026-11-03 — `BOOTLEAK-16` implemented and validated
+
+- Tests (Java 17): `-Dtest=TargetedBootstrapperTest test` 10 tests, 0 failures/errors/skips, including new `warnsOnlyForIsolationWindowsWiderThanTwoMz`.
+- End-to-end (1 seed, 5 targets, 1 entrapment): with a copy of the IL2 fixture whose windows were widened to 16 m/z (scratch only, not committed), the warning reported "16.0 m/z", appeared before "Opening the library…", and the run still wrote all three outputs. With the unmodified fixture (2.0009 m/z), no warning appeared.
+- Not changed: the masking rule itself, and the minor edge case where 2.0009 m/z windows leave about 0.05% of the m/z range more than 1.0 m/z from every window centre.
+- [ ] Context Percolator uses pyIsoPEP `q2pep` (`--calc-q-from-fdr`) and Context-MS's Percolator arguments for background training; the standard and targeted workflows are unchanged.
+- [ ] Context mProphet uses Context-MS's q-value/PEP method (Gaussian decoy null, Benjamini–Hochberg q, Storey lfdr with π0 ≥ 0.05 and Silverman KDE on logit p), recomputed at peptide level, and additionally writes `P.psm.reference.txt` and `P.peptide.reference.txt` in the Context-MS format; existing mProphet outputs are kept.
+- [ ] Context mProphet training preprocessing matches Context-MS (pairing check, near-constant pruning, feature exclusions, starting score, no fold cap).
+- [ ] Option B: an optional diagnostic fold file makes Java mProphet use Context-MS's exact folds; with it, weights and scores agree to within floating-point precision. Default behavior without the file is unchanged. Malformed fold files fail clearly. **Superseded** in r2 (approved 2026-10-31): option B is diagnostic only; see "r2 acceptance criteria".
+- [ ] Final acceptance only (CTX018-010; not a gate for earlier tasks), on Ariana's comparison file, both engines, seeds 1–10, Percolator v3.05 for both tools:
+  - Peptides: median count of reference target peptides at PEP ≤ 0.01 across seeds within ±2% of the Context-MS median.
+  - Scores: per run, z = (score − decoy mean) / decoy SD; over reference targets with Context-MS |z| ≥ 1, the median per-row relative difference in z within ±20%. Spearman rank correlation reported for information.
+  - Context-MS `example/` data is interim and report-only. A miss triggers review of language-specific differences or of the thresholds with Ariana.
+- [ ] Documentation, Java 17 verify, Until Useful review, and Ariana's final review are recorded with their actual limits.
+
+### Approved checklist — plan r1
+
+- [x] `CTX018-001` Report peptides at PEP ≤ 0.01 alongside the existing q ≤ 0.01 count in `ContextPercolator` (`countPeptidesPassingPEPThreshold` currently counts q-values); keep the existing count and label both. Files: `percolator/ContextPercolator.java`, `ContextPercolatorResult.java`, tests. Check: unit test with known q/PEP values.
+- [ ] `CTX018-002` Add `docs/validation/ctx018_compare.py`, importing Context-MS as an installed package (no Context-MS edits). Compares row counts, features kept, weights, reference scores, and peptide counts at PEP ≤ 0.01 and q ≤ 0.01; computes the final metrics; records versions, seeds, and parameters. Also exports Context-MS mProphet folds for `CTX018-009`. Depends on: none. Check: runs on Context-MS `example/` (kept outside the repo; provenance recorded). **Superseded** by `CTX018-017` (r2, approved 2026-10-31).
+- [ ] `CTX018-003` Record the starting gap: run both tools, both engines, on `example/` and (when available) Ariana's comparison file before any code change, with Percolator v3.05. Files: log only. Check: commands, versions, outputs, and metrics recorded. **Superseded** by `CTX018-018` (r2, approved 2026-10-31).
+- [x] `CTX018-004` Add a `q2pep` method to `PyIsoPEPRunner` with Context-MS's arguments, and use it in the Context Percolator workflow; keep `runD2PEP` for other workflows. Files: `percolator/PyIsoPEPRunner.java`, `ContextPercolator.java`, tests. Check: command unit test; comparison on `example/`.
+- [ ] `CTX018-005` Add a Context-training-only command option in `ContextPercolatorRunner.generateCommand` matching Context-MS (`--post-processing-tdc --override`, Percolator defaults for `-N`, `--maxiter`, `--trainFDR`, `--testFDR`, no `--no-terminate`). Files: `percolator/ContextPercolatorRunner.java`, `ContextPercolator.java`, tests. Check: Context and standard command tests; with v3.05, the same seed and pruned input, per-fold weights match Context-MS. **Superseded** by `CTX018-020` (r2, approved 2026-10-31).
+- [x] `CTX018-006` Port Context-MS `fdr.py` (Gaussian p-values, BH, π0 over λ = 0.1–0.9 with floor 0.05, Silverman KDE on logit p, monotone PEP) to a small Context class; reuse EncyclopeDIA `BenjaminiHochberg`/`LocalFDR.estimatePi0` only where verified identical. Files: new class under `org.searlelab.context`, tests. Check: JUnit 4 against Python-computed values (q ~1e-6 relative; PEP tolerance set from observed differences and recorded).
+- [x] `CTX018-007` Context mProphet: best-scoring row per peptide, then recompute q/PEP; additionally write `P.psm.reference.txt` and `P.peptide.reference.txt` (Context-MS columns), deleted and rewritten on rerun like existing outputs. Files: `io/AllWorkflowExecutorCLI.java` (`runContextMProphet`), `encyclopedia/MProphetReiter.java`, tests. Check: identity preservation, tie-breaking, target/decoy counts, existing outputs unchanged.
+- [ ] `CTX018-008` Align mProphet training preprocessing with Context-MS: header pairing check, near-constant pruning, feature exclusions (resolve `ExpMass`/`protein`), starting-score preference including `main_var_Intensity` and best-feature fallback, no 500,000-row fold cap. Each change measured separately. Files: `encyclopedia/MProphetReiter.java`, `io/AllWorkflowExecutorCLI.java`, tests. Check: focused tests; comparison after each change. **Superseded** by `CTX018-025` (r2, approved 2026-10-31).
+- [ ] `CTX018-009` Optional diagnostic fold file for `MProphetReiter` (TSV: `iteration`, `fold`, `position`, `id`; within-fold order preserved). Build folds with EncyclopeDIA's public `MProphetDataset(featureNames, startingScoreIndex, data)` instead of `splitKFold`. Fail on missing, duplicate, or extra ids or a wrong iteration count. Depends on: `CTX018-002`, `CTX018-008`. Check: join and malformed-input tests; on `example/`, per-iteration passing counts and averaged weights match Context-MS. **Superseded** by `CTX018-024` (r2, approved 2026-10-31).
+- [ ] `CTX018-010` Option C final acceptance: seeds 1–10 per tool, both engines, Ariana's comparison file, Percolator v3.05. Check: criteria above computed by `ctx018_compare.py` and recorded with seeds and versions. **Superseded** by `CTX018-026` (r2, approved 2026-10-31).
+- [ ] `CTX018-011` Documentation: README, CLI help (new mProphet outputs, q2pep switch, fold-file option, comparison Percolator version), and the record's validation sections. Check: examples match actual output names.
+- [ ] `CTX018-012` Java 17 Maven `verify` and focused tests. Check: commands, results, failures, and skips recorded; pre-existing baseline failures kept distinct.
+- [ ] `CTX018-013` Until Useful review: minimal diff, reuse, scientific behavior, and artifacts. Check: findings, dispositions, residual risks recorded.
+- [ ] `CTX018-014` Ariana's final review. Status: not started.
+- [ ] `CTX018-015` External Report `YYYY-MM-DD-CTX-018-Report.md` at a location Ariana names (cloud session). Check: full checklist and log copied verbatim and verified.
+- [x] `CTX018-016` Add a comment to `src/main/java/org/searlelab/context/encyclopedia/MProphetDataset.java` stating it is dead code as of 2026-10-31 (`MProphetReiter` imports EncyclopeDIA's class) and that its q-value code multiplies by π0 twice; do not delete it. Check: comment-only diff; compiles.
+
+### Log
+
+#### 2026-10-31 — planning (no implementation)
+
+- Compared Context `a57ef95` with Context-MS `d207f47` and inspected the EncyclopeDIA 6.9.23 jar with `javap`. No code run or changed. Findings: Context Percolator uses pyIsoPEP `d2pep` (Context-MS: `q2pep`) and EncyclopeDIA-derived Percolator arguments (`-N 500000`, `--maxiter`, `--trainFDR/--testFDR`, `--no-terminate`, no `--override`); mProphet q-values match (BH, no π0), PEP settings differ, and peptide-level q/PEP are not recomputed; small training-preprocessing differences. EncyclopeDIA's default Percolator is v3.01 (v3.05 bundled); Context-MS uses Percolator on PATH or the unpinned `ghcr.io/percolator/percolator:master`.
+- Ariana chose option B (injected folds) as the diagnostic and option C (seeds 1–10) as final acceptance; set ±2% peptides at PEP ≤ 0.01 and ±20% standardized scores (median across seeds) as final criteria only; approved extra Context-MS-format mProphet outputs; chose Percolator v3.05; asked that the dead local `MProphetDataset.java` be commented, not deleted; accepted Context-MS `example/` as interim data. The |z| ≥ 1 row filter and report-only status of `example/` were proposed in chat and adopted with plan approval.
+- Ariana approved plan r1 on 2026-10-31. Guide updated to r1; canonical plan frozen as `docs/uu-ctx-018-percolator-mprophet-parity.md` revision 1. Next: Ariana's independent agent review of the plan, then `CTX018-001`. A material change from that review returns to Ariana for a revised approval.
+
+### r2 acceptance criteria (approved 2026-10-31; heading originally "Proposed … (pending Ariana's approval)")
+
+These replace the r1 option B and final-acceptance criteria if r2 is approved. All other r1 criteria still apply.
+
+- [ ] Aligned mProphet behavior runs only in a Context-only mode used by `runContextMProphet`. With the mode off, standard and targeted mProphet and `scribe-context` / `ContextMProphetExecutor` are unchanged, as default-path regression tests show.
+- [ ] Option B is diagnostic only. With the fold file, record for each of the 50 iterations whether passing counts agree with Context-MS, the first iteration that diverges and its cause, and the maximum relative difference in averaged weights. The tolerance comes from observed differences and is recorded. Malformed fold files fail clearly; without the file, behavior is unchanged.
+- [ ] `percolator` and `mprophet` accept `-seed` (default 1). The same seed and inputs give the same outputs as `AllWorkflowExecutorCLI --seeds`.
+- [ ] Context mProphet also writes `P.rescored_features.txt` and `model/P.weights.txt`.
+- [ ] Final acceptance (`CTX018-026` only; measured after every phase). Data: Ariana's comparison file, both engines, seeds 1–10 per tool, identical Percolator v3.05 binary (sha256 recorded), pyIsoPEP 0.1.4.
+  - Gate 1, identity: the same reference target and decoy `id`s and counts in both tools' rescored outputs, and the same de-duplicated peptide keys.
+  - Gate 2, validity: scores are finite; q and PEP are in [0, 1]; PEP never decreases as score decreases.
+  - Peptides: |median N(Context) − median N(Context-MS)| / median N(Context-MS) ≤ 2%, where N = reference target peptides with PEP ≤ 0.01 at peptide level. Report Context-MS's seed min–max; if ±2% is narrower than that spread, the result goes to Ariana's threshold review. Whether to allow a minimum of ±1 peptide is open question 1 in the r2 proposal.
+  - Scores: per run z = (score − reference decoy mean) / reference decoy population SD. Context-MS consensus = each row's median z over its 10 seeds. Rows = reference targets with consensus |z| ≥ 1, joined by `id`. For each Context run m = median over rows of |z_Context − z_consensus| / |z_consensus|. Pass if the median of m over the 10 runs is ≤ 0.20. Also report the Context-MS leave-one-out noise floor.
+  - Report-only: Jaccard index of the PEP ≤ 0.01 peptide sets, 90th-percentile relative z difference, Spearman correlation, sign flips, q ≤ 0.01 counts, Percolator per-fold weight differences, option B per-iteration agreement.
+
+### r2 checklist additions (approved 2026-10-31; heading originally "Proposed … (pending Ariana's approval)")
+
+r2 phase order:
+- Phase 0: `001`, `017`, `018`, `019`.
+- Phase 1, Percolator: `004`, `020`.
+- Phase 2, mProphet confidence: `021`, `006`, `007`, `023`.
+- Phase 3, mProphet training: `022`, `024`, `025`, `016`.
+- Phase 4: `026`, `011`, `027`, `012`, `013`, `014`, `015`.
+
+r1 tasks marked "proposed superseded" above become `Superseded` only when r2 is approved. (Done 2026-10-31: `002`, `003`, `005`, `008`, `009`, `010` and the r1 option B criterion are now marked **Superseded**.)
+
+- [x] `CTX018-017` (replaces `002`) Add `docs/validation/ctx018_compare.py`, importing Context-MS `d207f47` as an installed package (no Context-MS edits).
+  - It computes the r2 gates, criteria and report-only metrics, plus noise floors; records versions, binary sha256, seeds and parameters; and writes a per-phase metrics table.
+  - It exports Context-MS mProphet folds and per-iteration passing counts by wrapping `context.mprophet._split_kfold` and the fold-level passing step inside the script, not by re-implementing numpy's random generator.
+  - Depends on: none.
+  - Check: runs on `example/` (kept outside the repo; provenance recorded); a wrapped run gives the same weights as an unwrapped run at the same seed.
+- [ ] `CTX018-018` (replaces `003`) Baseline before any code change, on `example/` and, when available, Ariana's comparison file:
+  - Pin the identical Percolator v3.05 binary for both tools: extract the jar's `bin/percolator-v3-05.lin` (sha256 `3bd83c21c4065b082eb168012fd1bd1357b3ab9df8aa48108cb1e33d35c972bd` for the 6.9.23 jar) and put it on Context-MS's `PATH` as `percolator`. Pin pyIsoPEP 0.1.4.
+  - Run Context-MS seeds 1–10 for both engines to get its noise floor.
+  - Run Context at seed 1, or at seeds 1–10 through `AllWorkflowExecutorCLI --seeds` if an all-features file is available.
+  - Repeat each tool once at a fixed seed to confirm the runs are deterministic.
+  - Record the current Percolator `*.command.txt`, which settles `-Y`/`-y`.
+  - Count rows per peptide in the comparison file (`example/` has exactly one row per peptide).
+  - Files: log only.
+  - Check: commands, versions, outputs and metrics recorded.
+- [x] `CTX018-019` Add `-seed <int>` to the `percolator` (`ContextPercolatorExecutorCLI`) and `mprophet` (`ContextMProphetCLI`) commands.
+  - Default 1 (`TrainingSeeds.DEFAULT_SEED`), checked with `TrainingSeeds.requireValid`, passed to `ContextPercolator.trainAndApply(..., seed)` and `runContextMProphet(..., seed)`.
+  - Make parameter construction match `AllWorkflowExecutorCLI` so the same seed gives the same results from either entry point.
+  - Update help.
+  - Files: those CLIs, tests, README.
+  - Check: invalid seeds rejected; a run without `-seed` matches the current output; on a fixture, `mprophet -seed 3` and `AllWorkflowExecutorCLI --seeds 3` give identical outputs, ignoring paths and logs. The Percolator equivalence test is skipped and recorded if the Percolator binary or pyIsoPEP is missing.
+- [x] `CTX018-020` (replaces `005`) Add a Context-training-only command in `ContextPercolatorRunner.generateCommand`.
+  - Training-affecting flags match Context-MS: `--post-processing-tdc --override --protein-report-duplicates`; Percolator defaults for `-N`, `--maxiter`, `--trainFDR`, `--testFDR`; no `--no-terminate`.
+  - Keep the output-only flags Context needs: `--seed`, `--weights`, `--results-peptides`, `--decoy-results-peptides`.
+  - Handle EncyclopeDIA Percolator options and `-percolatorModelFile` as Ariana decides (open question 2 in the r2 proposal).
+  - Standard and targeted commands unchanged.
+  - Files: `percolator/ContextPercolatorRunner.java`, `ContextPercolator.java`, tests.
+  - Check: Context and standard command tests; with v3.05, the same seed and pruned input give per-fold weights matching Context-MS (difference recorded).
+- [x] `CTX018-021` Add the Context-only mProphet mode in `MProphetReiter`, turned on only by `runContextMProphet`. Every other caller (standard and targeted mProphet, `ContextMProphetExecutor`, `scribe-context`) keeps the default path byte-for-byte. `007`, `022`, `023`, `024` and `025` act only in this mode.
+  - Files: `encyclopedia/MProphetReiter.java`, `io/AllWorkflowExecutorCLI.java`, tests.
+  - Check: default-path regression tests on a fixture for standard and targeted mProphet and `ContextMProphetExecutor.trainAndApplyFeature`.
+- [x] `CTX018-022` In Context-only mode, rank trained models by passing count with a stable descending sort, so ties keep iteration order as in Context-MS. Today ties are broken by `LinearDiscriminantAnalysis.compareTo` (sum of coefficients) and then reversed by `Collections.reverse`.
+  - Files: `encyclopedia/MProphetReiter.java`, tests.
+  - Depends on: `021`.
+  - Check: JUnit 4 with a tie straddling position 25 keeps the earliest iterations; default-path ordering unchanged.
+- [x] `CTX018-023` Context mProphet also writes:
+  - `P.rescored_features.txt`: every reference target and decoy row plus `score`.
+  - `model/P.weights.txt`: `feature`/`weight`/`__bias__`, reusing the `PercolatorWeights.writeAveraged` format.
+  - Both are deleted and rewritten on rerun like the existing outputs.
+  - Files: `io/AllWorkflowExecutorCLI.java` (`runContextMProphet`), tests, README.
+  - Depends on: `021`.
+  - Check: row counts and target/decoy labels match the reference input; weights match the logged model; existing outputs unchanged.
+- [x] `CTX018-024` (replaces `009`) Diagnostic fold file for Context-only `MProphetReiter`.
+  - TSV columns: `iteration`, `fold`, `position`, `id`. Within-fold order preserved.
+  - Folds built from `MProphetData` joined by `id` through the public `MProphetDataset(featureNames, startingScoreIndex, data)` constructor.
+  - Fail on missing, duplicate or extra ids and on a wrong iteration count.
+  - Without the file, behavior is unchanged.
+  - This task comes before `025`, so preprocessing changes are measured with folds fixed.
+  - Files: `encyclopedia/MProphetReiter.java`, tests.
+  - Depends on: `017`, `021`, `022`.
+  - Check: join and malformed-input tests; on `example/`, record per-iteration count agreement, the first iteration that diverges and its cause, and the maximum relative difference in weights. This is diagnostic, not a gate.
+- [x] `CTX018-025` (replaces `008`) Context-owned mProphet reader and preprocessing (Context-only mode). Each step is measured separately with injected folds:
+  - (a) Reuse `ContextFeatures.prepare`: header check, σ < 1e-6 pruning on the background, same drop list applied to the reference.
+  - (b) Build `MProphetData`/`MProphetDataset` for background and reference. With legacy column selection, prove the result is identical to `MProphetFeatureReader.parseFeatureFile`.
+  - (c) Context-MS feature selection: positional non-feature columns, case-insensitive `ScanNr`/`scan`, metadata exclusions; resolve `ExpMass`/`protein`.
+  - (d) Context-MS starting-score precedence (last match wins), `main_var_Intensity`, then the best-separating feature.
+  - (e) No 500,000-row fold cap.
+  - (f) Fail clearly if the model and the reference differ in feature names or order.
+  - Files: a new Context class (not in `org.searlelab.context.encyclopedia` without an explicit EncyclopeDIA import), `encyclopedia/MProphetReiter.java`, `io/AllWorkflowExecutorCLI.java`, tests.
+  - Depends on: `021`, `024`.
+  - Check: focused tests for each step, including a feature file with no named starting score; comparison after each step.
+- [ ] `CTX018-026` (replaces `010`) Option C final acceptance, with the r2 gates and criteria above, run through `-seed` (`019`).
+  - Check: computed by `ctx018_compare.py` and recorded with seeds, versions and binary sha256; any miss goes to Ariana's review.
+- [ ] `CTX018-027` Documentation additions for r2, alongside `011`:
+  - The `-seed` flag and its equivalence with AllWorkflow.
+  - The Context-only mProphet mode and the workflows it does not change.
+  - `P.rescored_features.txt` and `model/P.weights.txt`.
+  - The handling of EncyclopeDIA Percolator options in the Context workflow.
+  - The r2 metric definitions in the record's validation sections.
+  - Check: examples match actual output names and help text.
+
+### Log (continued)
+
+#### 2026-10-31 — independent plan review and r2 proposal (no implementation)
+
+- **Review.** Reviewed guide r1, canonical r1 and this checklist against Context `a57ef95`, Context-MS `d207f47`, pyIsoPEP 0.1.4 (PyPI wheel) and EncyclopeDIA 6.9.23 (`javap` on the jar). Ran the bundled `percolator-v3-05.lin --help`. No Context code changed or ran.
+- **Verified the same in both tools:** seed coefficients; the 1e-4 range filter in LDA; strict `q < FDR`; Benjamini–Hochberg without π0; population SD for the decoy null; the 10× decoy cap; Percolator raw-weight averaging; pyIsoPEP 0.1.4 `q2pep` CLI defaults equal the Python API, with outputs aligned to the target input order; v3.05 defaults `-N` 0, `--maxiter` 10, train/test FDR 0.01.
+- **Verified differences:**
+  - Ties in mProphet model ranking are broken by the sum of the coefficients, then reversed.
+  - `LocalFDR.estimateLocalFDR` builds `KDE(x, 1.0, 100)` with no π0 floor.
+  - `MProphetFeatureReader` hard-codes name-based exclusions (adds `ExpMass`, `protein`), throws when no named starting score exists, and the reference is parsed separately with no feature-alignment check.
+  - Java parses features and computes LDA scores in float32.
+  - `MProphetReiter` is shared by standard and targeted mProphet and by `ContextMProphetExecutor` (`scribe-context`).
+  - `ContextMProphetCLI` hard-codes seed 1, and the per-engine CLIs have no seed option.
+  - `example/` has exactly one row per peptide.
+- **Decisions in chat:**
+  - `scribe-context` is out of scope; ScribeTwo is no longer the production path. A paper comparison of ScribeTwo vs EncyclopediaTwo should go through the aligned commands as a follow-up.
+  - Approved: the H2 stable-sort fix, the H7 metric definitions, the H5 extra outputs and the H6 `-seed` flag.
+- **Files.** Created `docs/uu-ctx-018-percolator-mprophet-parity.md` (r1, verbatim as Ariana supplied it) and `docs/ctx-018-canonical-r2-proposal.md`. Added this section from Ariana's `TASKS.md` copy and appended the r2 proposal above.
+- **Open questions:** peptide-count floor; handling of EncyclopeDIA Percolator options; whether `q2pep` is a user-facing flag or a hard change.
+- **Next:**
+  - Ariana approves, revises or rejects r2.
+  - The Google implementation record needs a matching r2 update (still at r1, and §1 still shows ±5%/±10%); this needs Ariana's authorization.
+  - Implementation does not start until r2 is approved.
+
+#### 2026-10-31 — r2 approved; documents updated (no implementation)
+
+- **Approval.** Ariana approved r2 in chat ("You have my approval") after approving H2 and H7. She also authorized committing and pushing the CTX-018 planning documents to `origin/ariana/scoring`; that does not cover implementation commits.
+- **Canonical plan.** `docs/uu-ctx-018-percolator-mprophet-parity.md` now holds revision 2 at the top and revision 1 below it as history. `docs/ctx-018-canonical-r2-proposal.md` is marked adopted and kept as the review record.
+- **Checklist.** `CTX018-002`, `003`, `005`, `008`, `009`, `010` and the r1 option B criterion are marked **Superseded**. The r2 acceptance criteria and tasks `CTX018-017`–`027` are approved.
+- **Guide.** The Google implementation record is updated to r2:
+  - Status.
+  - The stale ±5%/±10% text in §1, kept and annotated with the revision.
+  - The r2 out-of-scope item, criteria and metric definitions.
+  - Approach, components, dependencies and resolved risks.
+  - Step 6 phase order.
+  - A dated work-log entry and a decision-log row.
+  - Validation additions.
+  - Files, commands and references.
+  - Open questions 1–3 and the follow-up for the paper comparison.
+  - I read the guide back afterwards and checked the text. Ariana's own requirement section (§7) was left unchanged, because it is filled from her messages.
+- **Commit and push.** The commit and push are recorded in the Google implementation record, not here.
+- **Next:** `CTX018-001` (Phase 0). Open question 3 must be decided before `CTX018-004`, question 2 before `CTX018-020`, and question 1 before `CTX018-026`.
+
+- [x] `CTX018-028` Context-workflow guard for EncyclopeDIA options, from Ariana's 2026-10-31 decision on open question 2. **The specifics below await Ariana's confirmation.**
+  - Context still accepts and parses every EncyclopeDIA workflow option.
+  - The Context Percolator and Context mProphet workflows fail with a clear error, before any training, when an option Context fixes or does not honor is set to a value that differs from the EncyclopeDIA 6.9.23 default. Values are compared after parsing, so `0.010` equals `0.01`.
+  - Options that cause the error:
+    - `-percolatorTrainingIterations`, `-percolatorTrainingFDR` and `-percolatorTrainingSetSize`. Context-only training uses Percolator's own defaults, and Context mProphet uses no fold cap.
+    - `-percolatorModelFile`.
+    - `-percolatorProteinThreshold`.
+    - `-percolatorThreshold`, if it differs from `-fdr`.
+  - Options that are allowed and recorded: `-percolatorVersion` and `-percolatorLocation`, which choose the binary.
+  - The error names each option, its value and the default Context requires.
+  - `AllWorkflowExecutorCLI` applies the check in preflight, so a run with a conflicting option fails before any workflow starts, including the standard and targeted ones that would otherwise honor it.
+  - Standard and targeted workflows run on their own are unchanged.
+  - Files: `percolator/ContextPercolator.java` or a small shared Context helper, `io/AllWorkflowExecutorCLI.java`, `io/ContextMProphetCLI.java`, tests, README.
+  - Depends on: `020`, `021`.
+  - Check: JUnit 4 for each option at its default (passes), at a non-default value (fails with the named option), and at an equivalent spelling (passes); AllWorkflow preflight fails before any output is written; standard and targeted runs on their own still accept the option.
+  - **Approved by Ariana on 2026-10-31, with one change: warnings, not errors.** This supersedes the "fail with a clear error" and "fails … in preflight" wording above, which is kept as history.
+    - A preflight check runs before any training or workflow starts and reports every conflicting option in one block of warnings: the option, the value given, and the default Context uses instead.
+    - The Context Percolator and Context mProphet workflows then run with Context's required settings and do not apply the conflicting values.
+    - In `AllWorkflowExecutorCLI`, the check runs once, before the first of the six workflows. The warning states that the standard and targeted workflows will apply the user's values while the Context workflows will not, so their settings differ in that run.
+    - The existing seed-experiment rejection of `-percolatorModelFile` in `preflightExperiment` is unchanged.
+    - Revised check: each option at its default (no warning), at a non-default value (one warning naming it, and Context uses its required setting), and at an equivalent spelling (no warning). The AllWorkflow warnings appear before any workflow output, and standard and targeted runs still apply the user's value.
+
+#### 2026-10-31 — r2 open questions decided (no implementation)
+
+- **Question 3, q2pep.** Ariana: a **hard change**. The Context Percolator workflow always uses pyIsoPEP `q2pep --calc-q-from-fdr`; there is no user-facing switch. `d2pep` stays for the standard and targeted workflows. The README needs a migration note: the Context Percolator PEP now comes from `q2pep` (`CTX018-004`, `011`, `027`).
+  - Follow-up (future direction, not CTX-018): add a user option in Context (Java) to choose `d2pep` or `q2pep` for the Context Percolator workflow.
+- **Question 1, peptide count.** Ariana: use **whichever is larger**. The `CTX018-026` criterion becomes |median N(Context) − median N(Context-MS)| ≤ max(0.02 × median N(Context-MS), 1 peptide).
+- **Question 2, EncyclopeDIA options.** Ariana: Context accepts all EncyclopeDIA workflow options, but the Context workflows report an error when any option deviates from the defaults Context needs. Added task `CTX018-028` with a proposed specification. Two points await her confirmation:
+  - "Error" means the run fails before training, not a warning.
+  - `AllWorkflowExecutorCLI` fails the whole run in preflight.
+- These answers settle open questions 1–3 in canonical plan r2. They are recorded here and in the implementation record; the frozen canonical plan is not edited.
+
+#### 2026-10-31 — `CTX018-028` specifics approved; documents updated (no implementation)
+
+- **Decision.** Ariana confirmed open question 2 with a change: conflicting EncyclopeDIA options produce **warnings, not errors**. She approved a preflight check that runs before anything else, so all conflicts are reported up front rather than appearing partway through a multi-workflow run.
+- **Changes approved.** Ariana approved recording these decisions, together with the earlier q2pep (hard change, with the user option as a future direction) and peptide-count (whichever is larger) decisions, and authorized committing and pushing them to `origin/ariana/scoring`.
+- **Plan.** Canonical plan r2 gains an "Approved clarification — 2026-10-31" section that records the answers to open questions 1–3. Following the CTX-016 precedent, this is a clarification within r2, not a new revision.
+- **Guide.** The Google implementation record is updated: open question 2 is checked and annotated, and a decision-log row is added. The commit is recorded there after the push.
+- **Next:** `CTX018-001` (Phase 0). No implementation has started.
+
+#### 2026-10-31 — Phase 0 implementation: `CTX018-001`, `017`, `018`, `019`
+
+Ariana asked to start the implementation with all Phase 0 tasks. The order followed the plan's dependencies: `017` (script), then `018` (baseline, before any Java change), then `001` and `019`. No commit has been made for this work.
+
+- **Environment, with deviations from the documented setup:**
+  - Only JDK 21 (`openjdk 21.0.12.1`) is installed, so builds and tests ran on JDK 21 with `-Dmaven.compiler.release=17`, which checks Java 17 language and API compatibility. A JDK 17 *runtime* was not exercised.
+  - `./build.sh maven` fails on an existing bug: `readonly MAVEN_REPO` is declared twice (lines 43–44). That is outside CTX-018 and was not fixed. Maven 3.9.9 was installed by hand using the script's own URL and location (`build-cache/apache-maven-3.9.9`).
+  - Python: `tools/ctx018-py` (ignored) with numpy 2.5.4, pandas 3.1.0, scipy 1.18.1, pyIsoPEP 0.1.4, and Context-MS `d207f47` installed with `--no-deps` from a clean clone. The freeze is in `tmp/ctx018/pip-freeze.txt`.
+  - Percolator: the 6.9.23 jar's `bin/percolator-v3-05.lin` was extracted to `tools/ctx018-bin/` (sha256 `3bd83c21…72bd`) and put on `PATH` as `percolator` for Context-MS. Context used `-percolatorVersion v3-05`, which extracts the same bundled binary. Both logs report `Percolator version 3.05.0, Build Date Feb 18 2021`.
+  - Data: Context-MS `example/` was copied to `tmp/ctx018/data/` (sha256 identical to the originals; background 53,998 rows, reference 264 rows = 132 targets + 132 decoys, one row per peptide).
+  - Context requires `-f`, but its Context Percolator and mProphet paths do not pass the FASTA to the engines, so a one-entry placeholder FASTA was used. Split inputs without sidecars needed `--allow-legacy-features true`.
+- **`CTX018-017` — done.** Added `docs/validation/ctx018_compare.py` with two subcommands:
+  - `run-context-ms`: fresh per-seed directories plus `provenance.json`. With `--export-folds`, it writes `folds.tsv` and `iterations.tsv` by wrapping `context.mprophet._split_kfold`, `_inner_loop` and `train`.
+  - `compare`: the r2 gates, the peptide criterion (max of 2% or 1 peptide), consensus-z scores, noise floors, and the report-only metrics, including Percolator per-fold weights at the same seed.
+  - Check: the wrapped mProphet seed-1 run and an unwrapped run produced byte-identical weights and peptide report (passive).
+- **`CTX018-018` — `example/` done; the comparison-file baseline is pending until Ariana supplies the file.**
+  - Context-MS: seeds 1–10, both engines, about 4–9 s per run.
+  - Context: seed 1 on the unmodified jar (`821ec25`, kept as `tmp/ctx018/context-baseline-821ec25.jar`).
+  - Determinism: a repeat at seed 1 was byte-identical for both tools and both engines.
+  - Current Context training command (`*.command.txt`): `-y --maxiter 3 --no-terminate -N 500000 --testFDR 0.01 --trainFDR 0.01`. This settles the `-Y`/`-y` question: Context uses `-y`. It also shows that Context trains with only 3 iterations (the round-1 recalibration cap).
+  - Starting gap at seed 1:
+    - Percolator: N (PEP ≤ 0.01) 21 vs Context-MS seed 1 27. Per-fold weights at the same seed differ (maximum absolute difference 53.1), as expected from the different arguments.
+    - mProphet: 35 vs 35.
+  - Context-MS's own seed spread:
+    - Percolator: N is **0** for seeds 3, 4 and 8 and 22–28 otherwise (median 23.5). The leave-one-out z noise floor is 0.14.
+    - mProphet: N = 35 for every seed; z noise floor 0.031.
+  - The Percolator zeros are real. pyIsoPEP's smallest q is 0.5/(T + 0.5), where T is the number of targets above the best decoy (36–43 of 132), so the smallest `q2pep` PEP lands just above or just below 0.01. On small reference sets, the PEP ≤ 0.01 count is therefore a cliff. This needs Ariana's threshold review.
+  - Neither tool reaches q ≤ 0.01 on `example/`.
+  - Context-MS seed 1 shows the H2 problem on real data: kept-model passing counts 128 and 128 sit at ranks 25 and 26.
+- **`CTX018-001` — done.** `ContextPercolator` reports both counts, and `ContextPercolatorResult` gains `getPEPPassingPeptideCount()`; the existing `getPassingPeptideCount()` still means q ≤ threshold. Log line example: `0 at q <= 0.01, 21 at PEP <= 0.01`.
+  - The old private method was named `countPeptidesPassingPEPThreshold` but counted q-values. It is replaced by `countAtOrBelow(table, column, threshold)`.
+  - Two behavior corrections, for Ariana's review:
+    - A value exactly at the threshold now counts. Before, `(double) 0.01f` = 0.0099999998 excluded values of exactly 0.01, so the old q count could be one lower at the boundary.
+    - A non-numeric pyIsoPEP value is now an `IOException`, not a silently skipped row (CLAUDE.md error rule).
+  - Test: `ContextPercolatorCountTest` (3 tests).
+- **`CTX018-019` — done.** `-seed <int>` on `percolator` (split and raw routes) and `mprophet`, parsed by the new `TrainingSeeds.parseSingle` (default 1; rejects 0, negatives, non-integers, lists and overflow).
+  - `percolator -standardPercolator -seed` is rejected, because the standard workflow is out of scope.
+  - The raw Percolator route gained a `runContextPercolator(..., trainingSeed)` overload. The existing signatures delegate with seed 1.
+  - `ContextMProphetCLI` now builds its parameters through `AllWorkflowExecutorCLI.parseSearchParameters(SearchParameterParser.getDefaultParameters(), fdr)` (made package-private), which is how AllWorkflow builds them.
+  - A bug in my first edit was caught and fixed before testing: `encyclopediaArguments()` removes `-seed` from the map, so the seed is now read first.
+  - Help text and README updated.
+  - Checks:
+    - `ContextSeedOptionTest` (3 tests): the CLI with `-seed 3` matches the AllWorkflow step with seed 3 byte for byte; no `-seed` equals seed 1; invalid seeds are rejected before any output.
+    - `TrainingSeedsTest` (+1).
+    - End to end on `example/` with the new jar: without `-seed`, all Percolator and mProphet outputs are byte-identical to the `821ec25` baseline; with `-seed 3`, every output differs and `*.command.txt` holds `--seed 3`.
+    - `AllWorkflowExecutorCLI --seeds 3` (status COMPLETE) is byte-identical to `percolator -seed 3` and `mprophet -seed 3` for weights, reports and rescored features. That covers the Percolator equivalence that the JUnit test does not.
+- **Phase 0 end measurement** (Context seeds 1–10 via `-seed`, algorithms unchanged; `tmp/ctx018/metrics/phase0-*`):
+  - Percolator: Context median N 18.5 vs Context-MS 23.5 (difference −5, tolerance 1): **not met**, and flagged because the tolerance is narrower than Context-MS's own spread (0–28). Scores: median of run medians 0.169 (limit 0.20): met, against a Context-MS noise floor of 0.14.
+  - mProphet: Context median N 35 vs 35: met. Scores 0.025: met. These are interim `example/` results only.
+  - Gates pass for every run.
+- **Test commands:**
+  - Baseline, unmodified (`821ec25`): `build-cache/apache-maven-3.9.9/bin/mvn -B -Dmaven.repo.local=build-cache/m2-repository -Dmaven.compiler.release=17 test` gave 148 tests, 3 failures, 0 errors, 6 skipped. The 3 failures already existed and are Scribe-related: `ScribeFeatureTableTest` ×2 and `ContextScribeTwoBridgeTest` ×1.
+  - After the change, the same command with `tools/ctx018-py/bin` on `PATH`: 155 tests, the same 3 failures, 0 errors, 4 skipped. The 2 pyIsoPEP tests now run, and no new failures appeared.
+  - Package: `-Ppackage -Dmaven.test.skip=true verify` succeeded.
+- **Outputs:** everything is under `tmp/ctx018/` (ignored): runs, logs, metrics and jars. Nothing is published.
+- **Next:**
+  - Ariana reviews the two `001` boundary corrections and the PEP-cliff observation.
+  - Run `018` on the comparison file when it is available.
+  - Phase 1 (`004`, `020`) only on Ariana's instruction.
+  - Nothing is committed; committing needs Ariana's authorization.
+
+#### 2026-10-31 — Phase 0 follow-ups from Ariana's review (uncommitted)
+
+- **PEP ≤ 0.01 jump.** Running pyIsoPEP `q2pep` exactly as Context-MS calls it (`pep_regression(method="q2pep", calc_q_from_fdr=True)`) on Context's own Phase 0 scores gives N = 0 for seeds 2, 7 and 10 and 17–26 for the others. Context-MS shows the same pattern (0 for seeds 3, 4, 8).
+  - Context does not show the jump today only because it still uses `d2pep`; after `CTX018-004` both tools will.
+  - Mechanism (refined): on `example/` no q-value falls below about 0.0115 (smallest q 0.0115–0.0154). Any PEP ≤ 0.01 therefore comes from the pyIsoPEP fit extending below the lowest observed q, and whether it does varies by seed in both tools.
+  - Ariana: the behavior is shared and data-specific, and she is exploring it separately. Implementation continues.
+  - Risk to `CTX018-026`: on a reference set like this, the number of zero seeds per tool can move the median by about 20 peptides, far more than the ±1-peptide tolerance. Check the comparison file's smallest q before relying on the criterion.
+  - `ctx018_compare.py` now also reports `min_q` and `min_pep` for each run (report-only).
+- **`CTX018-001` corrections.** Ariana approved counting values exactly at the threshold, which supports accepting PEP = 0.01. For a non-numeric pyIsoPEP value she asked to keep the legacy skip, so a multi-file experiment such as targeted bootstrapping keeps going when a few of many files fail, but with a warning.
+  - `countAtOrBelow` now skips the row and logs `Warning: skipping a pyIsoPEP row with a non-numeric [...] value [...] (row <id>); it is not counted.`
+  - Test updated: `aNonNumericValueIsSkippedWithAWarningAndTheRunContinues`. The warnings appear in the test output.
+- **Environment.** The JDK limitation is the cloud container's, not the Python virtual environment's: the container has only OpenJDK 21. Tests compile with `--release 17`, which checks Java 17 compatibility; a JDK 17 runtime was not used.
+- **`build.sh` (outside CTX-018, authorized by Ariana).** Fixed:
+  - the duplicate `readonly MAVEN_REPO`, keeping the line that honors `CONTEXT_MAVEN_REPO`;
+  - in `setup_javapot`: `local x = ...` → `local x=...` (three lines), the mismatched `[ ... } && { ... ]` test, and `-f-` → `-f`.
+  - Not changed: the duplicated first `build_sif()` definition (the second definition wins, so it is harmless), and `-Dmaven.javac.skip=true`, which is not a real Maven property, so compilation runs anyway.
+  - Checks:
+    - `bash -n build.sh` passes.
+    - `./build.sh maven` runs, using the `mvn` 3.9.11 already on `PATH`.
+    - An unknown target prints the usage line.
+    - `CONTEXT_MAVEN_REPO=/tmp/ctx018/m2-javapot-test ./build.sh javapot` cloned JavaPot `84a59af`, built and installed `javapot-1.0.5.jar` (89 entries, same count as `libs/`) and wrote the revision file. A second run took the cached path.
+    - `./build.sh jar` and `sif` were not run.
+- **Tests:** same Maven command as before, with pyIsoPEP on `PATH`: 155 tests, 3 failures (the same existing Scribe failures), 0 errors, 4 skipped.
+- **Next:** Ariana authorizes the Phase 0 commit; Phase 1 on her instruction.
+
+#### 2026-10-31 — Phase 1 implementation: `CTX018-004`, `CTX018-020`, and the Percolator part of `CTX018-028` (uncommitted)
+
+Ariana asked to start Phase 1.
+
+- **`CTX018-004` — done.** `PyIsoPEPRunner.runQ2PEP` runs `q2pep --cat-file … --score-col … --label-col … --target-label 1 --decoy-label -1 --calc-q-from-fdr --output …`, the arguments Context-MS passes. The arguments come from a shared `concatenatedArguments(method, …)`, so `runD2PEP`'s arguments are unchanged; a test pins both lists.
+  - `ContextPercolator` now calls `runQ2PEP` for the PSM-level and peptide-level reports (a hard change, as decided).
+  - The standard and targeted workflows never used pyIsoPEP, so `runD2PEP` now has no production caller. It is kept for the future `d2pep`/`q2pep` option.
+  - Tests: `q2pepUsesContextMSArgumentsAndD2pepIsUnchanged`, and `runsQ2PEPAndReportsTargetsWithQValuesAndPEPs` (runs when pyIsoPEP is on `PATH`; it ran here).
+- **`CTX018-020` — implemented as approved (no `--no-terminate`); one finding below needs Ariana's decision before this is marked done.**
+  - `ContextPercolatorRunner.generateContextTrainingCommand` writes `--seed S --results-peptides … --weights … --decoy-results-peptides … --post-processing-tdc --override --protein-report-duplicates <pin>`. It omits `-N`, `--maxiter`, `--trainFDR`, `--testFDR`, `--no-terminate`, `-y`/`-Y` and `--init-weights`.
+  - Only `ContextPercolator.train` uses it, through a new `executePercolatorTSV(…, contextTraining)` overload. The existing signature and `generateCommand` are unchanged (the existing upstream-parity test still passes).
+  - Percolator 2 is rejected for Context training with a clear error.
+  - Tests: `contextTrainingUsesContextMSArgumentsOnly`, `contextTrainingRejectsPercolatorTwoAndInvalidSeeds`.
+- **`CTX018-028`, Percolator part — done; the mProphet part waits for `CTX018-021`/`025`.**
+  - New `ContextTrainingOptions.percolatorConflicts` and `warn`. An option is a conflict when its parsed value is off the EncyclopeDIA default; `-percolatorThreshold` must also differ from `-fdr`, so `-fdr 0.05` alone does not warn.
+  - Called in `ContextPercolatorExecutorCLI` (both Context routes) and once in `AllWorkflowExecutorCLI.main`, before any workflow, with the note that the standard and targeted workflows apply the values.
+  - Test: `ContextTrainingOptionsTest` (2 tests: defaults, `v3-05`, equivalent spellings and `-percolatorThreshold` = `-fdr` give no warning; each conflicting option is named once).
+  - End to end: `-percolatorTrainingIterations 5` gives one warning block and unchanged Context weights. In AllWorkflow the block appears once, before `[1/6]`; the standard workflow used `--maxiter 5`; the Context Percolator output is byte-identical to `percolator -seed 3`; status COMPLETE.
+- **Phase 1 measurement** (`example/`, seeds 1–10, Percolator v3.05; `tmp/ctx018/metrics/phase1-percolator`):
+  - Per-fold Percolator weights are **identical** to Context-MS at the same seed for all 10 seeds (maximum difference 0.0).
+  - PSM-level and peptide-level reports match Context-MS for every seed: maximum score difference 1.8e-14 (floating-point); q-values and PEPs identical.
+  - N per seed equals Context-MS's (27, 22, 0, 0, 25, 22, 28, 0, 26, 25): median 23.5 vs 23.5, **met**. The tolerance is still narrower than the seed spread; see the PEP-jump entry.
+  - Scores: median of run medians 0.103 vs the consensus (limit 0.20), **met**. This equals Context-MS's own spread, as expected when each Context seed reproduces the same Context-MS seed.
+  - Gate 1 (identity) passes. **Gate 2 (validity) fails for both tools**, as described next.
+- **Gate 2 finding (needs Ariana's decision).** At PSM level, "PEP never decreases as score decreases" fails for every Context-MS run and every Context run, at the same 26 places at seed 1.
+  - Every violation is inside a run of tied q-values. pyIsoPEP `q2pep` assigns PEP by rank among tied q-values in **input-row order**, and the PSM input is the unsorted rescored table, so within a tie a higher-scoring row can get a higher PEP. The largest drop is 0.249.
+  - Peptide level passes, because that input is sorted by score first.
+  - Context reproduces Context-MS exactly here, so this is canonical behavior, not a Context bug. The gate as approved cannot pass at PSM level with `q2pep`.
+  - Options:
+    - (a) Apply the monotonicity gate at peptide level only, and report PSM-level violations as report-only. **Recommended**: keeps exact parity.
+    - (b) Sort the PSM table by score before `q2pep` in Context. This breaks parity with Context-MS unless Context-MS does the same.
+    - (c) Raise the PSM-level behavior with the pyIsoPEP or Context-MS authors.
+- **Percolator v3.01 finding (needs Ariana's decision).** With Context's default Percolator v3.01 and Context-MS's arguments, Percolator stops on `example/` ("cannot find an initial direction with positive training examples … Terminating"; `percolator` exits 2). v3.05 succeeds.
+  - Run directly on the same pin:
+    - v3.01 without `--no-terminate`: exit 1.
+    - v3.01 with `--no-terminate`: completes, but only by "setting initial direction to the first feature" in all three splits.
+    - v3.05 with or without `--no-terminate`: byte-identical weights, equal to Context-MS seed 1.
+  - Options:
+    - (A) Keep Context-MS's arguments as approved: data like this fails clearly on v3.01, and the user needs `-percolatorVersion v3-05`. Optionally add that hint to the error.
+    - (B) Add `--no-terminate` back for Context training: v3.01 completes with the first-feature fallback, results with v3.05 are unchanged here, but it deviates from the approved r2 argument list.
+    - Changing the default version is out of scope.
+- **Side effect noted.** With `--post-processing-tdc`, Percolator prints no `Selecting pi_0`, so the background working file ends with `pi_0=null`. EncyclopeDIA's reader accepted it, and the run completed.
+- **Tests:** `mvn … test` with pyIsoPEP on `PATH`: 161 tests, 3 failures (the same existing Scribe failures), 0 errors, 4 skipped (environment-gated integration tests). `git diff --check` is clean. The phase jar is `tmp/ctx018/context-phase1.jar`.
+- **Next:** Ariana decides gate 2 (a/b/c) and v3.01 (A/B); then mark `CTX018-020` done and commit Phase 1 on her authorization. Phase 2 (`021`, `006`, `007`, `023`) starts on her instruction.
+
+#### 2026-10-31 — Phase 1 decisions recorded (uncommitted)
+
+- **Gate 2, decided by Ariana:** PEP monotonicity is checked at **peptide level only**; it is not necessary at PSM level. `ctx018_compare.py` now gates monotonicity on the peptide-level output and reports the PSM-level count as `psm_pep_order_violations` (report-only). The finiteness and [0, 1] checks still apply at both levels.
+  - Rerun on the Phase 1 outputs: gates pass for all 10 Percolator runs, and for the legacy mProphet runs too.
+  - PSM-level violations per seed are identical in both tools (26, 31, 29, 39, 25, 43, 32, 30, 45, 29), which confirms this is pyIsoPEP's tie ordering.
+- **Percolator v3.01, decided by Ariana: option A.** Keep Context-MS's arguments exactly, with no `--no-terminate`. On data like `example/`, v3.01 fails clearly and `-percolatorVersion v3-05` is the remedy. Adding that hint to the error message is offered, not done. `CTX018-020` is marked done.
+- **π0 side effect, explained to Ariana.** Percolator estimates and prints π0 only for its default mix-max post-processing ("Separate target and decoy search inputs detected, using mix-max method. Selecting pi_0=0.884971"). With `--post-processing-tdc` it competes targets with decoys instead ("Selected best-scoring PSM per scan+expMass (target-decoy competition): 7783 target PSMs and 6918 decoy PSMs") and never computes π0.
+  - The background working file therefore ends in `pi_0=null`.
+  - Neither the background file nor its π0 feeds Context's reference results: `ContextPercolator.train` discards the returned passing peptides, and reference q-values and PEPs come from pyIsoPEP. The value is not used.
+- **Proposed addendum (not started, awaiting Ariana's approval).** A user option for the Context Percolator PEP method (`q2pep` default, `d2pep` optional) is small, because `PyIsoPEPRunner` already has both. It would replace the "future direction" follow-up only if Ariana adds it to CTX-018.
+
+- [x] `CTX018-029` (addendum, approved by Ariana on 2026-10-31) `--pepMethod q2pep|d2pep` for the Context Percolator workflow, default `q2pep` (Context-MS's method). This replaces the "future direction" follow-up recorded under open question 3.
+  - The option name follows the GNU convention Ariana asked for: words with `--`, single letters with `-`. Existing single-dash word options are not renamed, which would be a compatibility change.
+  - `PyIsoPEPRunner` carries the method (`PepMethod`, `runPEP`); `ContextPercolator` calls `runPEP`. The CLIs build the runner with the parsed option, so no public workflow signatures change.
+  - Accepted by `percolator` (split and raw routes) and `AllWorkflowExecutorCLI`. Rejected with `-standardPercolator`, invalid values are rejected before any output, and the option is not passed to EncyclopeDIA.
+  - Only `q2pep` has a Context-MS counterpart; `d2pep` is tested for wiring, not parity.
+  - Files: `percolator/PyIsoPEPRunner.java`, `ContextPercolator.java`, `ContextPercolatorExecutorCLI.java`, `io/AllWorkflowExecutorCLI.java`, `PyIsoPEPRunnerTest.java`, README, CLI help.
+  - Depends on: `004`.
+  - Checks: parse, default and invalid values; a stand-in `pyisopep` records that each method reaches pyIsoPEP.
+
+#### 2026-10-31 — `CTX018-029` implemented; Phase 1 committed with Ariana's authorization
+
+- **Tests:** `pepMethodDefaultsToQ2pepAndRejectsUnknownMethods` and `runPEPCallsTheConfiguredMethod` (the stand-in executable records its arguments).
+- **End to end on `example/`:**
+  - Without the option, outputs are byte-identical to Phase 1.
+  - `--pepMethod d2pep` runs `pyisopep d2pep` for both reports (28 at PEP ≤ 0.01).
+  - `--pepMethod tdc2pep` exits 2 with `--pepMethod must be q2pep or d2pep`, and no output directory is created.
+  - `-standardPercolator --pepMethod d2pep` exits 2.
+  - `AllWorkflowExecutorCLI --pepMethod d2pep --seeds 4` uses `d2pep` and completes (COMPLETE), with no EncyclopeDIA option warning.
+- **Full suite** (pyIsoPEP on `PATH`): 163 tests, 3 failures (the same existing Scribe failures), 0 errors, 4 skipped. `git diff --check` is clean.
+- **Delivery:** Ariana asked for a commit and push once the option was done ("go ahead and make a commit/push unless you need additional input"). The commit hash is recorded in the implementation record.
+- **Next:** Phase 2 (`021`, `006`, `007`, `023`) on Ariana's instruction. `018` (comparison file) and the mProphet part of `028` remain open.
+
+#### 2026-11-01 — Phase 2 implementation: `CTX018-006`, `CTX018-007`, `CTX018-023`; `CTX018-021` moved to Phase 3 (uncommitted)
+
+Ariana asked to move to Phase 2.
+
+- **Order change within the approved plan.**
+  - The new outputs are written in `AllWorkflowExecutorCLI.runContextMProphet`, which only the Context workflow calls, so `MProphetReiter` is not changed in this phase.
+  - The Context-only mode (`CTX018-021`) would therefore have no effect yet. It moves to Phase 3, where `CTX018-022`, the stable model ranking, first uses it.
+  - The out-of-scope workflows were still compared against Phase 0; see "Regression" below.
+- **`CTX018-006` — done.** `org.searlelab.context.mprophet.MProphetConfidence` ports Context-MS `fdr.py`:
+  - Gaussian decoy null with mean and population SD; p = ½·erfc(z/√2) using commons-math3 3.6 `Erf.erfc`, already a compile dependency of EncyclopeDIA 6.9.23, so no new dependency.
+  - Benjamini–Hochberg q-values without π0.
+  - π0 as the median over λ = 0.1…0.9, with a floor of 0.05.
+  - KDE on logit p with eps = 1e-8, using scipy's Silverman factor: bandwidth = sample SD × (3n/4)^(−1/5).
+  - PEPs clipped to [0, 1] and made non-decreasing in p; ties keep input order (mergesort).
+  - Edge cases: no decoys gives p = 1; decoy SD 0 gives p = 0/1 by side; zero KDE spread gives PEP 1, as Context-MS does.
+  - One deliberate difference: with a single target, Context-MS stops (scipy `gaussian_kde` raises `ValueError`), while Context sets PEP = 1 and logs a warning, so a multi-file run keeps going.
+  - Reference values: `src/test/resources/org/searlelab/context/mprophet/ctx018_fdr_reference.tsv`, generated by the new `docs/validation/ctx018_fdr_fixture.py` from Context-MS's own `fdr.py`. It holds 5 deterministic synthetic sets: typical, tied, extreme/underflow, small (5 + 5) and null. Seeds and the command to regenerate it are in the script.
+  - Observed differences: p 7.7e-15 relative, q 7.7e-15 relative, PEP 1.6e-15 absolute. Test tolerances are p 1e-10 relative, q 1e-9 relative, PEP 1e-9 absolute.
+  - `MProphetConfidenceTest` (4 tests). Two of my first hand-worked expectations were wrong (a BH tie and a π0 median); I corrected them after re-deriving.
+- **`CTX018-007` and `CTX018-023` — done.** `org.searlelab.context.mprophet.ContextMProphetReports` writes four new files next to the unchanged outputs:
+  - `P.rescored_features.txt`: every reference row, labels normalized to 1/−1, plus `score`.
+  - `P.psm.reference.txt`: all reference rows.
+  - `P.peptide.reference.txt`: the best row per peptide over targets and decoys together, with q/PEP recomputed on those rows. Peptide key: the peptide column (second to last) verbatim; ties keep file order.
+  - `model/P.weights.txt`: `feature`/`weight` rows plus `__bias__`.
+  - Scoring uses the background LDA in double precision on the reference feature columns named by the model. A missing column is an `IOException`, not a zero.
+  - The files are deleted before a rerun, like the existing outputs.
+  - The returned `MProphetResult` and the existing log line are unchanged. A new log line gives the new counts, e.g. `132 reference target PSMs, 132 peptides; 39 at q <= 0.01, 35 at PEP <= 0.01`.
+  - `ContextMProphetReportsTest` (3 tests) uses a synthetic table with repeated peptides and a tie. It checks identity, the tie winner, target/decoy counts, recomputed peptide-level values that differ from PSM level, sorting by q, the weights file, and the missing-feature error.
+  - README updated.
+- **Phase 2 measurement** (`example/`, seeds 1–10; `tmp/ctx018/metrics/phase2-mprophet`):
+  - Context mProphet median N 35 vs Context-MS 35: **met**.
+  - Scores: median of run medians 0.025: **met**. Gates pass.
+  - On Context's own scores, the Java q/PEP match Context-MS `fdr.py` to 3.8e-15 (q) and 6.4e-15 (PEP) at every seed.
+  - The training models still differ (Phase 3), so per-seed N is 34–36.
+- **Regression:**
+  - For seeds 1–10, all four legacy Context mProphet files are byte-identical to Phase 0.
+  - `AllWorkflowExecutorCLI --seeds 3` against the Phase 0 run of the same command: `standard-mprophet`, `target-mprophet` and the legacy `context-mprophet` files are byte-identical. In `standard-percolator` and `target-percolator` only `*.command.txt` differs, by the random temporary Percolator path and the output directory. `percolator` (Context) differs, as expected after Phase 1. Status COMPLETE.
+  - Full suite (pyIsoPEP on `PATH`): 170 tests, 3 failures (the same existing Scribe failures), 0 errors, 4 skipped. `git diff --check` is clean.
+- **Performance note:** the KDE is O(n²) in the number of reference targets at each level. That is fine for targeted reference sets, but would be slow for reference sets of about 10⁵ rows.
+- **Next:** commit Phase 2 on Ariana's authorization; Phase 3 (`021`, `022`, `024`, `025`, `016`) on her instruction.
+
+#### 2026-11-01 — Phase 2 delivery
+
+- Ariana kept the single-target PEP behavior: PEP = 1 with a warning, where Context-MS stops. She authorized committing and pushing Phase 2. The commit hash is recorded in the implementation record.
+- The move of `CTX018-021` to Phase 3 is recorded above. Ariana has not yet said whether she accepts it.
+
+#### 2026-11-01 — Phase 3 implementation: `CTX018-021`, `022`, `024`, `025`, `016`, and the mProphet part of `028` (uncommitted)
+
+Ariana asked to move to Phase 3 once Phase 2 was pushed (`abcd1e3`). The Phase 2 commit first failed `git diff --cached --check`: the decoy rows of the fixture had empty trailing fields. The generator now writes `NA` there; the test re-ran and passed before the commit.
+
+- **`CTX018-021` — done.** Context-only mode in `MProphetReiter`:
+  - `executeContextTraining(dataset, settings, threshold, seed, aa, folds)` and `applyContextModel(reference, …)` are the entry points. Only `runContextMProphet` uses them.
+  - The public constructor and `executeMProphetTSV` / `executeMProphetTSVWithModel` keep the legacy path, which `ContextMProphetExecutor` (`scribe-context`) and the standard and targeted workflows use.
+  - In this mode: folds are not capped (maximum fold size = the larger of targets and decoys, as Context-MS), a supplied fold plan replaces the random split, a training failure is thrown instead of logged and returned as null, and per-iteration records are returned.
+- **`CTX018-022` — done.** `rankModels(models, contextMode)`: in Context mode a stable descending sort by passing count; in legacy mode `Collections.sort` + `reverse`, unchanged. `MProphetReiterContextModeTest` covers both orders with a tie at the cut.
+- **`CTX018-025` — done.** `org.searlelab.context.mprophet.ContextMProphetFeatures`:
+  - (a) Reuses `ContextFeatures.prepare`: header check, σ < 1e-6 pruning on the background, and the same drop list on the reference.
+  - (b) Builds `MProphetData`/`MProphetDataset` through the public constructors. With EncyclopeDIA's column rules, it is **bit-for-bit identical** to `MProphetFeatureReader.parseFeatureFile`: features, starting index, ids, sequences (flanking `-.`/`.-` stripped), proteins, labels and float values. Checked on the 1,000-row fixture (`ContextMProphetFeaturesTest`) and on the full 53,998-row `example/` background (probe: 0 differing rows).
+  - (c) Context-MS's columns: positional id/label/peptide/proteins, case-insensitive `ScanNr`/`scan`, and `io.ENCYCLOPEDIA_METADATA_COLS`. `ExpMass` is a feature; a non-numeric mid-table `protein` column reads as 0 and is then pruned. Labels other than 1/−1 are skipped with a warning.
+  - (d) Starting score: the last of Context-MS's preferred names present, including `main_var_Intensity`; otherwise the per-training-fold best-separating feature (`MProphetReiter.bestSeparatingFeature`, a port of `_auto_main_score`).
+    - **Finding:** EncyclopeDIA's reader stores the *header* position of its starting score and reads it as a *feature* position. On `example/` that is 5 (`weightedSumOfSquaredErrors`) instead of `xCorrModel` (feature 1); on the fixture, 12 (`isotopeDotProduct`) instead of `xCorrModel`. The legacy starting score is therefore wrong whenever it is used, which is only when the seed model is unusable. The Context reader uses the correct index.
+  - (e) No fold cap.
+  - (f) The reference dataset is built with the background's feature list. The model is applied to it through `applyContextModel`, so coefficients line up by name. The new reports also fail on a missing feature (Phase 2).
+  - `runContextMProphet` now uses the reader. The rescored output is written from the pruned reference, as Context-MS writes its own.
+  - **Effect of each step on `example/`:** (a), (c), (d) and (e) change nothing there. Pruning drops `charge1`/`charge4`, which both selections exclude anyway; the 15 features are identical; the seed model is usable, so no starting score is needed; and 54k rows are under the old 500,000-row cap. Their effect is covered by synthetic tests. The only change that affects `example/` is `022`: with random folds, seeds 5 and 10 changed materially, because a tie at the top-25 cut now keeps a different model; the other seeds changed only in the last digits, from averaging order.
+- **`CTX018-024` — done.** `org.searlelab.context.mprophet.MProphetFoldFile` and `mprophet --foldFile <folds.tsv>` (GNU style; README and help updated).
+  - Joins by id; keeps within-fold order (targets then decoys, in file position order).
+  - Fails on duplicate background ids, a wrong header, non-integer fields, a fold other than 0/1, an iteration outside 0..49, an unknown id, an id twice in one iteration, a repeated position, gaps in positions, a missing iteration, and incomplete coverage (naming a missing id).
+  - When given, `model/P.iterations.tsv` records each iteration.
+  - `ctx018_compare.py compare-folds` compares it with Context-MS's `iterations.tsv` and weights.
+  - Tests: `MProphetFoldFileTest` (2 tests: join/order, and 10 malformed cases).
+  - **Option B result** (`example/`, Context-MS's folds from seeds 1–3; `tmp/ctx018/metrics/phase3-folds-seed*`):
+    - Seeds 1 and 3: **50/50 iterations agree**; averaged weights within 2.2e-7 and 1.6e-6 relative.
+    - Seed 2: 49/50 agree. Iteration 31 has 207 vs 208 passing (one PSM at the q < 0.01 line, float32 vs float64). Weights are still within 2.1e-7 relative.
+    - Seed 1 includes the 128/128 tie at ranks 25/26, so this also confirms `022`.
+    - Diagnostic only, as approved.
+- **`CTX018-016` — done.** Class comment on `encyclopedia/MProphetDataset.java`: unused as of 2026-10-31, kept at Ariana's request, π0 applied twice in its q-values, and the same-package shadowing caution. Comment-only; compiles.
+- **`CTX018-028`, mProphet part — done.** The `-percolatorTrainingSetSize` warning now also says there is no Context mProphet fold cap. The `mprophet` command accepts no EncyclopeDIA options, so the warning can only come through `AllWorkflowExecutorCLI`.
+- **Phase 3 measurement** (`example/`, random seeds 1–10; `tmp/ctx018/metrics/phase3-mprophet`): Context mProphet median N 35 vs Context-MS 35, **met**; scores 0.025, **met**; gates pass.
+- **Regression:** `AllWorkflowExecutorCLI --seeds 3` against the Phase 2 run: `standard-percolator`, `target-percolator`, `standard-mprophet`, `target-mprophet` and the Context Percolator output are byte-identical (excluding `*.command.txt` temporary paths). Status COMPLETE.
+- **Not aligned, found during Phase 3 (outside the approved items; neither changes `example/`):**
+  - Java compares the seed model on the test fold even when the seed is unusable; Context-MS does only when usable.
+  - When LDA inversion fails, EncyclopeDIA throws, while Context-MS ends that inner loop.
+- **Tests:** full suite with pyIsoPEP on `PATH`: 179 tests, 3 failures (the same existing Scribe failures), 0 errors, 4 skipped. `git diff --check` is clean.
+- **Next:** commit Phase 3 on Ariana's authorization. Phase 4: `026` needs Ariana's comparison file (and `018`); `011`/`027` docs, `012` verify, `013` Until Useful review, `014` final review, `015` Report.
+
+#### 2026-11-01 — Phase 3 follow-ups from Ariana's review (uncommitted)
+
+- **EncyclopeDIA starting-score bug.** Explained to Ariana: the fix is Context-only. The Context mProphet workflow uses `ContextMProphetFeatures`, which gives the starting score's position in the feature list. EncyclopeDIA 6.9.23 is unchanged, so its reader still has the bug for the standard and targeted mProphet workflows and `scribe-context`, which are out of scope. An upstream fix would be a one-line EncyclopeDIA change and is not planned here.
+- **Preprocessing.** Ariana: the steps are needed for other data, even though `example/` is an ideal case where they change nothing.
+- **Training alignment, approved by Ariana ("persist training similarly to Context-MS").** All in Context-only mode in `MProphetReiter`; the legacy path is unchanged.
+  - The seed model is compared on the test fold only when it is usable (finite, not all zero), as Context-MS's `_is_usable` check does. Iteration records then leave the seed column empty.
+  - An iteration whose training fold has no targets or no decoys is skipped, as Context-MS's `continue` does. Before, EncyclopeDIA's LDA threw an `ArrayIndexOutOfBoundsException` there and the run stopped.
+  - The inner loop ends without a new model when there are no positives or no decoys to build from, as Context-MS's `build_lda` returning `None` does, so training persists instead of stopping. A singular covariance was probed separately: EncyclopeDIA returns NaN coefficients, which the existing NaN check already handles the same way as Context-MS.
+  - With no kept model and an unusable seed model, training stops with a clear error, as Context-MS raises, instead of averaging an all-zero seed model.
+  - Iterations without a model now record empty fields, which matches Context-MS's export for `compare-folds`.
+  - Tests in `MProphetReiterContextModeTest` (3 added; ids are EncyclopeDIA-style because `PercolatorPeptide` parses them): an unusable seed is never compared; no usable model and no seed raise an error; a training fold without decoys is skipped while the other iterations train.
+  - On `example/`, nothing changes, since the seed model is usable and every fold has decoys: random seeds 1–10 and fold-injected seeds 1–3 give weights and iteration records byte-identical to the earlier Phase 3 runs.
+- **Tests:** full suite with pyIsoPEP on `PATH`: 182 tests, 3 failures (the same existing Scribe failures), 0 errors, 4 skipped. `git diff --check` is clean.
+- **Next:** commit Phase 3 on Ariana's authorization.
+
+#### 2026-11-01 — `CTX018-018` comparison data: library downloaded, feature-scoring probe (log only)
+
+- **Attempt:** fetch Ariana's HeLa comparison inputs into the cloud container (outside the repo, `/home/user/ctx018-data/`).
+- **Result:**
+  - After Ariana allowed `drive.usercontent.google.com` in the environment's network settings, the library downloaded: `Human_UP000005640_9606_entrapment.fasta.trypsin.z1-6_nce33_DIA.dlib`, 5,163,610,112 bytes (matches the Drive size).
+  - It opens read-only as SQLite: 3,875,793 entries; built with JChronologer at NCE 33, default charge 3, charges 1–6, decoys added.
+  - The uploaded `.dia`, assay `.txt` (155 targets + 155 decoys), entrapment assignments and FASTA were copied to `/home/user/ctx018-data/run/`. The copies' sha256 values match the uploads.
+- **Probe:** a 300 s `features` run with Context's defaults (`--prediction-nce 27`, default charge 2, DIA adjustment on). It was stopped by `timeout`, exit 124.
+  - JChronologer runs on this CPU (4 cores, 15 GB RAM).
+  - `ContextWorkingLibraryPreparer` predicts every library precursor and a matched decoy: up to 7.75 M requests.
+  - 336 k requests took 203 s (about 1,650/s), so prediction alone would take about 80 min.
+  - The store holds about 0.6 kB per spectrum, so about 4.7 GB in all, plus the working library.
+  - Free disk is 16 GB after the download, so the margin is a few GB.
+  - The interrupted run left `.context.lock`/`.context.inprogress` files in the scratch directory; the documented next-run recovery applies.
+- **Open for Ariana:**
+  - Use her own feature files (via Drive, now reachable), or generate them here (about 1.5–2 h, tight disk).
+  - If generating here, which prediction settings: Context's defaults (NCE 27, charge 2) or the library's (NCE 33, charge 3)?
+  - Either gives valid input for the parity comparison, since both tools read the same feature files. Her setting is what matches her pipeline.
+- **Next:** on Ariana's choice, produce or download the background/reference feature files and pair sidecars, then run the `CTX018-018` comparison-file steps.

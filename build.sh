@@ -40,7 +40,6 @@ export APPTAINER_CACHEDIR="${CACHE_DIR}/apptainer"
 export SINGULARITY_CACHEDIR="${APPTAINER_CACHEDIR}"
 export PIP_CACHE_DIR="${CACHE_DIR}/pip"
 export XDG_CACHE_HOME="${CACHE_DIR}/xdg"
-readonly MAVEN_REPO="${CACHE_DIR}/m2-repository"
 readonly MAVEN_REPO="${CONTEXT_MAVEN_REPO:-${CACHE_DIR}/m2-repository}"
 
 log()  { printf '\n==> %s\n' "$*"; }
@@ -117,10 +116,10 @@ check_libs() {
         || fail "These jars come from the EncyclopeDIA maintainer and are too large for git. Copy them into place and run again."
 }
 setup_javapot() {
-	local revision = "84a59af82c9258cdf8f9774ed0dbc2b648421631"
-	local source = "${CACHE_DIR}/JavaPot-${revision}"
-	local artifact = "${MAVEN_REPO}/org/searlelab/javapot/1.0.5/javapot-1.0.5.jar"	
-	if [ -f "${artifact}" } && { -f "${artifact}.context-source-revision" ] \
+	local revision="84a59af82c9258cdf8f9774ed0dbc2b648421631"
+	local source="${CACHE_DIR}/JavaPot-${revision}"
+	local artifact="${MAVEN_REPO}/org/searlelab/javapot/1.0.5/javapot-1.0.5.jar"
+	if [ -f "${artifact}" ] && [ -f "${artifact}.context-source-revision" ] \
 	&& [ "$(cat "${artifact}.context-source-revision")" = "${revision}" ]; then
 	log "Using JavaPot 1.0.5 from the local Maven cache"
 	return 
@@ -131,7 +130,7 @@ setup_javapot() {
 	git clone	https://github.com/searlelab/JavaPot.git "${source}"
 	fi
 	git -C "${source}" checkout --detach "${revision}"
-	"${MVN}" -B -f- "${source}/pom.xml" "-Dmaven.repo.local=${MAVEN_REPO}" \
+	"${MVN}" -B -f "${source}/pom.xml" "-Dmaven.repo.local=${MAVEN_REPO}" \
 	-DskipTests -Dmaven.javac.skip=true install
 	printf '%s\n' "${revision}" > "${artifact}.context-source-revision"	
 }

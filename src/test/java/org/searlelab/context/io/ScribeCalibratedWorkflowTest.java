@@ -3,6 +3,7 @@ package org.searlelab.context.io;
 import static org.junit.Assert.*;
 
 import java.io.File;
+import java.io.IOException;
 import java.nio.file.Files;
 import org.junit.Rule;
 import org.junit.Test;
@@ -13,13 +14,17 @@ import edu.washington.gs.maccoss.encyclopedia.algorithms.scribe.ScribeTwoSearchP
 public class ScribeCalibratedWorkflowTest {
     @Rule public TemporaryFolder temp = new TemporaryFolder();
 
-    static File resource(String path) throws Exception {
-        return new File(ScribeCalibratedWorkflowTest.class.getResource(path).toURI());
+    static File resource(String... paths) throws Exception {
+        for (String path : paths) {
+            var url = ScribeCalibratedWorkflowTest.class.getResource(path);
+            if (url != null) return new File(url.toURI());
+        }
+        throw new IOException("Missing test resource: " + String.join(" or ", paths));
     }
 
     @Test public void realCalibratedTableSupportsPartitionAndBackgroundModelApplication() throws Exception {
         File features = resource("/org/searlelab/context/scribe/hela-calibrated.features.txt");
-        File assay = resource("/org/searlelab/context/scribe/assay.tsv");
+        File assay = resource("/org/searlelab/context/scribe/assay.tsv", "/org/searlelab/context/scribe/assay.txt");
         File fasta = temp.newFile("proteins.fasta"); // TSV model fitting uses the row's protein annotations.
         Files.writeString(fasta.toPath(), ">fixture\nLEAAIAEAEER\n");
         String prefix = new File(temp.getRoot(), "full").getAbsolutePath();

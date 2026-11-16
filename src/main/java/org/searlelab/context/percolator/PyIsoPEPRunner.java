@@ -19,17 +19,72 @@ public class PyIsoPEPRunner {
 	public static final String Q_VALUE_COLUMN = "pyIsoPEP q-value from FDR";
 	public static final String PEP_COLUMN = "pyIsoPEP PEP";
 
+	/** The pyIsoPEP method the Context Percolator workflow uses ({@code --pepMethod}); q2pep, as in Context-MS, by default. */
+	public enum PepMethod {
+		Q2PEP("q2pep"), D2PEP("d2pep");
+
+		private final String command;
+
+		PepMethod(String command) {
+			this.command = command;
+		}
+
+		public String command() {
+			return command;
+		}
+
+		/** {@code null} (option absent) means {@link #Q2PEP}. */
+		public static PepMethod parse(String value) {
+			if (value == null) return Q2PEP;
+			for (PepMethod method : values()) {
+				if (method.command.equalsIgnoreCase(value.trim())) return method;
+			}
+			throw new IllegalArgumentException("--pepMethod must be q2pep or d2pep, not [" + value + "]");
+		}
+	}
+
 	private final String executable;
+	private final PepMethod pepMethod;
 
 	public PyIsoPEPRunner(String executable) {
+		this(executable, PepMethod.Q2PEP);
+	}
+
+	public PyIsoPEPRunner(String executable, PepMethod pepMethod) {
 		this.executable = executable;
+		this.pepMethod = pepMethod == null ? PepMethod.Q2PEP : pepMethod;
+	}
+
+	public PepMethod getPepMethod() {
+		return pepMethod;
+	}
+
+	/** Runs this runner's PEP method ({@link #getPepMethod()}) on a concatenated target+decoy table. */
+	public Table runPEP(File concatenatedInput, File outputFile, String scoreColumn, String labelColumn,
+			String targetLabel, String decoyLabel) throws IOException, InterruptedException {
+		return runConcatenated(pepMethod.command(), concatenatedInput, outputFile, scoreColumn, labelColumn, targetLabel,
+				decoyLabel);
 	}
 
 	public Table runD2PEP(File concatenatedInput, File outputFile, String scoreColumn, String labelColumn,
 			String targetLabel, String decoyLabel) throws IOException, InterruptedException {
+		return runConcatenated("d2pep", concatenatedInput, outputFile, scoreColumn, labelColumn, targetLabel, decoyLabel);
+	}
 
-		List<String> arguments = Arrays.asList(
-				"d2pep",
+	/**
+	 * pyIsoPEP {@code q2pep --calc-q-from-fdr} on a concatenated target+decoy table: q-values from target-decoy
+	 * FDR, then PEPs from those q-values. These are the arguments Context-MS passes (the Context Percolator
+	 * workflow's PEP method since CTX-018).
+	 */
+	public Table runQ2PEP(File concatenatedInput, File outputFile, String scoreColumn, String labelColumn,
+			String targetLabel, String decoyLabel) throws IOException, InterruptedException {
+		return runConcatenated("q2pep", concatenatedInput, outputFile, scoreColumn, labelColumn, targetLabel, decoyLabel);
+	}
+
+	static List<String> concatenatedArguments(String method, File concatenatedInput, File outputFile,
+			String scoreColumn, String labelColumn, String targetLabel, String decoyLabel) {
+		return Arrays.asList(
+				method,
 				"--cat-file", concatenatedInput.getAbsolutePath(),
 				"--score-col", scoreColumn,
 				"--label-col", labelColumn,
@@ -37,6 +92,13 @@ public class PyIsoPEPRunner {
 				"--decoy-label", decoyLabel,
 				"--calc-q-from-fdr",
 				"--output", outputFile.getAbsolutePath());
+	}
+
+	private Table runConcatenated(String method, File concatenatedInput, File outputFile, String scoreColumn,
+			String labelColumn, String targetLabel, String decoyLabel) throws IOException, InterruptedException {
+
+		List<String> arguments = concatenatedArguments(method, concatenatedInput, outputFile, scoreColumn, labelColumn,
+				targetLabel, decoyLabel);
 
 		List<String> command = buildCommand(arguments);
 

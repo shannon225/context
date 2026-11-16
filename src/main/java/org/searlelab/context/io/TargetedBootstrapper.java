@@ -9,9 +9,11 @@ import java.nio.file.Paths;
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map.Entry;
+import java.util.Optional;
 
 import org.searlelab.context.datastructures.IsolationWindow;
 import org.searlelab.msrawjava.io.encyclopedia.EncyclopeDIAFile;
@@ -29,6 +31,26 @@ import edu.washington.gs.maccoss.encyclopedia.utils.math.RandomGenerator;
 
 public class TargetedBootstrapper {
 
+	// Entrapment search windows: 10, 20, 40, 80, 160, 320, 640, then 1000 ppm.
+	private static final double MAX_ENTRAPMENT_PPM = 1000;
+	// Masking expects narrow (1-2 m/z) MS2 isolation windows, as in PRM. Stored window edges can exceed 2 m/z slightly
+	// (2.0009 m/z in the test data), hence the small allowance.
+	private static final double MAX_NARROW_ISOLATION_WINDOW_MZ = 2.01;
+
+	static Optional<String> isolationWindowWarning(Collection<Range> windows, String fileName) {
+		double widest = 0;
+		for (Range window : windows) {
+			widest = Math.max(widest, window.getStop() - window.getStart());
+		}
+		if (widest <= MAX_NARROW_ISOLATION_WINDOW_MZ) {
+			return Optional.empty();
+		}
+		return Optional.of(String.format("Warning: TargetedBootstrapper is only meant to work with experiments collected with "
+				+ "narrow (1-2 m/z) isolation windows, similar to PRM data. The widest MS2 isolation window in %s is %.1f m/z. "
+				+ "Using larger windows may result in some scheduled targets not having MS2 spectra placed into the new file.",
+				fileName, widest));
+	}
+
 	public void execute(String libraryPath, String rawFilePath, int maxSeed, int numberOfPeptides,
 			float halfWindowWidthRT, double halfWindowWidthMz, int trapsPerTarget) throws Throwable {
 		Path rawFile = Paths.get(rawFilePath);
@@ -37,9 +59,36 @@ public class TargetedBootstrapper {
 
 		AminoAcidConstants aaConstants = new AminoAcidConstants();
 
+		EncyclopeDIAFile rawDia = new EncyclopeDIAFile();
+		try {
+			rawDia.openFile(rawFile.toFile());
+			isolationWindowWarning(rawDia.getRanges().keySet(), rawFileName).ifPresent(Logger::errorLine);
+		} finally {
+			rawDia.close();
+		}
+
+		// Load the library once for all seeds. LibraryFile copies the library to a temp file that only close()
+		// deletes, so close it as soon as the entries are in memory.
+		ArrayList<LibraryEntry> entries;
+		File libraryFile = new File(libraryPath);
+		Logger.logLine("Opening the library " + libraryFile.getName() + " (this may take a few minutes)...");
+		long loadStart = System.nanoTime();
+		LibraryFile library = new LibraryFile();
+		try {
+			library.openFile(libraryFile);
+			entries = library.getAllEntries(false, aaConstants);
+		} finally {
+			library.close();
+		}
+		Logger.logLine("Loaded " + entries.size() + " library entries in " + (System.nanoTime() - loadStart) / 1_000_000_000 + " s.");
+		// Targets are drawn from library order; entrapments are searched by precursor m/z. The sort is stable.
+		ArrayList<LibraryEntry> entriesByMz = new ArrayList<>(entries);
+		entriesByMz.sort(Comparator.comparingDouble(LibraryEntry::getPrecursorMZ));
+
 		for (int seed = 1; seed <= maxSeed; seed++) {
-			ArrayList<IsolationWindow> isolationWindows = selectMask(numberOfPeptides, aaConstants, seed, libraryPath,
-					halfWindowWidthRT, halfWindowWidthMz, trapsPerTarget);
+			Logger.logLine("Seed " + seed + " of " + maxSeed + ": selecting " + numberOfPeptides + " targets.");
+			ArrayList<IsolationWindow> isolationWindows = selectMask(numberOfPeptides, aaConstants, seed, entries,
+					entriesByMz, halfWindowWidthRT, halfWindowWidthMz, trapsPerTarget);
 
 			Path maskedFileOutputPath = rawFile.getParent().resolve(baseName + "_masked" + seed + "_assay.dia");
 			Path assayOutputPath = rawFile.getParent().resolve(baseName + "_masked" + seed + "_assay.txt");
@@ -65,10 +114,6 @@ public class TargetedBootstrapper {
 
 		// Randomly select precursors loop
 		try {
-			// Load all entries
-
-			Logger.logLine("There are " + entries.size() + " entries from the library.");
-
 			if (numberOfPeptides > entries.size()) {
 				throw new IllegalArgumentException(
 						"The requested number of targets is larger than the number of library entries. Select a smaller number of peptides to put into each assay.");
@@ -140,7 +185,15 @@ public class TargetedBootstrapper {
 		return targetWindows;
 	}
 
-	public ArrayList<IsolationWindow> selectDecoys(ArrayList<IsolationWindow> targetWindows, AminoAcidConstants aaConstants, int i, ArrayList<LibraryEntry> decoyEntries, float halfWindowWidthRT, double halfWindowWidthMz, ArrayList<IsolationWindow> unmatchedTargets, int trapsPerTarget) throws Exception {
+	// decoyEntriesByMz must be sorted by ascending precursor m/z. For each target, entrapments are the closest eligible
+	// precursors within 10 ppm, widening by doubling and finally to 1000 ppm.
+	public ArrayList<IsolationWindow> selectDecoys(ArrayList<IsolationWindow> targetWindows, AminoAcidConstants aaConstants, int i, ArrayList<LibraryEntry> decoyEntriesByMz, float halfWindowWidthRT, double halfWindowWidthMz, ArrayList<IsolationWindow> unmatchedTargets, int trapsPerTarget) throws Exception {
+
+		for (int j = 1; j < decoyEntriesByMz.size(); j++) {
+			if (decoyEntriesByMz.get(j - 1).getPrecursorMZ() > decoyEntriesByMz.get(j).getPrecursorMZ()) {
+				throw new IllegalArgumentException("Entrapment candidates must be sorted by precursor m/z.");
+			}
+		}
 
 		ArrayList<IsolationWindow> decoyWindows = new ArrayList<IsolationWindow>();
 
@@ -170,17 +223,14 @@ public class TargetedBootstrapper {
 				ArrayList<IsolationWindow> decoysForTarget = new ArrayList<>();
 				HashSet<String> decoysForThisTarget = new HashSet<>();
 
-				while (decoysForTarget.size() < trapsPerTarget && mzTolerancePPM <= 320) {
+				while (decoysForTarget.size() < trapsPerTarget && mzTolerancePPM <= MAX_ENTRAPMENT_PPM) {
 
 					double mzToleranceDa = targetMz * mzTolerancePPM / 1_000_000;
 					double upperMz = targetMz + mzToleranceDa;
 					double lowerMz = targetMz - mzToleranceDa;
 
-					Range libraryMzRange = new Range(lowerMz, upperMz);
-
-
 					// Loop to find entrapment decoys at a different window from target peptides
-					for (LibraryEntry candidate : decoyEntries) {
+					for (LibraryEntry candidate : candidatesInWindow(decoyEntriesByMz, targetMz, lowerMz, upperMz)) {
 
 						double candidateMinMz = candidate.getPrecursorMZ() - halfWindowWidthMz;
 						double candidateMaxMz = candidate.getPrecursorMZ() + halfWindowWidthMz;
@@ -231,7 +281,8 @@ public class TargetedBootstrapper {
 							decoysForTarget.add(decoyWindow);
 							decoysForThisTarget.add(decoySequence);
 
-							Logger.logLine("Decoy " + decoysForThisTarget.size() + " of " + trapsPerTarget + " for target " + targetSequence + " at " + candidateRT / 60f);
+							Logger.logLine("Decoy " + decoysForThisTarget.size() + " of " + trapsPerTarget + " for target " + targetSequence + " at " + candidateRT / 60f
+									+ " (" + String.format("%.2f", (decoyMz - targetMz) / targetMz * 1_000_000) + " ppm)");
 
 							if (decoysForTarget.size() == trapsPerTarget) {
 								break; // end loop after adding one decoy per target
@@ -240,7 +291,10 @@ public class TargetedBootstrapper {
 					}
 
 					if (decoysForTarget.size() < trapsPerTarget) {
-						mzTolerancePPM *= 2;
+						if (mzTolerancePPM >= MAX_ENTRAPMENT_PPM) {
+							break;
+						}
+						mzTolerancePPM = Math.min(mzTolerancePPM * 2, MAX_ENTRAPMENT_PPM);
 					}
 				}
 				
@@ -258,7 +312,7 @@ public class TargetedBootstrapper {
 				} else {
 
 					unmatchedTargets.add(targetWindow);
-					Logger.logLine("Only found " + decoyWindows.size() + " of " + trapsPerTarget + " requested entrapment peptides for target " + targetSequence + ".");
+					Logger.logLine("Only found " + decoysForTarget.size() + " of " + trapsPerTarget + " requested entrapment peptides for target " + targetSequence + ".");
 
 				}
 			}
@@ -277,18 +331,36 @@ public class TargetedBootstrapper {
 
 }
 
+	// Returns entries with precursor m/z in [lowerMz, upperMz], closest to targetMz first. Equally close entries keep
+	// their order in entriesByMz (lower m/z, then library order).
+	static ArrayList<LibraryEntry> candidatesInWindow(ArrayList<LibraryEntry> entriesByMz, double targetMz, double lowerMz,
+			double upperMz) {
+		int low = 0;
+		int high = entriesByMz.size();
+		while (low < high) {
+			int mid = (low + high) >>> 1;
+			if (entriesByMz.get(mid).getPrecursorMZ() < lowerMz) {
+				low = mid + 1;
+			} else {
+				high = mid;
+			}
+		}
+		ArrayList<LibraryEntry> candidates = new ArrayList<>();
+		for (int j = low; j < entriesByMz.size() && entriesByMz.get(j).getPrecursorMZ() <= upperMz; j++) {
+			candidates.add(entriesByMz.get(j));
+		}
+		candidates.sort(Comparator.comparingDouble(entry -> Math.abs(entry.getPrecursorMZ() - targetMz)));
+		return candidates;
+	}
+
 // First function - Randomly Selects Precursors from a library, places on a list
 	public ArrayList<IsolationWindow> selectMask(int numberOfPeptides, AminoAcidConstants aaConstants, int i,
-			String libraryPath, float halfWindowWidthRT, double halfWindowWidthMz, int trapsPerTarget)
-			throws IOException, SQLException, Throwable {
+			ArrayList<LibraryEntry> entries, ArrayList<LibraryEntry> entriesByMz, float halfWindowWidthRT,
+			double halfWindowWidthMz, int trapsPerTarget) throws IOException, SQLException, Throwable {
 
 		// START TIMER 1
 		long startTime = System.nanoTime();
 		HashSet<String> rejectedTargetSequences = new HashSet<>();
-		LibraryFile library = new LibraryFile();
-		File file = new File(libraryPath);
-		library.openFile(file);
-		ArrayList<LibraryEntry> entries = library.getAllEntries(false, aaConstants);
 
 		ArrayList<IsolationWindow> targetWindows = selectTargets(numberOfPeptides, aaConstants, i, entries,
 				halfWindowWidthRT, halfWindowWidthMz, rejectedTargetSequences);
@@ -304,7 +376,7 @@ public class TargetedBootstrapper {
 			ArrayList<IsolationWindow> unmatchedTargets = new ArrayList<>();
 
 			// Select decoys
-			decoyWindows = selectDecoys(targetWindows, aaConstants, i, entries, halfWindowWidthRT,
+			decoyWindows = selectDecoys(targetWindows, aaConstants, i, entriesByMz, halfWindowWidthRT,
 					halfWindowWidthMz, unmatchedTargets, trapsPerTarget);
 
 			if (unmatchedTargets.isEmpty()) {

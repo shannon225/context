@@ -14,12 +14,13 @@ public class ContextPercolatorResult {
 	private final int referencePSMCount;
 	private final int referencePeptideCount;
 	private final int passingPeptideCount;
+	private final int pepPassingPeptideCount;
 	private final float fdrThreshold;
 
 	ContextPercolatorResult(PercolatorWeights model, File nativeWeightsFile, File averagedWeightsFile,
 			File rescoredFeaturesFile, File psmOutputFile, File peptideOutputFile, File rawPsmReportFile,
 			File rawPeptideReportFile, int referencePSMCount, int referencePeptideCount, int passingPeptideCount,
-			float fdrThreshold) {
+			int pepPassingPeptideCount, float fdrThreshold) {
 		this.model = model;
 		this.nativeWeightsFile = nativeWeightsFile;
 		this.averagedWeightsFile = averagedWeightsFile;
@@ -31,6 +32,7 @@ public class ContextPercolatorResult {
 		this.referencePSMCount = referencePSMCount;
 		this.referencePeptideCount = referencePeptideCount;
 		this.passingPeptideCount = passingPeptideCount;
+		this.pepPassingPeptideCount = pepPassingPeptideCount;
 		this.fdrThreshold = fdrThreshold;
 	}
 
@@ -74,8 +76,14 @@ public class ContextPercolatorResult {
 		return referencePeptideCount;
 	}
 
+	/** Reference target peptides with q-value at or below the FDR threshold. */
 	public int getPassingPeptideCount() {
 		return passingPeptideCount;
+	}
+
+	/** Reference target peptides with PEP at or below the same threshold. */
+	public int getPEPPassingPeptideCount() {
+		return pepPassingPeptideCount;
 	}
 
 	public float getFdrThreshold() {
@@ -84,7 +92,7 @@ public class ContextPercolatorResult {
 
 	@Override
 	public String toString() {
-		return "ContextPercolatorResult[" + passingPeptideCount + "/" + referencePeptideCount
-				+ " reference peptides at " + (fdrThreshold * 100f) + "% FDR]";
+		return "ContextPercolatorResult[" + referencePeptideCount + " reference peptides; " + passingPeptideCount
+				+ " at q <= " + fdrThreshold + ", " + pepPassingPeptideCount + " at PEP <= " + fdrThreshold + "]";
 	}
 }

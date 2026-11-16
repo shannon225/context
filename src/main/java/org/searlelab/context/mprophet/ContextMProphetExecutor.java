@@ -33,7 +33,7 @@ public class ContextMProphetExecutor {
 			if (!Double.isFinite(coefficient)) 
 				throw new IOException("Background LDA produced a non-finite coefficient");
 		}
-			if (Double.isFinite(trained.getLDA().getConstant())) throw new IOException("Background LDA produced a non-finite constant.");
+			if (!Double.isFinite(trained.getLDA().getConstant())) throw new IOException("Background LDA produced a non-finite constant.");
 			var applied = MProphetReiter.executeMProphetTSVWithModel(makeMProphetExecutionData(reference, fasta, parameters, ".pep"), 
 					parameters.getPercolatorThreshold(), trained.getLDA(), parameters.getAAConstants());
 			

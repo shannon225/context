@@ -13,11 +13,16 @@ import java.util.stream.Stream;
 
 import org.searlelab.context.encyclopedia.MProphetReiter;
 import org.searlelab.context.percolator.ContextPercolator;
+import org.searlelab.context.mprophet.ContextMProphetFeatures;
+import org.searlelab.context.mprophet.ContextMProphetReports;
+import org.searlelab.context.mprophet.MProphetFoldFile;
 import org.searlelab.context.percolator.ContextPercolatorExecutor;
+import org.searlelab.context.percolator.ContextTrainingOptions;
 import org.searlelab.context.percolator.ContextPercolatorResult;
 import org.searlelab.context.percolator.PyIsoPEPRunner;
 import org.searlelab.context.percolator.TrainingSeeds;
 
+import edu.washington.gs.maccoss.encyclopedia.algorithms.percolator.MProphetDataset;
 import edu.washington.gs.maccoss.encyclopedia.algorithms.percolator.MProphetExecutionData;
 import edu.washington.gs.maccoss.encyclopedia.algorithms.percolator.MProphetResult;
 import edu.washington.gs.maccoss.encyclopedia.algorithms.percolator.PercolatorExecutionData;
@@ -98,8 +103,13 @@ public final class AllWorkflowExecutorCLI {
 			List<Integer> seeds = arguments.containsKey("--seeds") ? TrainingSeeds.parse(arguments.get("--seeds")) : null; 
 			File fasta = requiredReadableFile(arguments, "-f");
 			float fdr = Float.parseFloat(arguments.getOrDefault("-fdr", Float.toString(DEFAULT_FDR)));
-			PyIsoPEPRunner pyIsoPEP = new PyIsoPEPRunner(arguments.get("--pyisopep"));
+			PyIsoPEPRunner pyIsoPEP = new PyIsoPEPRunner(arguments.get("--pyisopep"),
+					PyIsoPEPRunner.PepMethod.parse(arguments.get("--pepMethod")));
 			HashMap<String, String> encyclopediaArguments = encyclopediaArguments(arguments);
+			// Preflight, once and before any workflow starts.
+			ContextTrainingOptions.warn(ContextTrainingOptions.percolatorConflicts(encyclopediaArguments, fdr),
+					"The standard and targeted workflows will apply these values; the Context workflows will not, "
+							+ "so their settings differ in this run.");
 
 			if (folderMode) {
 				File featuresFolder = requiredReadableDirectory(arguments, "--features-folder");
@@ -313,6 +323,18 @@ public final class AllWorkflowExecutorCLI {
 	
 	public static MProphetResult runContextMProphet(File backgroundFeatures, File referenceFeatures, File fasta,
 			SearchParameters parameters, float fdr, File outputDirectory, String prefix, int seed) throws Exception {
+		return runContextMProphet(backgroundFeatures, referenceFeatures, fasta, parameters, fdr, outputDirectory, prefix,
+				seed, null);
+	}
+
+	/**
+	 * Context mProphet (CTX-018): Context-MS's preprocessing ({@link ContextMProphetFeatures}), Context-only training
+	 * in {@link MProphetReiter}, and the background model applied to a reference with the same feature list.
+	 * {@code foldFile} (diagnostic, may be null) replaces the random training/testing split with Context-MS's folds.
+	 */
+	public static MProphetResult runContextMProphet(File backgroundFeatures, File referenceFeatures, File fasta,
+			SearchParameters parameters, float fdr, File outputDirectory, String prefix, int seed, File foldFile)
+			throws Exception {
 
 		File engineDirectory = DirectoryOptions.engineDirectory(outputDirectory, CONTEXT_MPROPHET_ENGINE_NAME);
 
@@ -326,20 +348,46 @@ public final class AllWorkflowExecutorCLI {
 
 		deleteMProphetOutputs(backgroundData);
 		deleteMProphetOutputs(referenceData);
+		for (File output : ContextMProphetReports.outputs(engineDirectory, prefix)) {
+			Files.deleteIfExists(output.toPath());
+		}
 
-		MProphetResult backgroundResult = MProphetReiter.executeMProphetTSV(backgroundData, fdr, seed,
-				parameters.getAAConstants(), MPROPHET_ROUND);
+		File iterations = new File(new File(engineDirectory, DirectoryOptions.MODEL_DIRECTORY), prefix + ".iterations.tsv");
+		Files.deleteIfExists(iterations.toPath());
+
+		ContextMProphetFeatures.Prepared prepared = ContextMProphetFeatures.prepare(backgroundFeatures, referenceFeatures,
+				DirectoryOptions.subdirectory(engineDirectory, DirectoryOptions.WORK_DIRECTORY), prefix);
+		List<MProphetDataset[]> folds = foldFile == null ? null
+				: MProphetFoldFile.read(foldFile, prepared.background(), MProphetReiter.ITERATIONS);
+		if (folds != null) Logger.logLine("Context mProphet: training on the folds in " + foldFile.getAbsolutePath());
+
+		MProphetReiter.ContextTraining training = MProphetReiter.executeContextTraining(prepared.background(),
+				backgroundData, fdr, seed, parameters.getAAConstants(), folds);
+		MProphetResult backgroundResult = training.result();
 		if (backgroundResult == null || backgroundResult.getLDA() == null) {
 			throw new IOException("Context mProphet could not train a background model");
 		}
 		LinearDiscriminantAnalysis backgroundModel = backgroundResult.getLDA();
+		if (folds != null) {
+			Files.createDirectories(iterations.getParentFile().toPath());
+			List<String> lines = new ArrayList<>(List.of("iteration\ttrained_passing\tseed_passing\tkept\tkept_passing"));
+			lines.addAll(training.iterations());
+			Files.write(iterations.toPath(), lines);
+		}
 
-		MProphetResult referenceResult = MProphetReiter.executeMProphetTSVWithModel(referenceData, fdr, backgroundModel,
-				parameters.getAAConstants());
+		MProphetResult referenceResult = MProphetReiter.applyContextModel(prepared.reference(), referenceData, fdr,
+				backgroundModel, parameters.getAAConstants());
 		if (referenceResult == null) throw new IOException("Context mProphet could not score the reference features");
 
 		Logger.logLine("Context mProphet found " + referenceResult.getPassingPeptides().size()
 				+ " reference peptides at " + (fdr * 100.0f) + "% FDR");
+
+		// CTX-018: Context-MS-format outputs with Context-MS's q-values and PEPs, recomputed at peptide level.
+		ContextMProphetReports.Summary summary = ContextMProphetReports.write(prepared.prunedReference(), backgroundModel,
+				backgroundResult.getFeatureNames(), engineDirectory, prefix, fdr);
+		Logger.logLine("Context mProphet (Context-MS q-values and PEPs): " + summary.psmTargets()
+				+ " reference target PSMs, " + summary.peptideTargets() + " peptides; " + summary.peptidesAtQ()
+				+ " at q <= " + fdr + ", " + summary.peptidesAtPEP() + " at PEP <= " + fdr);
 		return referenceResult;
 	}
 
@@ -381,7 +429,7 @@ public final class AllWorkflowExecutorCLI {
 		return result;
 	}
 
-	private static SearchParameters parseSearchParameters(HashMap<String, String> encyclopediaArguments, float fdr) {
+	static SearchParameters parseSearchParameters(HashMap<String, String> encyclopediaArguments, float fdr) {
 		HashMap<String, String> parameterMap = SearchParameterParser.getDefaultParametersObject().toParameterMap();
 		parameterMap.putAll(encyclopediaArguments);
 		parameterMap.put("-percolatorThreshold", Float.toString(fdr));
@@ -503,7 +551,7 @@ public final class AllWorkflowExecutorCLI {
 		HashMap<String, String> parameters = SearchParameterParser.getDefaultParameters();
 		HashMap<String, String> remaining = new HashMap<>(arguments);
 
-		for (String workflowFlag : new String[] { "--features-folder", "--features", "--background", "--reference", "--seeds",
+		for (String workflowFlag : new String[] { "--features-folder", "--features", "--background", "--reference", "--seeds", "--pepMethod",
 				"-f", "-fdr", "-o", "-outdir", "--outdir", "--prefix", "--pyisopep", "-h", "-help", "--help" }) {
 			remaining.remove(workflowFlag);
 		}
@@ -531,6 +579,7 @@ public final class AllWorkflowExecutorCLI {
 		Logger.timelessLogLine("  -o        <dir>   output root (default: next to -features)");
 		Logger.timelessLogLine("  --prefix   <name>  output filename prefix");
 		Logger.timelessLogLine("  --pyisopep <path>  pyIsoPEP executable (default: PATH)");
+		Logger.timelessLogLine("  --pepMethod <q2pep|d2pep>  pyIsoPEP method for Context Percolator (default: q2pep)");
 		Logger.timelessLogLine("");
 		Logger.timelessLogLine("Other flags are passed through to EncyclopeDIA parameters.");
 		Logger.timelessLogLine("");

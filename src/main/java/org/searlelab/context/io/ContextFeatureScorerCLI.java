@@ -10,7 +10,7 @@ import java.util.Set;
 public class ContextFeatureScorerCLI {
 
 	private static final int DEFAULT_START_SEED = 1;
-	private static final int DEFAULT_END_SEED = 100;
+	private static final int DEFAULT_END_SEED = 1;
 	private static final int DEFAULT_SHUFFLED_SEED = 2;
 
 	private static final Set<String> ALLOWED_ARGUMENTS = Set.of("--library", "--fasta", "--dia-folder", "--start-seed",

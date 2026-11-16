@@ -9,7 +9,12 @@ Context trains the discriminant on that background and applies it to the referen
 Two engines can realize this:
 
 * `percolator`: trains Percolator on the background peptides, applies the model to the reference
-  peptides. q-values and PEPs from [pyIsoPEP](https://github.com/statisticalbiotechnology/smooth_q_to_pep).
+  peptides. q-values and PEPs from [pyIsoPEP](https://github.com/statisticalbiotechnology/smooth_q_to_pep)
+  `q2pep --calc-q-from-fdr`, as in Context-MS. Background training uses Context-MS's Percolator arguments
+  (`--post-processing-tdc --override --protein-report-duplicates`, Percolator's own defaults otherwise);
+  EncyclopeDIA's Percolator training options are not applied and trigger a warning if set.
+  *Changed in CTX-018:* earlier versions used `d2pep`, `-y`, `--maxiter 3` and EncyclopeDIA's `-N`/FDR settings,
+  so `posterior_error_prob` values and Percolator weights from older Context Percolator runs are not comparable.
 * `mprophet`: trains an mProphet LDA on the background peptides, applies it to the reference
   peptides. q-values from Benjamini-Hochberg, PEPs from Storey's method.
 
@@ -200,11 +205,27 @@ results_run01/percolator/
   work/                          intermediate tables and files from pyIsoPEP
 
 results_run01/context-mprophet/
-  run01.peptide.reference.target.txt     target reference peptides
+  run01.peptide.reference.txt            reference target peptides, best row per peptide, with q-value and
+                                         posterior_error_prob recomputed at peptide level (Context-MS's method)
+  run01.psm.reference.txt                the same at PSM level
+  run01.rescored_features.txt            every reference feature, target and decoy, with its score
+  model/run01.weights.txt                the background model as feature/weight rows plus __bias__
+  run01.peptide.reference.target.txt     target reference peptides (EncyclopeDIA q-values and PEPs, unchanged)
   run01.peptide.reference.decoy.txt      decoy reference peptides
   run01.peptide.background.target.txt    target background peptides
   run01.peptide.background.decoy.txt     decoy background peptides
 ```
+
+Context mProphet prepares its input as Context-MS does: background and reference headers must match, features
+constant on the background are dropped from both, and the training features are every column except id, label,
+peptide, proteins, `ScanNr` and EncyclopeDIA's metadata columns (so `ExpMass` is a feature). Models are ranked by
+passing count with ties kept in iteration order, and training folds are not capped in size. The standard and
+targeted mProphet workflows are unchanged.
+
+The first four `context-mprophet` files follow Context-MS's format and method: a Gaussian decoy null gives
+p-values, Benjamini–Hochberg gives q-values, and Storey's local FDR (pi0 floored at 0.05, Silverman KDE on
+logit p) gives PEPs, computed once over all reference rows and again over the best row per peptide. The
+`*.target.txt`/`*.decoy.txt` files keep their earlier EncyclopeDIA values, carried over from the PSM level.
 
 ### Re-running without re-scoring
 
@@ -229,7 +250,10 @@ java -jar context.jar mprophet \
 | `-o` | next to the input | output directory |
 | `-prefix` | the acquisition's name | base name for the output files |
 | `-fdr` | `0.01` | peptide FDR threshold used for reporting |
+| `-seed` | `1` | training seed for the background model (`percolator` and `mprophet`; not with `-standardPercolator`). The same seed and inputs give the same results as `AllWorkflowExecutorCLI --seeds` for that seed |
 | `-pyisopep` | look on `PATH` | path to the `pyisopep` executable (`percolator` only) |
+| `--pepMethod` | `q2pep` | pyIsoPEP method for Context Percolator q-values and PEPs: `q2pep` (as in Context-MS) or `d2pep` (`percolator` and `AllWorkflowExecutorCLI`; not with `-standardPercolator`) |
+| `--foldFile` | — | `mprophet` only, diagnostic: train on the training/testing folds Context-MS exported (`docs/validation/ctx018_compare.py run-context-ms --export-folds`) instead of a random split, to compare the two tools without fold randomness |
 | `--allow-legacy-features` | `false` | accept older direct split files without pair sidecars (`percolator` and `mprophet`) |
 | `--prediction-store` | `prediction-cache` beside the acquisition | folder for stored predictions and shared working libraries (`features`, `features-folder`, and raw `percolator` and `mprophet` runs) |
 | `--clear-stale-store-lock` | `false` | clear a prediction store lock left by an interrupted run (same commands) |
@@ -276,11 +300,13 @@ Predictions are stored and reused. By default Context keeps them in a `predictio
 beside the acquisition; `--prediction-store <folder>` points several folders at one store.
 
 - `prediction-cache/scribetwo-jchronologer-nce<NCE>-z<charge>-<dia|dda>.dlib` holds one predicted
-  spectrum per modified sequence and charge, for targets and decoys, with a `.context-profile`
-  file recording the prediction settings and Encyclopedia/JChronologer versions. A store written
-  under a different profile is refused. Only precursors not already stored are predicted, so a
-  library that overlaps an earlier one predicts only its new peptides. Expect roughly 0.7 GB per
-  million stored spectra.
+  spectrum per modified sequence and charge, for targets and decoys. Its `ContextPredictionProfile`
+  metadata value records NCE, default charge, DIA adjustment, and the Context, Encyclopedia, and
+  JChronologer versions. A store written under a different profile is refused. Existing Context
+  stores with a matching `.context-profile` sidecar are migrated to embedded metadata when opened;
+  the old sidecar is preserved, and new stores create none. Only precursors not already stored are
+  predicted, so a library that overlaps an earlier one predicts only its new peptides. Expect
+  roughly 0.7 GB per million stored spectra.
 - `prediction-cache/working-libraries/<library>_<identity>.elib` and its `_predictions.tsv`
   report are built once per source library, FASTA, search parameters, and prediction settings,
   and every run that uses them reuses them. They are kept after the runs. Concurrent runs wait
@@ -381,6 +407,30 @@ successful outputs, prints an ordered summary, and makes the overall command fai
 Scribe settings can be appended as normal single-dash property/value pairs, for example
 `-numberOfThreadsUsed 2 -adjustTolerances true`. Use `scribe-context` with the same arguments to additionally
 train the final background LDA and apply it to the reference features.
+
+## Simulated assays with `bootstrap`
+
+```text
+java -jar context.jar bootstrap <library> <acquisition.dia> [seeds] [peptides] [rt-half-window-min] [mz-half-window] [entrapments-per-target]
+```
+
+Only the library and acquisition are required; the defaults are 1 seed, 100 peptides, 0.5 min, 1.0 m/z,
+and 1 entrapment per target. For each seed from 1 to `seeds`, it draws target precursors from the library,
+assigns entrapment peptides, and writes `<acquisition>_masked<seed>_assay.dia`, `_assay.txt`, and
+`_entrapment_assignments.tsv` next to the acquisition.
+
+The acquisition should use narrow (1-2 m/z) MS2 isolation windows, as in PRM. `bootstrap` checks the
+acquisition before loading the library and prints a warning when its widest window is larger than 2 m/z; it still
+runs, but with wider windows some scheduled targets may have no MS2 spectra in the masked file.
+
+Entrapments are library precursors near each target's precursor m/z. Candidates are searched within
+±10 ppm, then ±20, 40, 80, 160, 320, 640, and 1000 ppm (inclusive), and the closest eligible precursors
+are chosen first (equal distances: lower m/z, then library order). A candidate is eligible when it has
+the target's charge, is not a target or an entrapment already used in that seed, and its RT window does
+not overlap, with one extra RT half-window of buffer, the window of any target within 11 m/z half-windows
+(11 m/z by default). A target that cannot get enough entrapments by 1000 ppm is replaced. Bootstrap
+outputs made with versions from 2026-09-05 until this rule was restored chose entrapments without the m/z
+window; regenerate them.
 
 ## All commands
 

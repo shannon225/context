@@ -41,7 +41,7 @@ public class ContextPercolatorExecutorTest {
 	@Rule
 	public TemporaryFolder folder = TemporaryFolder.builder().assureDeletion().build();
 
-	@Ignore("resolveDecoysMessage is not implemented -- MassListDecoyGenerator:173")
+	@Ignore("Passes null engine/workflow names to runPercolator (NPE in DirectoryOptions.engineDirectory) and expects a pyIsoPEP report runPercolator does not write")
 	@Test
 	public void standardPercolatorProducesNativeAndPyIsoPEPReports() throws Exception {
 		String pyisopep = locatePyIsoPEP();
@@ -75,7 +75,7 @@ public class ContextPercolatorExecutorTest {
 		assertConfidenceColumn(pyIsoTable, PyIsoPEPRunner.Q_VALUE_COLUMN);
 	}
 
-	@Ignore("resolveDecoysMessage is not implemented -- MassListDecoyGenerator:173")
+	@Ignore("On the IL2 masked fixture EncyclopeDIA scores none of the assay peptides, so the reference set is empty and ContextFeatures.requireCompetable fails")
 	@Test
 	public void contextPercolatorProducesTransferredModelReports() throws Exception {
 		String pyisopep = locatePyIsoPEP();

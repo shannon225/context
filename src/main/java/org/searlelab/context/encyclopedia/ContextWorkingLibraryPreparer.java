@@ -141,7 +141,7 @@ public final class ContextWorkingLibraryPreparer {
 		AminoAcidConstants constants = parameters.getAAConstants();
 		HashSet<String> targetPeptides = new HashSet<>();
 		for (LibraryPrecursorMetadata target : targets) targetPeptides.add(normalized(target.getPeptideModSeq(), constants));
-		HashMap<Byte, HashSet<String>> usedDecoys = new HashMap<>();
+		HashMap<Byte, HashSet<String>> unavailableByCharge = new HashMap<>();
 		ArrayList<Assignment> assignments = new ArrayList<>();
 		LibraryFile working = new LibraryFile();
 		boolean completeExclusionReport = false;
@@ -165,13 +165,13 @@ public final class ContextWorkingLibraryPreparer {
 					}
 					requestedTargets.put(key, target);
 					requests.add(request(target.getPeptideModSeq(), target.getPrecursorCharge(), constants));
-					HashSet<String> unavailable = new HashSet<>(targetPeptides);
-					unavailable.addAll(usedDecoys.computeIfAbsent(target.getPrecursorCharge(), ignored -> new HashSet<>()));
+					HashSet<String> unavailable = unavailableByCharge.computeIfAbsent(target.getPrecursorCharge(),
+							ignored -> new HashSet<>(targetPeptides));
 					Optional<String> decoy = makeDecoy(target.getPeptideModSeq(), unavailable, constants);
 					if (decoy.isPresent()) {
 						String decoyKey = key(decoy.get(), target.getPrecursorCharge(), constants);
 						if (supported(decoy.get(), target.getPrecursorCharge())) {
-							usedDecoys.get(target.getPrecursorCharge()).add(normalized(decoy.get(), constants));
+							unavailable.add(normalized(decoy.get(), constants));
 							decoyByTarget.put(key, decoy.get());
 							requests.add(request(decoy.get(), target.getPrecursorCharge(), constants));
 						}
