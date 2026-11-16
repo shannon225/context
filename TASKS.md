@@ -849,3 +849,4 @@ Superseded mapping: 001 and 002 were dropped (existing IL2A fixtures and `Isolat
   - Tasks 015 and 016 are superseded by 026 and 027. Tasks 022–027 are appended.
   - Ariana authorized committing and pushing r3 to `origin/ctx020`.
   - Open: question 4 (the acceptance file) and the optional `DETECTED`/`SCORED` name.
+- 2026-11-16 — Ariana confirmed the status names `DETECTED` and `NO_SCANS`, and moved the Google record to a new folder (same document ID, so the link is unchanged). Question 4 is still open; Ariana will fill in guide section 7.
