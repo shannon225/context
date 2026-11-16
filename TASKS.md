@@ -849,6 +849,7 @@ Superseded mapping: 001 and 002 were dropped (existing IL2A fixtures and `Isolat
   - Tasks 015 and 016 are superseded by 026 and 027. Tasks 022–027 are appended.
   - Ariana authorized committing and pushing r3 to `origin/ctx020`.
   - Open: question 4 (the acceptance file) and the optional `DETECTED`/`SCORED` name.
+- 2026-11-16 — Ariana confirmed the status names `DETECTED` and `NO_SCANS`, and moved the Google record to a new folder (same document ID, so the link is unchanged). Question 4 is still open; Ariana will fill in guide section 7.
 
 
 ### CTX-020 — r4 additional work (active scope approved under r5)
@@ -901,3 +902,5 @@ Superseded mapping: 001 and 002 were dropped (existing IL2A fixtures and `Isolat
 
 - Commit group 1: CTX020-012, CTX020-018, CTX020-029 and CTX020-031 planning/evidence records. Scope: TASKS.md and docs/uu-ctx-020-forced-assay-xic.md only; approved r5 canonical plan, checklist/status/history, observational baseline and environment/cache evidence. Proposed message: CTX-020: approve r5 forced-assay XIC plan. Ariana explicitly authorized committing and pushing the changes in this chat on 2026-11-16. No Java/input/cache/container artifacts included. Validation: git diff --check passed; default Docker tests remain 3 failures/7 skips out of190 as already recorded; environment-only packaging and smoke checks passed. Planning-only delivery does not claim passing implementation validation.
 - Remote refresh: git fetch origin ctx020 succeeded. origin/ctx020 contains planning commit683a5d6 not in local HEAD. Asked Ariana for merge authorization, because commit/push permission does not authorize merge under repository instructions. No merge/rebase/force-push performed while pending.
+
+- 2026-11-16 — Planning delivery: Ariana authorized merge and push after the remote-history question. Planning commit5c21f2a contains the two approved documents. Merged origin/ctx020 (683a5d6), resolving append-history conflicts by preserving remote r3 confirmation and local r4/r5 records; approved r5 section verified byte-identical before/after merge. Only historical canonical text changed during integration; merged file SHA-256: 92021a8dad51377450a70b3349b45f128a37269ae50bdb74a7682d61442e1726. Commit group2 is the authorized history-preserving merge plus this CTX020-012 delivery record; no scientific/implementation scope change. git diff --check passed before commit.

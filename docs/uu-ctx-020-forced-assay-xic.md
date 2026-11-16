@@ -112,7 +112,7 @@ docker run --rm --platform linux/amd64 \
 | D3 | Plots are for occasional QC only. They are produced by a hand-run entry point, `XicChartWriter.main(raw, assay, library, outDir, [peptides...])`, run with `java -cp context.jar org.searlelab.context.visualization.XicChartWriter ...`. It is not added to Context's CLI dispatcher and is never called from scoring. |
 | D4 | Scope: EncyclopeDIA is forced to extract **and score** every assay row at its own m/z, charge and RT window. Those scores enter the discriminant as reference features. No new XIC feature columns are invented. |
 | D5 | Scheduled peptides may only be detected within their assay RT window (see "RT-window restriction"). |
-| D6 | Detection status is a reported label, not a filter. Two statuses for now: `NO_SCANS` and `DETECTED`. `NOT_DETECTED` is a limitation and a future expansion. |
+| D6 | Detection status is a reported label, not a filter. Two statuses for now: `NO_SCANS` and `DETECTED` (names confirmed 2026-11-16). `NOT_DETECTED` is a limitation and a future expansion. |
 | D7 | Assay rows never train the discriminant. The background-trained model scores them. |
 
 ## Intent
@@ -227,7 +227,7 @@ Reuse `algorithms.quantitation.TransitionRefiner.identifyTransitions(...)`. Cont
 
 **Statuses**
 - `NO_SCANS`: no MS1 or MS2 scans in the window for that precursor.
-- `DETECTED`: scans exist and a feature was scored. This does not mean a confident identification; confidence comes from the q-value. (`SCORED` is an optional alternative name, if Ariana prefers it.)
+- `DETECTED`: scans exist and a feature was scored. This does not mean a confident identification; confidence comes from the q-value.
 
 **Populations**
 - The status is a label. No row is removed because of it.
@@ -312,7 +312,7 @@ The feature is done when all of the following hold:
 2. Answered (D2, D3).
 3. Answered (D4, D7).
 4. **Open:** which file and expected output define Ariana's acceptance check?
-5. Optional: keep the status name `DETECTED`, or use `SCORED`?
+5. Answered: status names `DETECTED` and `NO_SCANS` (Ariana, 2026-11-16).
 
 
 ## Draft r4 amendment — 2026-11-16 plan discussion
