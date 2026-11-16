@@ -1,11 +1,24 @@
-# CTX-020 — Forced assay XIC extraction: canonical plan, draft r1
+# CTX-020 — Forced assay XIC extraction: canonical plan, draft r3
 
-- **Status: Draft, pending Ariana's approval.** This is not frozen yet. It becomes frozen for the Until Useful implementation/review loop once Ariana approves it and answers the open questions below. A material change after that needs a new revision approved by Ariana.
+- **Status: Draft r3, pending Ariana's approval.** This is not frozen yet. It becomes frozen for the Until Useful implementation/review loop once Ariana approves it and answers open question 4.
+- Revision history: r1 (propose-phase answers), r3 (Ariana's decisions of 2026-11-16, recorded below). The r2 label belongs to the Google record only, so this document goes from r1 to r3 to keep the two revision numbers aligned. A material change after that needs a new revision approved by Ariana.
 - Phase: propose, completed 2026-11-16. Answers Ariana's questions Q1–Q9 and her T1/T2 questions.
-- Google implementation record: https://docs.google.com/document/d/1h2OXg2m2EvRqcr8FEKG4MQvB-xdnbjReCI3TC-yJqa8/edit (r2).
+- Google implementation record: https://docs.google.com/document/d/1h2OXg2m2EvRqcr8FEKG4MQvB-xdnbjReCI3TC-yJqa8/edit (r3).
 - Checklist and log: `TASKS.md`, section "CTX-020 — Forced assay XIC extraction".
 - Branch: `ctx020`, created from `ariana/scoring` at `7d0f524`. Baselines: EncyclopeDIA 6.9.23 and MSRawJava 26.7.31 jars in `libs/`, unchanged.
 - Evidence: `javap -c` bytecode of the jars. No source jars are available. Details below the method-call level are inferred and are checked by the test "agreement with EncyclopeDIA" (Q5.4, Q5.5).
+
+## Decisions (Ariana, 2026-11-16)
+
+| # | Decision |
+|---|---|
+| D1 | The package names `org.searlelab.context.xic` and `org.searlelab.context.visualization` are approved. |
+| D2 | Plots are vector PDF, written with EncyclopeDIA `gui.general.Charter.writeAsPDF(JFreeChart, File, Dimension)` or `writeChartGridAsPDF`. JFreeChart and OpenPDF are already transitive dependencies, so there is no dependency change. |
+| D3 | Plots are for occasional QC only. They are produced by a hand-run entry point, `XicChartWriter.main(raw, assay, library, outDir, [peptides...])`, run with `java -cp context.jar org.searlelab.context.visualization.XicChartWriter ...`. It is not added to Context's CLI dispatcher and is never called from scoring. |
+| D4 | Scope: EncyclopeDIA is forced to extract **and score** every assay row at its own m/z, charge and RT window. Those scores enter the discriminant as reference features. No new XIC feature columns are invented. |
+| D5 | Scheduled peptides may only be detected within their assay RT window (see "RT-window restriction"). |
+| D6 | Detection status is a reported label, not a filter. Two statuses for now: `NO_SCANS` and `DETECTED`. `NOT_DETECTED` is a limitation and a future expansion. |
+| D7 | Assay rows never train the discriminant. The background-trained model scores them. |
 
 ## Intent
 
@@ -59,7 +72,7 @@ In PRM, the instrument acquires every assay entry (m/z, z, RT window) whether or
 Yes. Two new packages:
 
 - **`org.searlelab.context.xic`**: `AssayXicExtractor` (a bridge to EncyclopeDIA and MSRawJava) and the `AssayXic` record. Headless, with no AWT or JFreeChart imports.
-- **`org.searlelab.context.visualization`**: `XicChartWriter`, which renders `AssayXic` to image files with JFreeChart 1.0.19.
+- **`org.searlelab.context.visualization`**: `XicChartWriter`, which renders `AssayXic` to **PDF** with JFreeChart 1.0.19, through `Charter.writeAsPDF` (D2). It is run by hand for QC (D3).
   - JFreeChart is already on the classpath transitively through EncyclopeDIA's pom, along with jsvg and openpdf, so there is **no dependency change**.
   - Each peptide gets a precursor panel and a fragment panel, with the RT window and the refined peak boundaries marked.
   - It works headless. Surefire already sets `java.awt.headless=true`.
@@ -97,6 +110,37 @@ Reuse `algorithms.quantitation.TransitionRefiner.identifyTransitions(...)`. Cont
 - Which value of the flag turns on step 5.
 - How the minimum-points rule widens the range.
 
+## RT-window restriction (D5)
+
+- **Where:** Context's copy of the scoring task, `encyclopedia/EncyclopediaTwoPointOneScoringTask.java`, around lines 297–335. Every scan gets a score, and the scans are then walked from best to worst to pick the apex. The set `takenScans` holds scans that may not be the apex. EncyclopeDIA already uses it to block the library RT when `skipLibraryRetentionTime` is set.
+- **Change:**
+  - For an entry on the assay list, add every scan outside [rtMin, rtMax] to `takenScans` before the apex walk.
+  - Guard it so that nothing changes when no assay windows are supplied.
+- **Statistics:** `EValueCalculator` is still built from the scores across the whole run. Only where the apex can be is restricted.
+- **Decoys:**
+  - EncyclopeDIA's matched decoy of an assay target uses that target's window.
+  - Targeted Bootstrapper decoy rows use their own rows' windows.
+  - This keeps target–decoy competition fair.
+- **Background:** entries that are not on the assay list are scored across the whole run, as today.
+- **Lookup:** modified sequence plus charge, to the window.
+- **Post-check:** `ContextFeatureScorer.findMatchingMassListWindow` also requires the charge to match and the feature RT to lie inside the window. Today it matches on sequence alone. A mismatch fails loudly instead of being dropped silently.
+- **Edges:** the apex must be inside the window. A peak whose integration boundaries cross the window edge is flagged, not clipped.
+- **Units:** `IsolationWindowReader` stores the window in seconds (×60). `ScoredFeature` RT units must be confirmed before comparing.
+- **Behavior change:** a scheduled peptide is no longer reported at an RT outside its window. The old rule (sequence-only matching, any RT) and the new rule go in the Google record.
+
+## Detection status and populations (D6, D7)
+
+**Statuses**
+- `NO_SCANS`: no MS1 or MS2 scans in the window for that precursor.
+- `DETECTED`: scans exist and a feature was scored. This does not mean a confident identification; confidence comes from the q-value. (`SCORED` is an optional alternative name, if Ariana prefers it.)
+
+**Populations**
+- The status is a label. No row is removed because of it.
+- Assay (reference) rows never enter the discriminant training set. Training uses background only, as today. A test guards this.
+- `DETECTED` rows are scored by the model and take part in q-value and PEP estimation.
+- `NO_SCANS` rows are written to the output with their status and an empty score, q-value and PEP. They are excluded from q-value estimation, because a fabricated score would distort it.
+- The counts are reported: scheduled, scored, and `NO_SCANS`.
+
 ## Q5. Tests
 
 JUnit 4, using the existing IL2A fixtures.
@@ -107,8 +151,14 @@ JUnit 4, using the existing IL2A fixtures.
 4. **Agreement with EncyclopeDIA.** The bridge's traces equal a direct `ChromatogramExtractor` call (1e-6 relative).
 5. **Refinement.** The flags match a direct `TransitionRefiner` call, and there are no more fragments than predicted ions.
 6. **Failures are loud.** A missing raw or library file, or an unparseable row, throws.
-7. **Visualization.** One non-empty image is written per row to a temp directory, headless. The test checks only that the file exists and has a size.
+7. **Visualization.** `XicChartWriter` writes one non-empty PDF per requested peptide to a temp directory, headless. The test checks only that the file exists and has a size.
 8. **Regression.** The existing suite and `mvn -Ppackage verify` pass. With extraction off, `ContextFeatureScorer` output is unchanged.
+9. **Apex inside the window.** Every assay feature's RT is in [rtMin, rtMax].
+10. **Decoy windows.** A matched decoy uses its target's window, and a bootstrapper decoy row uses its own.
+11. **Background unchanged.** With no assay windows, the scoring task output is byte-identical to before.
+12. **Training guard.** The discriminant training input contains no assay rows.
+13. **NO_SCANS.** The row is output with empty score, q-value and PEP, is excluded from q-value estimation, and is counted.
+14. **Post-check.** A charge or RT mismatch throws.
 
 ## Q6. Requirements
 
@@ -133,13 +183,15 @@ JUnit 4, using the existing IL2A fixtures.
 - Correlation-based selection means nothing for absent peptides. Those rows are extracted and flagged, not treated as refined.
 - Fragments are predicted, not empirical.
 - The small fixtures show that the code works, not sensitivity or FDR validity.
-- Whether CTX-020 feeds features to the discriminant is undecided (open question 3).
+- `NOT_DETECTED` is not implemented (D6). A `DETECTED` row may still be absent. That is left to the q-value for now and is the first planned expansion. A candidate rule is fewer than N fragments at r ≥ 0.75, with N from `SearchParameters`.
+- Narrow windows with few scans may not meet `TransitionRefiner`'s minimum-points rule.
+- Peaks at the window edge are flagged, not corrected.
 
 ## Q8. Definition of done
 
 The feature is done when all of the following hold:
 - The acceptance criteria are met, with evidence.
-- Tests Q5.1–Q5.8 pass under `mvn -Ppackage verify`.
+- Tests Q5.1–Q5.14 pass under `mvn -Ppackage verify`.
 - Ariana's file-specific check passes (implementation record, section 7; Ariana supplies it).
 - The diff stays within the Q9 scope.
 - The docs are updated.
@@ -150,9 +202,10 @@ The feature is done when all of the following hold:
 
 - **Allowed scope:**
   - new `src/main/java/org/searlelab/context/xic/*` and `…/visualization/*`, plus their tests;
-  - a guarded call site in `io/ContextFeatureScorer.java`;
-  - `ContextFeatureScorerCLI`, only if a flag is approved.
-- **Must not change:** `IsolationWindowReader`, `IsolationWindow`, `TargetedBootstrapper`, the `encyclopedia/*` scoring tasks, the percolator and mprophet packages, `pom.xml`, existing fixtures.
+  - a guarded call site in `io/ContextFeatureScorer.java`, plus the charge/RT post-check in `findMatchingMassListWindow`;
+  - the guarded `takenScans` restriction in `encyclopedia/EncyclopediaTwoPointOneScoringTask.java` (assay entries only), plus the window lookup passed to it;
+  - no CLI change. The QC entry point is a separate `main` (D3).
+- **Must not change:** `IsolationWindowReader`, `IsolationWindow`, `TargetedBootstrapper`, the other `encyclopedia/*` classes and behavior for non-assay entries, the percolator and mprophet packages, `pom.xml`, existing fixtures.
 - **Opt-in:** with extraction off, scorer outputs are byte-identical (Q5.8).
 - **Package boundary:** `xic` has no AWT or JFreeChart imports. `visualization` depends on `xic`, never the reverse.
 - **Inputs are read only.** Plots go only to a user-given or temporary directory.
@@ -160,7 +213,8 @@ The feature is done when all of the following hold:
 
 ## Open questions (needed before freezing)
 
-1. Are the package names `xic` and `visualization` acceptable?
-2. Plot format: PNG only, or also SVG or PDF? Is it triggered by a flag on `features` or by a separate command?
-3. Does CTX-020 add XIC-derived features to the discriminant, or only extract and plot?
-4. Which file and expected output define Ariana's acceptance check?
+1. Answered (D1).
+2. Answered (D2, D3).
+3. Answered (D4, D7).
+4. **Open:** which file and expected output define Ariana's acceptance check?
+5. Optional: keep the status name `DETECTED`, or use `SCORED`?

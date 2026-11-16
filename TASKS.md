@@ -782,7 +782,8 @@ Ariana asked to move to Phase 3 once Phase 2 was pushed (`abcd1e3`). The Phase 2
 ## CTX-020 — Forced assay XIC extraction (precursor and predicted fragments)
 
 - Google implementation record: https://docs.google.com/document/d/1h2OXg2m2EvRqcr8FEKG4MQvB-xdnbjReCI3TC-yJqa8/edit (draft r1, 2026-11-16; Docs revisionId `AHj4eMTSXUHfTyDlhKDuFWQjOIFMtAlVtdevsWTZrLThEDecpuoUAMc6cboxGV3dHjClijCxTXei0GbwuRfteV8s_2zRWpf0sYkMYGR6MHY`). Drafted by Claude at Ariana's request, starting from the template.
-- Canonical plan: `docs/uu-ctx-020-forced-assay-xic.md`, draft r1 (2026-11-16). Not frozen; pending approval and open questions 1–4. Workflow: Until Useful (Ariana, 2026-11-16).
+- Canonical plan: `docs/uu-ctx-020-forced-assay-xic.md`, draft r3 (2026-11-16; r1 earlier the same day). Not frozen; pending approval and open question 4. Workflow: Until Useful (Ariana, 2026-11-16).
+- Google record r3 (2026-11-16; Docs revisionId `AHj4eMTnS-6OdMepA_1uQRDggGn9RTSG48EgQ6Uu7Q2CSL_9oDa74FXtuK64XAdS6wbT0RSYWxCxfDYLA5jEdEQLC8blH1-nfISG8xEmdq4`): adds the r3 decisions D1–D7.
 - Google record r2 (2026-11-16; Docs revisionId `AHj4eMS2Ifc_f59LtBkVSOf3TcAP9foGcKaGdLkeVg5idxaz8oJhZfgMxaxphu09tLsAKvj8MxAH2-L38OhEKEvqoJZtI4x4osVZQ8hxUSg`): adds the propose-phase findings (Q1–Q9) and supersedes draft r1's plan.
 - Branch: `ctx020`, created from `ariana/scoring` at `7d0f5240411e8177db4744bcc6500166f9e5255a`. Ariana authorized committing and pushing the CTX-020 planning docs to `origin/ctx020` on 2026-11-16. Implementation commits are not authorized.
 - Approval status: **Pending**.
@@ -819,13 +820,22 @@ Superseded mapping: 001 and 002 were dropped (existing IL2A fixtures and `Isolat
 - [ ] CTX020-012 Freeze the canonical plan once Ariana approves it and answers open questions 1–4. Record the approved revision here and in the Google record.
 - [ ] CTX020-013 Verify the EncyclopeDIA 6.9.23 behavior on the IL2A fixtures: `ChromatogramExtractor` precursor and fragment extraction (targetRT null), `TransitionRefiner.identifyTransitions`, the normalization convention, the polarity of `adjustInferredRTBoundaries`, and the minimum-points rule. Record findings in the Google record. Check: findings logged. Depends on 012.
 - [ ] CTX020-014 `xic/AssayXic` record and `xic/AssayXicExtractor` bridge: per-window reads (`getPrecursors`, `getStripes`), predicted fragments, `ChromatogramExtractor`, `TransitionRefiner`; every row yields a result. Check: tests Q5.1–Q5.6. Depends on 013.
-- [ ] CTX020-015 `visualization/XicChartWriter` (JFreeChart, headless; format per open question 2). Check: test Q5.7. Depends on 014.
-- [ ] CTX020-016 Guarded, opt-in call site in `ContextFeatureScorer` (and a CLI flag if approved). Check: test Q5.8, output byte-identical with the feature off. Depends on 014.
+- [ ] CTX020-015 **Superseded (2026-11-16, replaced by 026).** `visualization/XicChartWriter` (JFreeChart, headless; format per open question 2). Check: test Q5.7. Depends on 014.
+- [ ] CTX020-016 **Superseded (2026-11-16, replaced by 027).** Guarded, opt-in call site in `ContextFeatureScorer` (and a CLI flag if approved). Check: test Q5.8, output byte-identical with the feature off. Depends on 014.
 - [ ] CTX020-017 Ariana's file-specific acceptance check (Google record section 7). Depends on 014–016 and open question 4.
 - [ ] CTX020-018 Docs: README, plus CLI help if a flag is added. Run `mvn -Ppackage verify`.
 - [ ] CTX020-019 Until Useful review: diff scope (`git diff --stat ariana/scoring...ctx020`), reuse, no dependency change. Record findings and dispositions.
 - [ ] CTX020-020 Report outside the repo (location to be decided).
 - [ ] CTX020-021 Ariana's final review.
+
+### Checklist — r3 additions (pending approval)
+
+- [ ] CTX020-022 RT-window restriction: in `encyclopedia/EncyclopediaTwoPointOneScoringTask.java`, add scans outside [rtMin, rtMax] to `takenScans` for assay entries only, guarded. Matched decoys use their target's window. `EValueCalculator` is unchanged. Confirm RT units first. Check: tests Q5.9–Q5.11. Depends on 013.
+- [ ] CTX020-023 Post-check in `ContextFeatureScorer.findMatchingMassListWindow`: require matching charge and an RT inside the window; fail loudly otherwise; flag edge peaks. Check: test Q5.14. Depends on 022.
+- [ ] CTX020-024 Detection status (`NO_SCANS`, `DETECTED`) as a label. `NO_SCANS` rows are output with empty score, q-value and PEP, excluded from q-value estimation, and counted. Check: test Q5.13. Depends on 014.
+- [ ] CTX020-025 Population guard: assay rows never enter discriminant training. Check: test Q5.12. Depends on 027.
+- [ ] CTX020-026 `visualization/XicChartWriter` PDF output via `Charter.writeAsPDF`, plus a hand-run QC `main`; no CLI change. Check: test Q5.7. Depends on 014.
+- [ ] CTX020-027 Forced scoring integration: assay rows are scored by EncyclopeDIA at their windows and fed to the discriminant as reference features through a guarded call site in `ContextFeatureScorer`. Output is byte-identical without assay windows. Check: test Q5.8. Depends on 014, 022 and 024.
 
 ### Log
 
@@ -835,3 +845,7 @@ Superseded mapping: 001 and 002 were dropped (existing IL2A fixtures and `Isolat
   - Wrote `docs/uu-ctx-020-forced-assay-xic.md` (draft r1) and updated the Google record to r2. Draft-r1 tasks 001–011 are superseded and 012–021 appended.
   - Ariana authorized committing and pushing the planning docs to `origin/ctx020`. That does not cover implementation.
   - Next: Ariana answers open questions 1–4 and approves.
+- 2026-11-16 — r3. Recorded Ariana's decisions D1–D7: package names; PDF via `Charter.writeAsPDF`; a hand-run QC entry point; forced scoring of every assay row; the RT-window restriction at apex selection, with matched decoys sharing the window; statuses `NO_SCANS`/`DETECTED` as labels, with `NOT_DETECTED` recorded as a limitation; assay rows never train the discriminant.
+  - Tasks 015 and 016 are superseded by 026 and 027. Tasks 022–027 are appended.
+  - Ariana authorized committing and pushing r3 to `origin/ctx020`.
+  - Open: question 4 (the acceptance file) and the optional `DETECTED`/`SCORED` name.
