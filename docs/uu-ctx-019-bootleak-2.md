@@ -1,7 +1,7 @@
-# CTX-019 — Bootleak 2.0 canonical plan, revision 2 (proposed)
+# CTX-019 — Bootleak 2.0 canonical plan, revision 2 (approved)
 
-- **Status: pending Ariana's approval.** Revision 1 was written on 2026-11-13; this proposed revision 2 adds the capacity, entrapment assignment and feasibility work discussed on 2026-11-14. It becomes frozen for the implement/review loop only after Ariana approves it together with the guide and revised `TASKS.md` checklist.
-- Google implementation record: https://docs.google.com/document/d/1VT-sY1rvrERuoMl1OY4to79TicAT01Rtq8mheJy0B04/edit — proposed guide r1, 2026-11-14 (Docs revision ID `AHj4eMRyI4HhY7tlrFOadZNUToFO7cn4hMR69H535uAHrx_4xtmUKFrR1Awb2ebly1k0UrY7QyXEZOnpaqzacmesXH3QAyyO_YWOI8lL604`).
+- **Status: approved by Ariana on 2026-11-14; frozen for implementation/review.** Approved together with guide r1 and the revised checklist. Current execution scope is CTX019-001 through CTX019-003; Part 2 parameters retain their separate decision checkpoint.
+- Google implementation record: https://docs.google.com/document/d/1VT-sY1rvrERuoMl1OY4to79TicAT01Rtq8mheJy0B04/edit — approved guide r1, 2026-11-14 (Docs revision ID `AHj4eMSZJhcv9hz96icJcBkelR7Fv2FIiTKssi-YM4ew1Y3pQFjERwnRf-mcQMWuIKj5BxfwRL1qbjksHt1WI_IXZmc3f1rZiSkIwfs-44Q`).
 - Checklist and log: `TASKS.md`, section "CTX-019 — Bootleak 2.0".
 - Branch: `bootleak2`, created 2026-11-13 from `ariana/scoring` at `7d0f5240411e8177db4744bcc6500166f9e5255a` (includes the BOOTLEAK fixes).
 - Dependencies, unchanged: EncyclopeDIA 6.9.23 and msrawjava-core-nolice 26.7.31 (from `pom.xml`); Java 17; JUnit 4.
@@ -93,7 +93,7 @@
 - [ ] The pilot reports a justified capacity range, target concurrency, target yield and complete-entrapment assignment rate on the supplied data, with timing and failure cases; Ariana approves final parameters before implementation of Part 2.
 - [ ] Entries whose library RT falls outside observed peak bounds are excluded from both reference and entrapment selection; the excluded count and any consequent infeasibility are reported clearly.
 - [ ] For any approved Part 2 implementation, no cycle exceeds the approved target cap; every scheduled target RT interval covers its accepted observed lower and upper peak bounds; every target has the requested number of distinct, eligible entrapments, including a case that needs reassignment; seeded runs are reproducible and impossible `numberOfPeptides` or trap requests fail clearly, without silently reducing them.
-- [ ] Until Useful review findings, dispositions and residual risks recorded; Ariana's final review; Report written outside the repository.
+- [ ] Until Useful review findings, dispositions and residual risks recorded; Ariana's final review; Report written under `docs/reports/` in the repository.
 - These checks do not establish improved sensitivity or general FDR validity. Small-fixture tests show only that the selection logic behaves as specified.
 
 ## Until Useful review
@@ -123,7 +123,7 @@
 4. Matching: maximum candidate expansion and bounded backtracking policy; measure yield and resource use before freezing these details.
 5. Verify the supplied `.dia` window layout against Ariana's 4 m/z staggered/deconvoluted and 1–2 m/z GPF description in 2a.
 6. CTX-019 priority remains unset. Ariana reports CTX-016 is complete in another account/computer; reconcile backlog status separately, without changing CTX-019's technical approval scope.
-7. Save the required Report locally in Downloads. Ariana also provided a Google Drive `ctx-019` folder for a Report copy: https://drive.google.com/drive/folders/1mIQTNaHLO-9ph5fxVuF4OUeMtqFYo7ix?usp=sharing. Her permission covers the Report, not the input datasets or pilot outputs.
+7. Save the required Report under `docs/reports/` with the unique date-stamped filename specified in `AGENTS.md`. Ariana also provided a Google Drive `ctx-019` folder for a Report copy: https://drive.google.com/drive/folders/1mIQTNaHLO-9ph5fxVuF4OUeMtqFYo7ix?usp=sharing. Her permission covers the Report, not the input datasets or pilot outputs.
 
 ## Documentation handoff
 
