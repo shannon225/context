@@ -443,6 +443,11 @@ public class EncyclopediaTwo {
 				Range range=ranges.get(rangeIndex);
 			ArrayList<LibraryEntry> entries=nextEntries;
 			ArrayList<FragmentScan> stripes=nextStripes;
+				// Advance even when the current range is skipped below.
+				if (rangeIndex+1<ranges.size()) {
+					nextEntries=library.getEntries(ranges.get(rangeIndex+1), useSqrt, parameters.getAAConstants());
+					nextStripes=stripefile.getStripes(ranges.get(rangeIndex+1).getMiddle(), -Float.MAX_VALUE, Float.MAX_VALUE, useSqrt);
+				}
 			HashMap<MatchedDecoyKey, LibraryEntry> mappedDecoys=new HashMap<>();
 			if (decoyStrategy.usesPredictedDecoys()) {
 				mappedDecoys=((MatchedDecoyLibrary)library).getMappedDecoyEntries(range, useSqrt, parameters.getAAConstants());
@@ -522,11 +527,6 @@ public class EncyclopediaTwo {
 						localStripes = stripes;
 					}
 					scoringTasks.add(executor.submit(taskFactory.getScoringTask(scorer, tasks, localStripes, range, dutyCycle, precursors, resultsQueue)));
-				}
-
-				if (rangeIndex+1<ranges.size()) {
-					nextEntries=library.getEntries(ranges.get(rangeIndex+1), useSqrt, parameters.getAAConstants());
-					nextStripes=stripefile.getStripes(ranges.get(rangeIndex+1).getMiddle(), -Float.MAX_VALUE, Float.MAX_VALUE, useSqrt);
 				}
 
 				executor.shutdown();
