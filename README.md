@@ -341,7 +341,10 @@ is never overwritten by the CLI.
 
 Existing raw feature caches require a matching pair sidecar and SHA-256 manifest. To reuse an
 older raw feature file without Context metadata, pass `--allow-legacy-features true` explicitly;
-legacy reference/background classification then uses the prior sequence rules. An interrupted
+legacy reference/background classification matches modified sequence and charge. Before partitioning,
+Context rejects an assay candidate outside its scheduled RT window and requires a rerun from raw data.
+This validation covers every supplied row, including rows that would lose best-feature selection;
+partitioning cannot repair their scores or establish complete assay detection coverage. An interrupted
 Context scoring attempt is marked while it runs; on retry, Context preserves its incomplete
 outputs, including the prediction report, in a nearby `.failed-*` directory before generating
 new outputs. A lock beside the feature file prevents another invocation from archiving an active

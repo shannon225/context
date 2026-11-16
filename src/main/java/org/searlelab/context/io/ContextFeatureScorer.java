@@ -113,23 +113,23 @@ public class ContextFeatureScorer {
 	static IsolationWindow findMatchingMassListWindow(ScoredFeature feature, ArrayList<IsolationWindow> targetWindows,
 			SearchParameters parameters) {
 
-		String sequence = cleanPeptideSequence(feature.getSequence());
+		String sequence = PeptideUtils.getCorrectedMasses(cleanPeptideSequence(feature.getSequence()), parameters.getAAConstants());
 
 		// Use decoys that are in the assay as entrapment decoys
 		for (IsolationWindow window : targetWindows) {
-			String compound = cleanPeptideSequence(window.getCompound());
+			String compound = PeptideUtils.getCorrectedMasses(cleanPeptideSequence(window.getCompound()), parameters.getAAConstants());
 
-			if (compound.equals(sequence)) {
+			if (window.getCharge() == feature.getCharge() && compound.equals(sequence)) {
 				return window;
 			}
 		}
 
 		// Support entrapment decoys
 		for (IsolationWindow window : targetWindows) {
-			String compound = cleanPeptideSequence(window.getCompound());
+			String compound = PeptideUtils.getCorrectedMasses(cleanPeptideSequence(window.getCompound()), parameters.getAAConstants());
 			String encyclopediaDecoy = PeptideUtils.reverse(compound, parameters.getAAConstants());
 
-			if (encyclopediaDecoy.equals(sequence)) {
+			if (feature.isDecoy() && window.getCharge() == feature.getCharge() && encyclopediaDecoy.equals(sequence)) {
 				return window;
 			}
 		}
@@ -304,8 +304,24 @@ public class ContextFeatureScorer {
 			}
 			if (!seenIds.equals(targetKeys.keySet())) throw new IOException("Pair sidecar has feature ids absent from source TSV");
 		}
+		// Target mass list
+		ArrayList<IsolationWindow> targetWindows = IsolationWindowReader
+				.parseMassList(effectiveMassList.getAbsolutePath());
+
+		System.out.println(targetWindows.size() + " windows found in the mass list");
+
 		HashMap<FeaturePrecursor, ScoredFeature> bestFeatureByPrecursor = new HashMap<>();
 		for (ScoredFeature feature : table.rows()) {
+			IsolationWindow window = targetKeys == null
+					? findMatchingMassListWindow(feature, targetWindows, params)
+					: findMatchingPairedTargetWindow(targetKeys.get(featureId(feature)), targetWindows, params);
+			// Validate every supplied row before best-feature selection can hide an invalid candidate.
+			// Feature RT is in minutes; schedule bounds are stored in seconds.
+			if (window != null && (feature.getRetentionTime() < window.getRtMin() / 60f
+					|| feature.getRetentionTime() > window.getRtMax() / 60f)) {
+				throw new IOException("Assay feature " + featureId(feature) + " is outside its scheduled RT window; "
+						+ "rerun from raw data to calculate window-limited features. Existing feature files cannot be repaired by partitioning.");
+			}
 			FeaturePrecursor key = new FeaturePrecursor(feature.getSequence(), feature.getCharge());
 			ScoredFeature previous = bestFeatureByPrecursor.get(key);
 			if (previous == null || feature.getPrimary() > previous.getPrimary() || (feature.getPrimary() == previous.getPrimary() && feature.getOriginalLine().compareTo(previous.getOriginalLine()) < 0)) {
@@ -329,12 +345,6 @@ public class ContextFeatureScorer {
 		// Output Files
 		File referenceOutput = new File(referenceOutputPath);
 		File backgroundOutput = new File(backgroundOutputPath);
-
-		// Target mass list
-		ArrayList<IsolationWindow> targetWindows = IsolationWindowReader
-				.parseMassList(effectiveMassList.getAbsolutePath());
-
-		System.out.println(targetWindows.size() + " windows found in the mass list");
 
 		ArrayList<ScoredFeature> referenceFeatures = new ArrayList<>();
 		ArrayList<ScoredFeature> backgroundFeatures = new ArrayList<>();

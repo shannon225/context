@@ -101,6 +101,44 @@ public class ContextFeatureScorerPairedPartitionTest {
 		assertTrue(Files.readString(new File(base + "_background.features.txt").toPath()).contains(id(unassayed)));
 	}
 
+	@Test public void rejectsOutOfWindowRowsBeforeSelectionOrOutputForPairedAndLegacyInput() throws Exception {
+		var parameters = SearchParameterParser.getDefaultParametersObject();
+		var constants = parameters.getAAConstants();
+		var target = new LibraryEntry("synthetic", new HashSet<>(), constants.getChargedMass("PEPTIDEK", (byte) 2),
+				(byte) 2, "PEPTIDEK", 1, 10f, 1f, new double[] {250}, new float[] {10}, Optional.empty(), constants);
+		for (boolean paired : new boolean[] {false, true}) {
+			File features = new File(temporaryFolder.getRoot(), "outside-" + paired + ".tsv");
+			String outsideId = PercolatorPeptide.getPSMID("run.dia", 20f, Optional.empty(), false, "PEPTIDEK", (byte) 2);
+			Files.writeString(features.toPath(), "id\tLabel\tprecursorMz\tRTinMin\tprimary\tsequence\tProteins\n"
+					+ row(id(target), 1, target, 10)
+					+ outsideId + "\t1\t" + target.getPrecursorMZ() + "\t20\t1\t-.PEPTIDEK.-\tP\n");
+			if (paired) {
+				var pairs = new SearchPairSidecar();
+				pairs.record(new EncyclopediaTwo.SearchSelection(target, List.of(target), EncyclopediaTwoDecoyStrategy.Mode.PREDICTED));
+				pairs.write(features, new File(features + ".pairs.tsv"), new File("source.elib"), new File("run.dia"));
+			}
+			File assay = new File(temporaryFolder.getRoot(), "outside-" + paired + ".txt");
+			Files.writeString(assay.toPath(), "compound\tc1\tc2\tmz\tcharge\trt\twidth\nPEPTIDEK\t-\t-\t500\t2\t10\t2\n");
+			String base = new File(temporaryFolder.getRoot(), "outside-output-" + paired).getAbsolutePath();
+			var error = assertThrows(java.io.IOException.class,
+					() -> ContextFeatureScorer.partitionFeatures(features, parameters, base, assay));
+			assertTrue(error.getMessage().contains("rerun from raw data"));
+			assertTrue(error.getMessage().contains(outsideId));
+			assertTrue(!new File(base + "_reference.features.txt").exists());
+			assertTrue(!new File(base + "_background.features.txt").exists());
+		}
+	}
+
+	@Test public void legacyMatchingPreservesChargeAndModificationIdentity() throws Exception {
+		var parameters = SearchParameterParser.getDefaultParametersObject();
+		var windows = new java.util.ArrayList<org.searlelab.context.datastructures.IsolationWindow>();
+		windows.add(new org.searlelab.context.datastructures.IsolationWindow("PEPTIDEK", 500, (byte) 2, 540, 660, false));
+		var wrongCharge = new org.searlelab.context.datastructures.ScoredFeature(500, (byte) 3, false, 1, 10, "PEPTIDEK", "P", "unused");
+		var modified = new org.searlelab.context.datastructures.ScoredFeature(500, (byte) 2, false, 1, 10, "PEPT[+79.9663]IDEK", "P", "unused");
+		org.junit.Assert.assertNull(ContextFeatureScorer.findMatchingMassListWindow(wrongCharge, windows, parameters));
+		org.junit.Assert.assertNull(ContextFeatureScorer.findMatchingMassListWindow(modified, windows, parameters));
+	}
+
 	private static String id(LibraryEntry entry) {
 		return PercolatorPeptide.getPSMID("run.dia", 10f, Optional.empty(), entry.isDecoy(),
 				entry.getPeptideModSeq(), entry.getPrecursorCharge());
