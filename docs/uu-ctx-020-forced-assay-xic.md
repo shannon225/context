@@ -1,3 +1,27 @@
+# CTX-020 — Forced assay XIC extraction: approved r5.3
+
+## Current decision and handoff — 2026-11-16
+
+Ariana approved full-gradient search/scoring for both true targets and entrapments and requested this planning update. This section supersedes conflicting RT restrictions in the preserved r5.2 record below. The production transition is pending; this edit changes documentation only. Freeze r5.3 at this handoff; preserve existing task IDs and history. Google guide: https://docs.google.com/document/d/1h2OXg2m2EvRqcr8FEKG4MQvB-xdnbjReCI3TC-yJqa8/edit . Checklist and evolving evidence: root TASKS.md.
+
+- Use the full acquired run as the effective extraction, scoring, refinement and integration range for each assay target/entrapment and matched search decoy. Preserve original assay RT schedules as metadata for reporting, original-window membership and optional QC. Similar m/z never establishes peptide identity; each peptide retains its own fragment ions.
+- Keep search-then-force for candidates without valid pre-competition scoring. Do not give TDC losers another chance. Preserve existing IDs, TDC, identity/unique-notation matching, full-run E-value statistics and background/reference separation.
+- DETECTED remains pre-TDC scoring success. With a usable reference, NOT_DETECTED means no applicable MS2 anywhere in the acquired run. Preserve NO_REFERENCE precedence and explicit processing errors. Report original assay columns/order unchanged.
+- CTX020-014/030 implement effective full-run bounds separately from original schedules; CTX020-027/032 apply them to search/forced tracking symmetrically; CTX020-023/025 retain identity-based partitioning without schedule-based exclusion or background leakage; CTX020-024/028 update coverage semantics and preserve reports. Schedule-only rejection of direct features is superseded; inputs unable to establish full-gradient coverage/provenance still require a raw-data rerun.
+- CTX020-033 versions run-level processing/cache identity to reject reuse of scheduled completion as full-gradient completion, without invalidating compatible shared predictions. CTX020-017 validates outside-original-window signal, matched decoys, weak candidates, no second chance, unchanged report fields/IDs, cache invalidation and representative supplied seeds. CTX020-018/019/020/021 retain documentation, review and final acceptance work.
+- The seed23 comparison already retained forced extraction in both conditions. Full-gradient forcing scored 8 true targets (7 winners/1 loser) and 399 entrapments (191 winners/208 losers); 88 true targets and 51 entrapments were search-scored, and 30 entrapments had no applicable MS2 anywhere. Production must preserve original schedules rather than use the experiment's rewritten assay copy.
+- Full-gradient scope allows off-schedule entrapment opportunities; it does not establish validity of entrapment labels or FDP calibration. Genuine off-schedule peptide signal remains a scientific limitation. Keep the scheduled experiment and R-derived analysis as evidence in `docs/validation/ctx020-rt-policy-comparison.md`.
+
+### Approved missing-reference clarification — 2026-11-16
+
+Ariana requires an explicit thrown error identifying the assay row and peptide when it is absent from both the source library and supplied FASTA. Do not invent protein assignments, predict an unassigned peptide, or convert this input error to NO_REFERENCE. Source-library-absent peptides with real FASTA matches remain candidates for prediction supplementation using those real accessions; preserve modified sequence and charge. This clarifies the r5.3 reference-preparation task at the human-approved handoff.
+
+### Approved target-only input compatibility — 2026-11-16
+
+Ariana chose to keep automatic assay-entrapment generation and require supported entrapment assays. The absent-library/FASTA error applies to generated entrapments too; do not bypass it or invent synthetic protein assignments. Target-only seven- or eight-column inputs that generate unsupported peptides must fail explicitly. An already expanded supported entrapment assay is used unchanged. Matched search-decoy generation remains separate and unchanged. Preserve a regression for this accepted compatibility limitation.
+
+## Preserved historical r5.2 plan (superseded where it conflicts with r5.3)
+
 # CTX-020 — Forced assay XIC extraction: Until Useful plan, approved r5.2
 
 - **Status: Approved r5 with Ariana’s wording clarification on 2026-11-16; frozen r5.2.** This authorized revision preserves the overlap/unchanged-ID clarification and adds Ariana’s approved unique bootstrapper-notation matching rule. All other r5 requirements remain in force, subject to the separately approved CTX020-035 search-range correction recorded in TASKS.md and the Google implementation record. Keep this canonical plan unchanged during the implementation/review loop; later material changes require renewed approval.

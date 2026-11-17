@@ -157,9 +157,9 @@ acquisition that is **not** on this list becomes the background it trains on.
 
 ### Decoys
 
-That last column is what makes the confidence estimate possible. q-values and PEPs come from
-target-decoy competition. A plain Skyline export stops at `Window (min)` and so contains no
-decoys at all. If the mass list is target-only, let Context build entrapment decoys: one decoy peptide
+The assay `isDecoy` column labels entrapment peptides for validation. These are distinct from
+matched search decoys used in target–decoy competition and confidence estimation. A plain Skyline
+export stops at `Window (min)` and therefore has no entrapment labels. If the mass list is target-only, let Context build entrapment decoys: one decoy peptide
 per target, same charge, same RT window, matched mass. Just add the flag `-generateDecoys`:
 
 ```bash
@@ -169,6 +169,12 @@ java -jar context.jar percolator -i run01.dia -l library.elib -f database.fasta 
 
 It writes the expanded list to `results_run01/run01.assay.with_decoys.txt` and uses that. A list that
 *already* has decoys is used unchanged, so the flag is harmless to leave on.
+
+Raw Context scoring also retains its existing automatic expansion of target-only 7- and 8-column
+assays. Under CTX-020, every resulting peptide—including generated entrapments—must occur in the
+source library or supplied FASTA. Unsupported generated entrapments cause an explicit error. Supply
+an assay containing supported entrapments to avoid automatic expansion; their `isDecoy` labels are
+preserved. This requirement is separate from normal matched search-decoy generation.
 
 ## 3. Run Context
 
@@ -339,14 +345,51 @@ without either companion, pass `--allow-legacy-features true`. mProphet output g
 `<output-root>/context-mprophet/` directory (`-o` selects the root), so an earlier result
 is never overwritten by the CLI.
 
-Existing raw feature caches require a matching pair sidecar and SHA-256 manifest. To reuse an
-older raw feature file without Context metadata, pass `--allow-legacy-features true` explicitly;
-legacy reference/background classification matches modified sequence and charge. Before partitioning,
-Context rejects an assay candidate outside its scheduled RT window and requires a rerun from raw data.
-This validation covers every supplied row, including rows that would lose best-feature selection;
-partitioning cannot repair their scores or establish complete assay detection coverage. An interrupted
+Raw assay processing also writes `<baseName>_assay.detections.tsv`, preserving the effective assay’s
+columns and row order and appending `DetectionStatus` and `DetectionReason`. `DETECTED` means the
+assay target was successfully scored before target–decoy competition; it does not mean a confident
+identification or a retained target winner. `NOT_DETECTED` means there were no applicable MS2 scans
+anywhere in the acquired gradient, and `NO_REFERENCE` means no usable exact reference was available.
+Processing errors fail the run rather than becoming a detection label. An assay peptide absent
+from both the source-library precursor catalog and supplied FASTA causes an explicit error with
+its row, sequence and charge; Context does not invent a protein assignment.
+Missing library references with genuine FASTA matches are predicted through the existing prediction
+store and kept in a separate assay-only cache; the shared background library and existing pairings
+are unchanged. Unsupported or individually failed predictions receive a specific `NO_REFERENCE`
+reason. Predictor initialization or invalid cache/library state remains a run error. A supplement
+that conflicts with existing target/search-decoy identities is rejected instead of changing the
+run's decoy strategy. Target and matched-search-decoy
+candidates are searched and, when still unscored, force-scored across the full acquired gradient.
+Original assay RT schedules remain reporting/QC metadata; full-run E-value statistics remain in use.
+A candidate that lost competition is not forced again.
+The unique bootstrapper-notation workaround retains canonical library identities and rejects ambiguous
+matches; it does not fix the bootstrapper’s modification export notation.
+
+For optional XIC inspection, run the separate headless QC entry point with the same prepared
+library used by scoring (no prediction is performed by this command):
+
+```bash
+java -Djava.awt.headless=true -cp context.jar \
+  org.searlelab.context.visualization.XicChartWriter \
+  run.dia assay.txt prepared.elib fresh-qc-directory PEPTIDEK
+```
+
+Omit peptide arguments to plot every assay row, or supply exact sequences as written in the assay.
+Each selected row produces `assay-<row>.pdf`; existing PDFs are refused. These QC filenames do not
+change feature/PSM IDs. PDFs show unnormalized precursor/fragment intensities against retention time
+in minutes, with the original assay boundaries. Extraction alone does not establish detection or
+confidence. The Java writer accepts optional peak boundaries from a caller; the hand-run command
+does not infer scored peak boundaries. This entry point is never invoked automatically by scoring.
+
+Existing raw feature caches require a matching pair sidecar, detection report and SHA-256 manifest.
+Full-gradient processing has a new run-level identity: scheduled-window caches cannot be reused as
+full-gradient completion. Use a fresh output location to rerun from raw data; compatible shared
+prediction libraries remain reusable. `--allow-legacy-features` does not bypass raw assay coverage
+requirements. Direct feature partitioning matches modified sequence and charge regardless of RT,
+but does not reconstruct missing candidates or establish full-gradient detection coverage.
+An interrupted
 Context scoring attempt is marked while it runs; on retry, Context preserves its incomplete
-outputs, including the prediction report, in a nearby `.failed-*` directory before generating
+outputs, including detection reports and partial partitions for assay runs, in a nearby `.failed-*` directory before generating
 new outputs. A lock beside the feature file prevents another invocation from archiving an active
 run. Bruker `.d` acquisitions are accepted as directories, and the cache identity hashes their
 relative paths and file contents in a stable order.
