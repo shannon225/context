@@ -54,11 +54,14 @@ public class ContextEncyclopediaScoringFactory extends EncyclopediaTwoScoringFac
 				if (!dispatchedRows.add(row.number())) continue;
 				try {
 					var window = row.window();
+					var canonicalWindow = new org.searlelab.context.datastructures.IsolationWindow(row.correctedSequence(),
+							window.getTargetMz(), window.getCharge(), window.getRtMin(), window.getRtMax(), window.isDecoy());
+					if (org.searlelab.context.xic.AssayXicExtractor.referenceProblem(canonicalWindow, entries.get(0), parameters) != null) continue;
+					if (org.searlelab.context.xic.AssayXicExtractor.readFragments(raw, window).isEmpty()) continue;
 					var allScans = raw.getStripes(window.getTargetMz(), -Float.MAX_VALUE, Float.MAX_VALUE, EncyclopediaTwo.useSqrt);
 					allScans.removeIf(scan -> !scan.getPrecursorRange().contains((float) window.getTargetMz()));
 					allScans.sort(Comparator.comparingDouble(FragmentScan::getScanStartTime).thenComparingInt(FragmentScan::getSpectrumIndex));
-					var localPrecursors = raw.getPrecursors(window.getRtMin(), window.getRtMax());
-					localPrecursors.removeIf(scan -> scan.getScanStartTime() < window.getRtMin() || scan.getScanStartTime() > window.getRtMax());
+					var localPrecursors = raw.getPrecursors(-Float.MAX_VALUE, Float.MAX_VALUE);
 					tasks.add(new AssayScoringTask(scorer, entries, allScans, precursorIsolationRange, dutyCycle,
 							new PrecursorScanMap(localPrecursors), resultsQueue, parameters, assays, row,
 							diagnosticWriter == null ? null : diagnosticWriter::accept));

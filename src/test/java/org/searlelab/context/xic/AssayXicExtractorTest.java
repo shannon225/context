@@ -15,7 +15,7 @@ import edu.washington.gs.maccoss.encyclopedia.filereaders.SearchParameterParser;
 import edu.washington.gs.maccoss.encyclopedia.utils.massspec.PeptideUtils;
 
 public class AssayXicExtractorTest {
-	@Test public void clipsReaderResultsToInclusiveScheduleAndKeepsWeakSignalWithoutMs1() throws Exception {
+	@Test public void extractsFullGradientAndPreservesScheduleAndWeakSignalWithoutMs1() throws Exception {
 		var p = SearchParameterParser.getDefaultParametersObject();
 		double ion = PeptideUtils.getPeptideModel("PEPTIDEK", p.getAAConstants())
 				.getPrimaryIonObjects(p.getFragType(), (byte) 2, true)[3].getMass();
@@ -36,13 +36,15 @@ public class AssayXicExtractorTest {
 		assertEquals(7, xic.assayRow());
 		assertTrue(xic.entrapment());
 		assertNull(xic.referenceProblem());
-		assertEquals(3, xic.ms2ScanCount());
+		assertEquals(5, xic.ms2ScanCount());
+		assertEquals(100, xic.startSeconds(), 0);
+		assertEquals(102, xic.stopSeconds(), 0);
 		assertTrue(xic.precursors().isEmpty());
 		assertEquals(1, xic.fragments().size());
-		assertArrayEquals(new float[] {100, 101, 102}, xic.fragments().get(0).seconds(), 0);
-		assertArrayEquals(new float[] {0, 2, 0}, xic.fragments().get(0).intensities(), 0);
-		float[] leaked = xic.fragments().get(0).intensities(); leaked[1] = 999;
-		assertEquals(2, xic.fragments().get(0).intensities()[1], 0);
+		assertArrayEquals(new float[] {99, 100, 101, 102, 103}, xic.fragments().get(0).seconds(), 0);
+		assertArrayEquals(new float[] {0, 0, 2, 0, 0}, xic.fragments().get(0).intensities(), 0);
+		float[] leaked = xic.fragments().get(0).intensities(); leaked[2] = 999;
+		assertEquals(2, xic.fragments().get(0).intensities()[2], 0);
 	}
 
 	@Test public void missingReferenceTakesPrecedenceWithoutPretendingExtractionOccurred() throws Exception {
@@ -53,7 +55,7 @@ public class AssayXicExtractorTest {
 		assertTrue(xic.fragments().isEmpty());
 		assertEquals(0, xic.ms2ScanCount());
 	}
-	@Test public void differentPeptidesWithSimilarMassKeepTheirOwnOverlappingWindows() throws Exception {
+	@Test public void differentPeptidesWithSimilarMassKeepOwnIonsAcrossFullGradient() throws Exception {
 		var p = SearchParameterParser.getDefaultParametersObject();
 		String[] sequences = {"PEPTIDEK", "PEDITPEK"};
 		var references = new LibraryEntry[2];
@@ -78,10 +80,10 @@ public class AssayXicExtractorTest {
 				});
 		var a = AssayXicExtractor.extract(1, new IsolationWindow(sequences[0], 500, (byte) 2, 100, 102, false), references[0], reader, p);
 		var b = AssayXicExtractor.extract(2, new IsolationWindow(sequences[1], 500.01, (byte) 2, 101, 103, true), references[1], reader, p);
-		assertArrayEquals(new float[] {100, 101, 102}, a.fragments().get(0).seconds(), 0);
-		assertArrayEquals(new float[] {101, 102, 103}, b.fragments().get(0).seconds(), 0);
-		assertArrayEquals(new float[] {5, 5, 5}, a.fragments().get(0).intensities(), 0);
-		assertArrayEquals(new float[] {7, 7, 7}, b.fragments().get(0).intensities(), 0);
+		assertArrayEquals(new float[] {99, 100, 101, 102, 103, 104}, a.fragments().get(0).seconds(), 0);
+		assertArrayEquals(new float[] {99, 100, 101, 102, 103, 104}, b.fragments().get(0).seconds(), 0);
+		assertArrayEquals(new float[] {5, 5, 5, 5, 5, 5}, a.fragments().get(0).intensities(), 0);
+		assertArrayEquals(new float[] {7, 7, 7, 7, 7, 7}, b.fragments().get(0).intensities(), 0);
 		assertFalse(a.entrapment()); assertTrue(b.entrapment());
 	}
 

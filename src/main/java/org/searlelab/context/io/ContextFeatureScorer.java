@@ -284,6 +284,13 @@ public class ContextFeatureScorer {
 
 	// Partition on an already generated feature file
 	public static ArrayList<ScoredFeature> partitionFeatures(File featuresToSplit, SearchParameters params, String baseName, File effectiveMassList) throws IOException { 
+		Logger.logLine("Partitioning existing features only; full-gradient assay detection coverage requires a raw-data rerun.");
+		return partitionFeatures(featuresToSplit, params, baseName, effectiveMassList, null);
+	}
+
+	/** Raw-run callers supply the full library identity catalog; winner-only input cannot establish alias uniqueness. */
+	public static ArrayList<ScoredFeature> partitionFeatures(File featuresToSplit, SearchParameters params,
+			String baseName, File effectiveMassList, org.searlelab.context.xic.AssayIdentityResolver identities) throws IOException {
 		FeatureTable table = readFeatures(featuresToSplit);
 		String header = table.header(); 
 		File sourceSidecar = new File(featuresToSplit.getAbsolutePath() + ".pairs.tsv");
@@ -308,20 +315,14 @@ public class ContextFeatureScorer {
 		ArrayList<IsolationWindow> targetWindows = IsolationWindowReader
 				.parseMassList(effectiveMassList.getAbsolutePath());
 
+		if (identities != null) {
+			for (int i = 0; i < targetWindows.size(); i++) targetWindows.set(i, identities.resolve(targetWindows.get(i)));
+		}
+
 		System.out.println(targetWindows.size() + " windows found in the mass list");
 
 		HashMap<FeaturePrecursor, ScoredFeature> bestFeatureByPrecursor = new HashMap<>();
 		for (ScoredFeature feature : table.rows()) {
-			IsolationWindow window = targetKeys == null
-					? findMatchingMassListWindow(feature, targetWindows, params)
-					: findMatchingPairedTargetWindow(targetKeys.get(featureId(feature)), targetWindows, params);
-			// Validate every supplied row before best-feature selection can hide an invalid candidate.
-			// Feature RT is in minutes; schedule bounds are stored in seconds.
-			if (window != null && (feature.getRetentionTime() < window.getRtMin() / 60f
-					|| feature.getRetentionTime() > window.getRtMax() / 60f)) {
-				throw new IOException("Assay feature " + featureId(feature) + " is outside its scheduled RT window; "
-						+ "rerun from raw data to calculate window-limited features. Existing feature files cannot be repaired by partitioning.");
-			}
 			FeaturePrecursor key = new FeaturePrecursor(feature.getSequence(), feature.getCharge());
 			ScoredFeature previous = bestFeatureByPrecursor.get(key);
 			if (previous == null || feature.getPrimary() > previous.getPrimary() || (feature.getPrimary() == previous.getPrimary() && feature.getOriginalLine().compareTo(previous.getOriginalLine()) < 0)) {

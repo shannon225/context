@@ -56,6 +56,6 @@ public final class AssayScoringTask extends AbstractLibraryScoringTask {
 				new LinkedBlockingQueue<>(), parameters, observed -> {
 					tracker.scored(row, observed, forced);
 					candidates.addAll(observed);
-				}, new Range(row.window().getRtMin(), row.window().getRtMax()), forced).call();
+				}, new Range(-Float.MAX_VALUE, Float.MAX_VALUE), forced).call();
 	}
 }

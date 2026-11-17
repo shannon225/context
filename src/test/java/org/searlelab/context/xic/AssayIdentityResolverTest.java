@@ -36,7 +36,18 @@ public class AssayIdentityResolverTest {
 		var entry = new LibraryEntry("synthetic", new HashSet<>(), 800, (byte) 2, CANONICAL, 1, 102, 1,
 				new double[] {ion}, new float[] {1}, Optional.empty(), p.getAAConstants());
 		assertEquals(EXPORTED, entry.getAccuratePeptideModSeq(p.getAAConstants()));
-
+		var tracker = new AssayCandidateTracker(List.of(original), p, resolver);
+		assertEquals(1, tracker.matching(entry).size());
+		assertSame(original, tracker.matching(entry).get(0).window());
+		assertEquals(CANONICAL, tracker.matching(entry).get(0).correctedSequence());
+		assertNull(AssayXicExtractor.referenceProblem(resolved, entry, p));
+		var reader = (org.searlelab.msrawjava.io.StripeFileInterface) java.lang.reflect.Proxy.newProxyInstance(
+				getClass().getClassLoader(), new Class<?>[] {org.searlelab.msrawjava.io.StripeFileInterface.class},
+				(proxy, method, args) -> new ArrayList<>());
+		var extracted = AssayXicExtractor.extract(1, original, entry, reader, p, resolver);
+		assertNull(extracted.referenceProblem());
+		assertEquals(EXPORTED, extracted.sequence());
+		assertEquals(CANONICAL, entry.getPeptideModSeq());
 	}
 
 	@Test public void ambiguityIsRejectedEvenWhenOneCandidateIsALiteralMatch() {

@@ -101,7 +101,7 @@ public class ContextFeatureScorerPairedPartitionTest {
 		assertTrue(Files.readString(new File(base + "_background.features.txt").toPath()).contains(id(unassayed)));
 	}
 
-	@Test public void rejectsOutOfWindowRowsBeforeSelectionOrOutputForPairedAndLegacyInput() throws Exception {
+	@Test public void retainsBestOffScheduleReferenceForPairedAndLegacyInput() throws Exception {
 		var parameters = SearchParameterParser.getDefaultParametersObject();
 		var constants = parameters.getAAConstants();
 		var target = new LibraryEntry("synthetic", new HashSet<>(), constants.getChargedMass("PEPTIDEK", (byte) 2),
@@ -111,7 +111,7 @@ public class ContextFeatureScorerPairedPartitionTest {
 			String outsideId = PercolatorPeptide.getPSMID("run.dia", 20f, Optional.empty(), false, "PEPTIDEK", (byte) 2);
 			Files.writeString(features.toPath(), "id\tLabel\tprecursorMz\tRTinMin\tprimary\tsequence\tProteins\n"
 					+ row(id(target), 1, target, 10)
-					+ outsideId + "\t1\t" + target.getPrecursorMZ() + "\t20\t1\t-.PEPTIDEK.-\tP\n");
+					+ outsideId + "\t1\t" + target.getPrecursorMZ() + "\t20\t100\t-.PEPTIDEK.-\tP\n");
 			if (paired) {
 				var pairs = new SearchPairSidecar();
 				pairs.record(new EncyclopediaTwo.SearchSelection(target, List.of(target), EncyclopediaTwoDecoyStrategy.Mode.PREDICTED));
@@ -120,12 +120,9 @@ public class ContextFeatureScorerPairedPartitionTest {
 			File assay = new File(temporaryFolder.getRoot(), "outside-" + paired + ".txt");
 			Files.writeString(assay.toPath(), "compound\tc1\tc2\tmz\tcharge\trt\twidth\nPEPTIDEK\t-\t-\t500\t2\t10\t2\n");
 			String base = new File(temporaryFolder.getRoot(), "outside-output-" + paired).getAbsolutePath();
-			var error = assertThrows(java.io.IOException.class,
-					() -> ContextFeatureScorer.partitionFeatures(features, parameters, base, assay));
-			assertTrue(error.getMessage().contains("rerun from raw data"));
-			assertTrue(error.getMessage().contains(outsideId));
-			assertTrue(!new File(base + "_reference.features.txt").exists());
-			assertTrue(!new File(base + "_background.features.txt").exists());
+			ContextFeatureScorer.partitionFeatures(features, parameters, base, assay);
+			assertTrue(Files.readString(new File(base + "_reference.features.txt").toPath()).contains(outsideId));
+			assertTrue(!Files.readString(new File(base + "_background.features.txt").toPath()).contains(outsideId));
 		}
 	}
 
@@ -137,6 +134,35 @@ public class ContextFeatureScorerPairedPartitionTest {
 		var modified = new org.searlelab.context.datastructures.ScoredFeature(500, (byte) 2, false, 1, 10, "PEPT[+79.9663]IDEK", "P", "unused");
 		org.junit.Assert.assertNull(ContextFeatureScorer.findMatchingMassListWindow(wrongCharge, windows, parameters));
 		org.junit.Assert.assertNull(ContextFeatureScorer.findMatchingMassListWindow(modified, windows, parameters));
+	}
+
+	@Test public void uniqueExportAliasKeepsCanonicalTargetAndDecoyOutOfBackground() throws Exception {
+		var parameters = SearchParameterParser.getDefaultParametersObject();
+		var aa = parameters.getAAConstants();
+		String canonical = "[+42.010565]AETLEFNDVYQEVK";
+		var target = new LibraryEntry("synthetic", new HashSet<>(), aa.getChargedMass(canonical, (byte) 2),
+				(byte) 2, canonical, 1, 10, 1, new double[] {250}, new float[] {10}, Optional.empty(), aa);
+		var decoy = target.getDecoy(parameters);
+		var identities = new org.searlelab.context.xic.AssayIdentityResolver(List.of(
+				new edu.washington.gs.maccoss.encyclopedia.datastructures.LibraryPrecursorMetadata(canonical, (byte) 2, List.of())), aa);
+		File features = new File(temporaryFolder.getRoot(), "alias.tsv");
+		String content = "id\tLabel\tprecursorMz\tRTinMin\tprimary\tsequence\tProteins\n"
+				+ row(id(target), 1, target) + row(id(decoy), -1, decoy);
+		Files.writeString(features.toPath(), content);
+		var pairs = new SearchPairSidecar();
+		pairs.record(new EncyclopediaTwo.SearchSelection(target, List.of(target, decoy), EncyclopediaTwoDecoyStrategy.Mode.PREDICTED));
+		pairs.write(features, new File(features + ".pairs.tsv"), new File("library.elib"), new File("run.dia"));
+		File assay = new File(temporaryFolder.getRoot(), "alias-assay.txt");
+		String assayText = "compound\tc1\tc2\tmz\tcharge\trt\twidth\n" + target.getAccuratePeptideModSeq(aa)
+				+ "\t-\t-\t" + target.getPrecursorMZ() + "\t2\t10\t2\n";
+		Files.writeString(assay.toPath(), assayText);
+		String base = new File(temporaryFolder.getRoot(), "alias-output").getAbsolutePath();
+		var rows = ContextFeatureScorer.partitionFeatures(features, parameters, base, assay, identities);
+		assertEquals(2, rows.size());
+		assertTrue(rows.stream().noneMatch(r -> r.isBackground()));
+		assertEquals(new java.util.TreeSet<>(content.lines().toList()),
+				new java.util.TreeSet<>(Files.readAllLines(new File(base + "_reference.features.txt").toPath())));
+		assertEquals(assayText, Files.readString(assay.toPath()));
 	}
 
 	private static String id(LibraryEntry entry) {

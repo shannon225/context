@@ -27,9 +27,15 @@ public final class AssayCandidateTracker {
 	private final Map<Integer, Map<CandidateKey, Evidence>> evidence = new HashMap<>();
 
 	public AssayCandidateTracker(List<IsolationWindow> windows, SearchParameters parameters) {
+		this(windows, parameters, null);
+	}
+
+	public AssayCandidateTracker(List<IsolationWindow> windows, SearchParameters parameters, AssayIdentityResolver identities) {
 		var ordered = new ArrayList<Row>();
 		for (IsolationWindow window : windows) {
-			String sequence = PeptideUtils.getCorrectedMasses(window.getCompound(), parameters.getAAConstants());
+			AssayXicExtractor.validateSchedule(ordered.size() + 1, window);
+			String sequence = identities == null ? PeptideUtils.getCorrectedMasses(window.getCompound(), parameters.getAAConstants())
+					: identities.resolve(window.getCompound(), window.getCharge());
 			Row row = new Row(ordered.size() + 1, window, sequence);
 			ordered.add(row);
 			byTarget.computeIfAbsent(new CandidateKey(sequence, window.getCharge(), false), key -> new ArrayList<>()).add(row);
@@ -60,8 +66,8 @@ public final class AssayCandidateTracker {
 	public synchronized void scored(Row row, List<ScoredPSM> candidates, boolean forced) {
 		for (ScoredPSM candidate : candidates) {
 			float rt = candidate.getMSMS().getScanStartTime();
-			if (rt < row.window().getRtMin() || rt > row.window().getRtMax()) {
-				throw new IllegalStateException("Out-of-window assay candidate at row " + row.number());
+			if (!Float.isFinite(rt)) {
+				throw new IllegalStateException("Nonfinite assay candidate RT at row " + row.number());
 			}
 			for (float value : candidate.getAuxScores()) if (!Float.isFinite(value)) {
 				throw new IllegalStateException("Nonfinite assay candidate at row " + row.number());

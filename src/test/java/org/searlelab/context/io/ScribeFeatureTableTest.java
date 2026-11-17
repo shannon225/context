@@ -64,17 +64,18 @@ public class ScribeFeatureTableTest {
         String prefix = new File(temp.getRoot(), "split").getAbsolutePath();
         var rows = ContextFeatureScorer.partitionFeatures(input, ScribeTwoSearchParameters.getDefaultParametersObject(), prefix, assay);
         assertEquals(5, rows.size());
-        assertEquals(3, rows.stream().filter(row -> !row.isBackground()).count());
+        assertEquals(2, rows.stream().filter(row -> !row.isBackground()).count());
         assertEquals(3, rows.get(0).getCharge());
         var reference = Files.readAllLines(new File(prefix + "_reference.features.txt").toPath());
         var background = Files.readAllLines(new File(prefix + "_background.features.txt").toPath());
         assertEquals(HEADER, reference.get(0));
         assertEquals(reference.get(0), background.get(0));
-        assertEquals(4, reference.size());
-        assertEquals(3, background.size());
+        assertEquals(3, reference.size());
+        assertEquals(4, background.size());
         assertTrue(reference.get(1).endsWith("P1\tP2"));
         assertTrue(reference.stream().anyMatch(row -> row.startsWith("c+3\t-1")));
-        assertTrue(reference.stream().anyMatch(row -> row.startsWith("b+2\t1")));
+        assertFalse(reference.stream().anyMatch(row -> row.startsWith("b+2\t1")));
+        assertTrue(background.stream().anyMatch(row -> row.startsWith("b+2\t1")));
     }
 
     @Test public void missingRuntimeHasActionableError() throws Exception {

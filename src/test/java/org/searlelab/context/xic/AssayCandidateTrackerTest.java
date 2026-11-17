@@ -21,6 +21,18 @@ import edu.washington.gs.maccoss.encyclopedia.filereaders.SearchParameterParser;
 import edu.washington.gs.maccoss.encyclopedia.utils.massspec.PeptideUtils;
 
 public class AssayCandidateTrackerTest {
+	@Test public void rawTrackerRejectsMalformedAssaysBeforeScanCoverageCanHideThem() {
+		var p = SearchParameterParser.getDefaultParametersObject();
+		for (var bad : List.of(
+				new IsolationWindow("PEPTIDEK", Double.NaN, (byte) 2, 100, 102, false),
+				new IsolationWindow("PEPTIDEK", -1, (byte) 2, 100, 102, true),
+				new IsolationWindow("PEPTIDEK", 500, (byte) 0, 100, 102, false),
+				new IsolationWindow("PEPTIDEK", 500, (byte) 2, Float.NaN, 102, true),
+				new IsolationWindow("PEPTIDEK", 500, (byte) 2, 102, 100, false))) {
+			assertThrows(IllegalArgumentException.class, () -> new AssayCandidateTracker(List.of(bad), p));
+		}
+	}
+
 	@Test public void forcedLoserIsScoredAndRepeatedAcquisitionRangeDoesNotGiveAnotherChance() {
 		var p = SearchParameterParser.getDefaultParametersObject();
 		var aa = p.getAAConstants();
@@ -38,7 +50,7 @@ public class AssayCandidateTrackerTest {
 					if (method.getName().equals("getPrecursors")) return new ArrayList<>();
 					throw new AssertionError(method.getName());
 				});
-		var tracker = new AssayCandidateTracker(List.of(new IsolationWindow("PEPTIDEK", 500, (byte) 2, 100, 102, true)), p);
+		var tracker = new AssayCandidateTracker(List.of(new IsolationWindow("PEPTIDEK", 500, (byte) 2, 200, 202, true)), p);
 		var factory = new ContextEncyclopediaScoringFactory(p, null, tracker, raw);
 		var queue = new LinkedBlockingQueue<AbstractScoringResult>();
 		var precursorMap = new PrecursorScanMap(new ArrayList<>());
@@ -47,6 +59,8 @@ public class AssayCandidateTrackerTest {
 		var result = (TDCPeptideScoringResult) queue.peek();
 		assertEquals(1, result.getGoodMSMSCandidates().size());
 		var row = tracker.rows().get(0);
+		assertEquals(200, row.window().getRtMin(), 0);
+		assertTrue(result.getGoodMSMSCandidates().get(0).getMSMS().getScanStartTime() < row.window().getRtMin());
 		assertTrue(tracker.evidence(row, target).scored());
 		assertTrue(tracker.evidence(row, decoy).scored());
 		assertEquals("DETECTED", tracker.detection(row, null, 3).status());
