@@ -130,16 +130,35 @@ public final class ContextWorkingLibraryPreparer {
 		return prepare(source, parameters, settings, outputLibrary, assignmentFile, predictor, null);
 	}
 
+	/** Prepare assay-only references without changing the shared background library or its decoy pairs. */
+	public static Result prepareAssays(LibraryFile source, List<LibraryPrecursorMetadata> targets,
+			java.util.Set<String> reservedSequences, SearchParameters parameters, Settings settings,
+			File outputLibrary, File assignmentFile, ContextPredictionStore store) throws IOException, SQLException {
+		ContextPredictionRuntime.requireLibraryApi();
+		try (LazySessionPredictor predictor = new LazySessionPredictor(settings, parameters)) {
+			return prepare(source, parameters, settings, outputLibrary, assignmentFile, predictor, store,
+					targets, reservedSequences, true);
+		}
+	}
+
 	/** {@code store} may be null, in which case every request is predicted and nothing is stored. */
 	static Result prepare(LibraryFile source, SearchParameters parameters, Settings settings,
 			File outputLibrary, File assignmentFile, Predictor predictor, ContextPredictionStore store) throws IOException, SQLException {
+		return prepare(source, parameters, settings, outputLibrary, assignmentFile, predictor, store,
+				source.getUniqueTargetPrecursorMetadata(), java.util.Set.of(), false);
+	}
+
+	static Result prepare(LibraryFile source, SearchParameters parameters, Settings settings,
+			File outputLibrary, File assignmentFile, Predictor predictor, ContextPredictionStore store,
+			List<LibraryPrecursorMetadata> targets, java.util.Set<String> reservedSequences, boolean allowEmpty)
+			throws IOException, SQLException {
 		if (outputLibrary.exists() || assignmentFile.exists()) {
 			throw new IOException("Working-library output already exists; choose a fresh run path: " + outputLibrary);
 		}
-		ArrayList<LibraryPrecursorMetadata> targets = source.getUniqueTargetPrecursorMetadata();
 		if (targets.isEmpty()) throw new IOException("Source library has no target precursors");
 		AminoAcidConstants constants = parameters.getAAConstants();
 		HashSet<String> targetPeptides = new HashSet<>();
+		for (String sequence : reservedSequences) targetPeptides.add(normalized(sequence, constants));
 		for (LibraryPrecursorMetadata target : targets) targetPeptides.add(normalized(target.getPeptideModSeq(), constants));
 		HashMap<Byte, HashSet<String>> unavailableByCharge = new HashMap<>();
 		ArrayList<Assignment> assignments = new ArrayList<>();
@@ -238,7 +257,7 @@ public final class ContextWorkingLibraryPreparer {
 				Logger.logLine("Prediction store " + store.cacheFile().getName() + ": " + storedHits + " precursors reused, "
 						+ predictionRequests + " sent for prediction");
 			}
-			if (retainedTargets == 0) {
+			if (retainedTargets == 0 && !allowEmpty) {
 				writeAssignments(assignmentFile, assignments, settings, source.getFile());
 				completeExclusionReport = true;
 				throw new IOException("No target spectra could be predicted; see " + assignmentFile);

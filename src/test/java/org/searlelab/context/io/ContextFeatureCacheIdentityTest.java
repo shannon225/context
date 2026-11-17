@@ -66,6 +66,7 @@ public class ContextFeatureCacheIdentityTest {
 	@Test public void archivesDetectionWithAnIncompleteRunAndPreservesItsContents() throws Exception {
 		File features = file("incomplete.features.tsv", "partial features");
 		File detections = file("incomplete_assay.detections.tsv", "report before manifest failure");
+		File split = file("incomplete_reference.features.txt", "partial partition");
 		File marker = new File(features + ".context.inprogress");
 		File sidecar = new File(features + ".pairs.tsv");
 		File manifest = new File(features + ".context.sha256");
@@ -73,7 +74,8 @@ public class ContextFeatureCacheIdentityTest {
 		ContextFeatureCacheIdentity.markInProgress(marker, "a".repeat(64), false);
 		File archive = ContextFeatureCacheIdentity.archiveIncomplete(marker, features, sidecar, manifest, base, detections);
 		assertEquals("report before manifest failure", Files.readString(new File(archive, detections.getName()).toPath()));
-		assertTrue(!detections.exists());
+		assertEquals("partial partition", Files.readString(new File(archive, split.getName()).toPath()));
+		assertTrue(!detections.exists() && !split.exists());
 	}
 
 	@Test

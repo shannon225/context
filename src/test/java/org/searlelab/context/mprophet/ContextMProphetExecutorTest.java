@@ -23,7 +23,7 @@ public class ContextMProphetExecutorTest {
 	
 	
 	@Test
-	public void test() throws Throwable {
+	public void rejectsLegacyFixtureWithUnsupportedEntrapments() throws Throwable {
 		
 		System.out.println("Running ContextMProphetExecutorTest.");
 
@@ -70,9 +70,15 @@ public class ContextMProphetExecutorTest {
 		
 		File expectedOutput = new File(tempDirectory, "IL2A_GPFDIA_0combined_masked0_assay_reference.features.pep.output.txt");
 		
+		String base = diaFile.getAbsolutePath().replaceFirst("\\.dia$", "");
+		var error = org.junit.Assert.assertThrows(java.io.IOException.class,
+				() -> org.searlelab.context.io.ContextFeatureScorer.scoreFeaturesForContext(library, diaFile, fasta,
+						base, massList.getAbsolutePath(), 0));
+		assertTrue(error.getMessage().contains("IITTDLAHHVQGK"));
+		assertTrue(error.getMessage().contains("absent from both the source library and supplied FASTA"));
 		ContextMProphetExecutor.executeContextMProphet(library.getAbsolutePath(), fasta.getAbsolutePath(), diaFile.getAbsolutePath(), massList.getAbsolutePath());
-		
-		assertTrue("Expected output file was not generated: " + expectedOutput, expectedOutput.isFile());
+		org.junit.Assert.assertFalse("Invalid input must not produce apparent confidence output", expectedOutput.exists());
+		// Positive model training/application is exercised by ScribeCalibratedWorkflowTest using valid captured features.
 	}	
 }
 	

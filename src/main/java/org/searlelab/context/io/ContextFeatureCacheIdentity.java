@@ -95,7 +95,7 @@ final class ContextFeatureCacheIdentity {
 	static String inputs(File library, File run, File fasta, File massList, SearchParameters parameters,
 			ContextFeatureScorer.Options options) throws IOException {
 		MessageDigest digest = sha256();
-		update(digest, "Context-matched-decoys-v1|Encyclopedia-6.9.23|JChronologer-1.0.10");
+		update(digest, "Context-matched-decoys-v1|assay-full-gradient-scoring-v2|Encyclopedia-6.9.23|JChronologer-1.0.10");
 		update(digest, parameters.toString());
 		update(digest, options.predictionNce() + "|" + options.predictionDefaultCharge() + "|"
 				+ options.adjustNceForDia() + "|" + options.candidateDiagnostics());
@@ -155,7 +155,11 @@ final class ContextFeatureCacheIdentity {
 				features.getName() + ".failed-").toFile();
 		for (File file : new File[] {features, sidecar, new File(prefix + ".elib"),
 				new File(prefix + "_predictions.tsv"),
-				"true".equals(lines.get(1)) ? new File(prefix + "_candidates.tsv") : null, detections, marker}) {
+				"true".equals(lines.get(1)) ? new File(prefix + "_candidates.tsv") : null, detections,
+				detections == null ? null : new File(baseName + "_reference.features.txt"),
+				detections == null ? null : new File(baseName + "_reference.features.txt.pairs.tsv"),
+				detections == null ? null : new File(baseName + "_background.features.txt"),
+				detections == null ? null : new File(baseName + "_background.features.txt.pairs.tsv"), marker}) {
 			if (file != null && file.exists()) {
 				Files.move(file.toPath(), new File(archive, file.getName()).toPath());
 			}

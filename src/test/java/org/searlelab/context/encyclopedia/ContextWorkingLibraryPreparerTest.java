@@ -236,6 +236,46 @@ public class ContextWorkingLibraryPreparerTest {
 		}
 	}
 
+	@Test public void assaySubsetRetainsRealAccessionsAndExcludesReservedDecoys() throws Exception {
+		var p = SearchParameterParser.getDefaultParametersObject();
+		var aa = p.getAAConstants();
+		var source = source("AAAAAAAAK", aa);
+		try {
+			var requested = new ArrayList<String>();
+			var metadata = List.of(new edu.washington.gs.maccoss.encyclopedia.datastructures.LibraryPrecursorMetadata(
+					"PEPTIDEK", (byte) 2, List.of("real-protein")));
+			try (var result = ContextWorkingLibraryPreparer.prepare(source, p,
+					new ContextWorkingLibraryPreparer.Settings(27, (byte) 2, true),
+					new File(temporaryFolder.getRoot(), "assay.elib"), new File(temporaryFolder.getRoot(), "assay.tsv"),
+					recording(requested, aa), null, metadata, java.util.Set.of("PEDITPEK", "AAAAAAAAK"), true)) {
+				assertEquals(1, result.retainedTargets());
+				assertEquals(1, result.retainedDecoys());
+				assertFalse(result.assignments().get(0).decoyKey().equals("PEDITPEK|2"));
+				assertEquals(List.of("real-protein"), result.library().getUniqueTargetPrecursorMetadata().get(0).getAccessions());
+				assertEquals(1, source.countUniqueTargetPrecursors());
+				assertEquals("AAAAAAAAK", source.getUniqueTargetPrecursorMetadata().get(0).getPeptideModSeq());
+			}
+		} finally { source.close(); }
+	}
+
+	@Test public void allFailedAssayPredictionsProduceEmptyLibraryAndSpecificReasons() throws Exception {
+		var p = SearchParameterParser.getDefaultParametersObject();
+		var source = source("AAAAAAAAK", p.getAAConstants());
+		try {
+			var metadata = List.of(new edu.washington.gs.maccoss.encyclopedia.datastructures.LibraryPrecursorMetadata(
+					"PEPTIDEK", (byte) 2, List.of("real-protein")));
+			try (var result = ContextWorkingLibraryPreparer.prepare(source, p,
+					new ContextWorkingLibraryPreparer.Settings(27, (byte) 2, true),
+					new File(temporaryFolder.getRoot(), "failed-assay.elib"), new File(temporaryFolder.getRoot(), "failed-assay.tsv"),
+					requests -> { throw new IllegalArgumentException("synthetic failure"); }, null, metadata, java.util.Set.of(), true)) {
+				assertEquals(0, result.retainedTargets());
+				assertEquals("EXCLUDED", result.assignments().get(0).status());
+				assertTrue(result.assignments().get(0).reason().contains("synthetic failure"));
+				assertTrue(result.libraryFile().isFile());
+			}
+		} finally { source.close(); }
+	}
+
 	private record Prepared(List<ContextWorkingLibraryPreparer.Assignment> assignments, List<String> entries) {}
 
 	private Prepared prepare(LibraryFile source, SearchParameters parameters, ContextWorkingLibraryPreparer.Settings settings,

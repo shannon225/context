@@ -63,6 +63,11 @@ public final class SearchPairSidecar {
 	}
 
 	public void write(File featureFile, File sidecarFile, File sourceLibrary, File run) throws IOException {
+		write(featureFile, sidecarFile, sourceLibrary, run, false);
+	}
+
+	/** Empty output is valid only after completed assay accounting establishes no scored candidates. */
+	public void write(File featureFile, File sidecarFile, File sourceLibrary, File run, boolean completedEmptyAssay) throws IOException {
 		if (sidecarFile.exists()) throw new IOException("Search-pair sidecar already exists: " + sidecarFile);
 		File temporary = File.createTempFile("context-pairs-", ".tmp", sidecarFile.getAbsoluteFile().getParentFile());
 		try {
@@ -113,7 +118,7 @@ public final class SearchPairSidecar {
 						+ sourceLibrary.getAbsolutePath() + "\t" + run.getName() + "\t6.9.23");
 				writer.newLine();
 			}
-			if (rowNumber == 1) throw new IOException("No scored feature rows in " + featureFile);
+			if (rowNumber == 1 && !completedEmptyAssay) throw new IOException("No scored feature rows in " + featureFile);
 		}
 			Files.move(temporary.toPath(), sidecarFile.toPath(), StandardCopyOption.ATOMIC_MOVE);
 		} finally {

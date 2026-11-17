@@ -27,6 +27,17 @@ import edu.washington.gs.maccoss.encyclopedia.filereaders.SearchParameterParser;
 public class SearchPairSidecarTest {
 	@Rule public TemporaryFolder temporaryFolder = new TemporaryFolder();
 
+	@Test public void headerOnlyPairsRequireExplicitCompletedEmptyAssay() throws Exception {
+		File features = temporaryFolder.newFile("empty.tsv");
+		Files.writeString(features.toPath(), "id\tLabel\tsequence\n");
+		File pairs = new File(temporaryFolder.getRoot(), "empty.pairs.tsv");
+		var writer = new SearchPairSidecar();
+		assertThrows(IOException.class, () -> writer.write(features, pairs, new File("source.elib"), new File("run.dia")));
+		writer.write(features, pairs, new File("source.elib"), new File("run.dia"), true);
+		SearchPairSidecar.requireMatches(features, pairs);
+		assertTrue(SearchPairSidecar.targetKeysByFeatureId(pairs).isEmpty());
+	}
+
 	@Test
 	public void joinsTargetAndShuffledDecoyByExistingFeatureId() throws Exception {
 		SearchParameters parameters = SearchParameterParser.getDefaultParametersObject();

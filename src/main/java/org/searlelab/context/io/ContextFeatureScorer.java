@@ -36,6 +36,9 @@ import org.searlelab.context.encyclopedia.ContextPredictionStore;
 import org.searlelab.context.encyclopedia.ContextWorkingLibraryPreparer;
 import org.searlelab.context.encyclopedia.CandidateDiagnosticWriter;
 import org.searlelab.context.encyclopedia.SearchPairSidecar;
+import org.searlelab.context.xic.AssayCandidateTracker;
+import org.searlelab.context.xic.AssayIdentityResolver;
+import org.searlelab.context.xic.AssayDetectionReport;
 
 public class ContextFeatureScorer {
 	private record FeaturePrecursor(String sequence, byte charge) {}
@@ -196,6 +199,8 @@ public class ContextFeatureScorer {
 		try {
 
 		File outputPrefix = new File(baseName);
+		AssayIdentityResolver identities = null;
+		ArrayList<ScoredFeature> partitioned = null;
 
 		EncyclopediaTwoJobData job = new EncyclopediaTwoJobData(rawFile, fasta, interfaceForLibrary,
 				interfaceForLibrary, outputPrefix, scoringForLibrary);
@@ -206,15 +211,31 @@ public class ContextFeatureScorer {
 			File pairSidecar = new File(featuresToSplit.getAbsolutePath() + ".pairs.tsv");
 			File identityManifest = new File(featuresToSplit.getAbsolutePath() + ".context.sha256");
 			File inProgress = new File(featuresToSplit.getAbsolutePath() + ".context.inprogress");
+			File detectionFile = new File(baseName + "_assay.detections.tsv");
 			File incompleteArchive = ContextFeatureCacheIdentity.archiveIncomplete(inProgress, featuresToSplit,
-					pairSidecar, identityManifest, baseName);
+					pairSidecar, identityManifest, baseName, detectionFile);
 			if (incompleteArchive != null) Logger.logLine("Preserved incomplete Context output in " + incompleteArchive);
 
 			boolean reuse = featuresToSplit.exists() && featuresToSplit.canRead();
+			if (!reuse) for (String suffix : new String[] {"_reference.features.txt", "_background.features.txt",
+					"_reference.features.txt.pairs.tsv", "_background.features.txt.pairs.tsv"}) {
+				File existing = new File(baseName + suffix);
+				if (existing.exists()) throw new IOException("Unknown existing split output; choose a fresh output location: " + existing);
+			}
 			if (reuse && options.allowLegacyFeatures() && !pairSidecar.exists() && !identityManifest.exists()) {
-				Logger.logLine("Using an explicitly accepted legacy feature file without Context pairing: " + featuresToSplit);
+				throw new IOException("Legacy features cannot establish full-gradient assay detection coverage; "
+						+ "rerun from raw data in a fresh output location.");
 			} else {
 				if (reuse) ContextFeatureCacheIdentity.requireCompanions(identityManifest, featuresToSplit, pairSidecar);
+				if (!(interfaceForLibrary instanceof LibraryFile sourceLibrary)) {
+					throw new IOException("Assay identity resolution requires complete source library metadata");
+				}
+				var sourceMetadata = sourceLibrary.getUniqueTargetPrecursorMetadata();
+				identities = new AssayIdentityResolver(sourceMetadata, params.getAAConstants());
+				var assayWindows = IsolationWindowReader.parseMassList(effectiveMassList.getAbsolutePath());
+				var tracker = new AssayCandidateTracker(assayWindows, params, identities);
+				var fastaMetadata = org.searlelab.context.xic.AssayReferenceResolver.missingMetadata(assayWindows, sourceMetadata,
+						identities, fasta, params);
 				ContextWorkingLibraryPreparer.Settings predictionSettings = new ContextWorkingLibraryPreparer.Settings(
 						options.predictionNce(), options.predictionDefaultCharge(), options.adjustNceForDia());
 				File storeDirectory = predictionStoreDirectory(baseName, options);
@@ -233,49 +254,58 @@ public class ContextFeatureScorer {
 										+ prepared.retainedDecoys() + " decoys");
 							}
 						});
-				String identity = ContextFeatureCacheIdentity.withWorkingLibrary(
-						ContextFeatureCacheIdentity.inputs(library, rawFile, fasta, effectiveMassList, params, options),
-						shared.libraryArtifact());
+				String inputIdentity = ContextFeatureCacheIdentity.inputs(library, rawFile, fasta, effectiveMassList, params, options);
+				var supplement = AssaySupplement.resolve(sourceLibrary, sourceMetadata, fastaMetadata, assayWindows,
+						identities, shared, inputIdentity, storeDirectory, params, predictionSettings, options.clearStaleStoreLock());
+				String identity = ContextFeatureCacheIdentity.withWorkingLibrary(inputIdentity, shared.libraryArtifact());
+				if (supplement != null) identity = ContextFeatureCacheIdentity.withWorkingLibrary(identity, supplement.artifact());
 				File diagnosticFile = options.candidateDiagnostics()
 						? new File(baseName + "_context_" + identity.substring(0, 12) + "_candidates.tsv") : null;
 				if (reuse) {
-					ContextFeatureCacheIdentity.requireMatch(identityManifest, identity, featuresToSplit, pairSidecar, diagnosticFile);
+					ContextFeatureCacheIdentity.requireMatch(identityManifest, identity, featuresToSplit, pairSidecar, diagnosticFile, detectionFile);
 					java.nio.file.Files.deleteIfExists(inProgress.toPath());
 					Logger.logLine("Reusing verified Context feature and pair sidecar: " + featuresToSplit);
 				} else {
-					if (pairSidecar.exists() || identityManifest.exists() || (diagnosticFile != null && diagnosticFile.exists())) {
+					if (pairSidecar.exists() || identityManifest.exists() || detectionFile.exists() || (diagnosticFile != null && diagnosticFile.exists())) {
 						throw new IOException("Context output already exists without a reusable feature cache: " + featuresToSplit);
 					}
 					ContextFeatureCacheIdentity.markInProgress(inProgress, identity, options.candidateDiagnostics());
 					Logger.logLine("Calculating features...");
 					LibraryFile workingLibrary = new LibraryFile();
+					LibraryFile assayLibrary = new LibraryFile();
+					java.util.List<AssayCandidateTracker.Detection> detections;
 					try {
 						workingLibrary.openFile(shared.library());
+						if (supplement != null) assayLibrary.openFile(supplement.library());
 						try (CandidateDiagnosticWriter diagnostics = diagnosticFile == null ? null : new CandidateDiagnosticWriter(
 								diagnosticFile, EncyclopediaTwoDecoyStrategy.resolve(workingLibrary, params).getMode())) {
-							LibraryScoringFactory preparedFactory = new ContextEncyclopediaScoringFactory(params, diagnostics);
-							EncyclopediaTwoJobData preparedJob = new EncyclopediaTwoJobData(rawFile, fasta, workingLibrary,
-									workingLibrary, outputPrefix, preparedFactory);
-							ProgressIndicator progress = new EmptyProgressIndicator(true);
-							org.searlelab.msrawjava.io.StripeFileInterface interfaceForStripeFile = preparedJob.getDiaFileReader();
+							org.searlelab.msrawjava.io.StripeFileInterface interfaceForStripeFile = job.getDiaFileReader();
 							SearchPairSidecar pairs = new SearchPairSidecar();
 							try {
+								var preparedFactory = new ContextEncyclopediaScoringFactory(params, diagnostics, tracker, interfaceForStripeFile);
+								if (supplement != null) preparedFactory.setAssaySupplement(assayLibrary, supplement.failures());
+								var preparedJob = new EncyclopediaTwoJobData(rawFile, fasta, workingLibrary, workingLibrary, outputPrefix, preparedFactory);
+								ProgressIndicator progress = new EmptyProgressIndicator(true);
 								EncyclopediaTwo.generateFeatureFile(progress, workingLibrary, preparedJob, interfaceForStripeFile,
 										java.util.Optional.empty(), java.util.OptionalInt.empty(), pairs::record);
+								detections = preparedFactory.detections();
 							} finally {
 								interfaceForStripeFile.close();
 							}
 							if (diagnostics != null) diagnostics.requireSuccess();
-							pairs.write(featuresToSplit, pairSidecar, library, rawFile);
-							ContextFeatureCacheIdentity.save(identityManifest, identity, featuresToSplit, pairSidecar, diagnosticFile);
+							pairs.write(featuresToSplit, pairSidecar, library, rawFile,
+									detections.stream().noneMatch(detection -> detection.status().equals("DETECTED")));
 						}
 					} finally {
-						workingLibrary.close();
+						try { workingLibrary.close(); } finally { assayLibrary.close(); }
 					}
+					partitioned = partitionFeatures(featuresToSplit, params, baseName, effectiveMassList, identities);
+					AssayDetectionReport.write(effectiveMassList.toPath(), detectionFile.toPath(), detections);
+					ContextFeatureCacheIdentity.save(identityManifest, identity, featuresToSplit, pairSidecar, diagnosticFile, detectionFile);
 					java.nio.file.Files.deleteIfExists(inProgress.toPath());
 				}
 			}
-			return partitionFeatures(featuresToSplit, params, baseName, effectiveMassList);
+			return partitioned == null ? partitionFeatures(featuresToSplit, params, baseName, effectiveMassList, identities) : partitioned;
 		}
 		} finally {
 			if (interfaceForLibrary instanceof LibraryFile) ((LibraryFile) interfaceForLibrary).close();

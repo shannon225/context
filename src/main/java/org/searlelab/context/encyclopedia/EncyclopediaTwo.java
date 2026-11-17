@@ -436,8 +436,8 @@ public class EncyclopediaTwo {
 			int rangesFinished = 0;
 			float numberOfTasks = 2.0f + ranges.size();
 
-			ArrayList<LibraryEntry> nextEntries=library.getEntries(ranges.get(0), useSqrt, parameters.getAAConstants());
-			ArrayList<FragmentScan> nextStripes=stripefile.getStripes(ranges.get(0).getMiddle(), -Float.MAX_VALUE, Float.MAX_VALUE, useSqrt);
+			ArrayList<LibraryEntry> nextEntries=ranges.isEmpty() ? new ArrayList<>() : library.getEntries(ranges.get(0), useSqrt, parameters.getAAConstants());
+			ArrayList<FragmentScan> nextStripes=ranges.isEmpty() ? new ArrayList<>() : stripefile.getStripes(ranges.get(0).getMiddle(), -Float.MAX_VALUE, Float.MAX_VALUE, useSqrt);
 
 			for (int rangeIndex = 0; rangeIndex < ranges.size(); rangeIndex++) {
 				Range range=ranges.get(rangeIndex);
@@ -554,6 +554,14 @@ public class EncyclopediaTwo {
 			}
 
 			rangesFinished++;
+		}
+
+		if (taskFactory instanceof ContextEncyclopediaScoringFactory contextFactory) {
+			contextFactory.completeAssays(library, scorer, resultsQueue, selectionConsumer);
+			if (contextFactory.hasAssays()) {
+				// Let the existing serializer emit its schema even when no feature was scored.
+				resultsQueue.add(new edu.washington.gs.maccoss.encyclopedia.algorithms.TDCPeptideScoringResult());
+			}
 		}
 
 		progress.update("Organizing results", (1.0f+rangesFinished)/numberOfTasks);
