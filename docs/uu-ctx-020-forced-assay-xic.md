@@ -401,3 +401,29 @@ Ariana confirmed the completion requirement: a DETECTED, NOT_DETECTED or NO_REFE
 Readiness checked: local Intel macOS x86_64, Java 17 and Maven 3.9.9 using Java 17; bundled jars and existing build artifacts present. ContextPredictionRuntime.requirePredictionPlatform explicitly refuses fresh prediction in Intel macOS; use linux/amd64 container as README specifies. Docker CLI and Docker.app are installed, but even the authorized unsandboxed read-only docker info/image inventory cannot connect to its daemon. No daemon started, container built, or search run. The library/FASTA are supplied in Drive but not yet downloaded. Before representative validation: obtain local copies, start Docker, build the approved ctx020 checkout in a Linux image and validate predictor startup. Plan required downloads from the actual build/cache state; no system installation undertaken.
 
 Google r4 appendix and baseline update succeeded after Ariana's explicit edit authorization; readback confirmed appendix and her section-2 edit preserved. Earlier approval-rejection history remains in TASKS.md. Completion clarification appended separately after her confirmation.
+
+## Proposed r5.4 — fix round for review finding 4 (2026-11-19, revised; pending Ariana's approval)
+
+Not approved yet. The r5.3 text above stays authoritative until Ariana approves this section.
+
+**Evidence.** The round-2 9-seed assessment (`docs/validation/ctx020-confidence-assessment-2026-11-18.md`) found that CTX-020 kept PEP calibration but had a median of 6 fewer PEP<0.01 targets than pre-CTX-020 plus the range fix (8/9 seeds). Review finding 4 (`docs/ctx-020-review-2026-11-18.md`) is a candidate cause; this is not proven.
+
+**Finding 2 is not pursued.** Context passes no preliminary LDA (`Optional.empty()`), so the rescoring is a no-op and the weak fallback is already on the same score scale as every other candidate.
+
+**Finding 4: compute assay-peptide features exactly as background features.**
+- Use the same isolation range's scans and precursors; stop merging every window that contains the m/z.
+- Use the same local window length.
+- Use the same zero-sum chromatogram filtering.
+- Remove the redundant full-run second pass.
+- Document any guard kept only to avoid an exception.
+
+**Unchanged.** Full-gradient scope, search-then-force, weak fallback, no loser rescue, detection statuses, report format, IDs, schema, and background behavior.
+
+**Material effect.** Assay feature values, reference scores and PEPs will change. Whether to bump the cache/run identity version is decided during implementation and recorded.
+
+**Acceptance evidence.**
+- Criteria are fixed in CTX020-045 before results are seen: a training-seed noise floor first, then the 9-seed matrix compared with r5.3 and with pre-CTX-020 plus the range fix.
+- Explicit "worse" conditions for calibration and sensitivity, plus hard gates.
+- Ariana's final review.
+
+**Tasks.** CTX020-043 to 047 in TASKS.md. Reviewer hand-off: `docs/ctx-020-r5.4-fix-proposal-review.md`.

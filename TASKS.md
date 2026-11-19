@@ -1116,3 +1116,45 @@ Ariana's decisions, 2026-11-18:
   - Record: `docs/ctx-020-review-2026-11-18.md`. No code changes.
   - Next: Ariana decides which findings to fix, and whether to commit the docs or upload the figures.
 - 2026-11-19 — CTX020-042: Ariana chose to commit and push the round-2 records and to upload the figures to Drive, and asked for a fix round for review findings 2 and 4 (proposal r5.4, pending approval). Analysis script copied to `docs/validation/ctx020_confidence_assessment.R`.
+
+### CTX-020 — fix round r5.4 (proposed 2026-11-19, revised 2026-11-19; approval Pending)
+
+- Ariana chose review findings 2 and 4 for a fix round.
+- On closer reading, finding 2 has no effect in Context's production path (see 043), so the fix round is finding 4 only.
+- No Java edits until Ariana approves this checklist.
+- Proposal: canonical plan section "Proposed r5.4". Reviewer hand-off: `docs/ctx-020-r5.4-fix-proposal-review.md`.
+
+- [ ] CTX020-043 **Finding 2: no production effect; not pursued as a behavior fix.**
+  - `ContextFeatureScorer` (line ~289) calls `EncyclopediaTwo.generateFeatureFile(..., Optional.empty(), ...)`, so `EncyclopediaTwoLDAScorer.getLDAScorer()` is empty and the LDA rescoring leaves `score` unchanged.
+  - `auxScoreArray[0]` is already `score` (`EncyclopediaTwoPointOneScoringTask` line ~362), so the weak fallback is on the same scale as every other candidate.
+  - Optional defensive change, only if Ariana wants it: route the fallback through the same rescoring helper, and test it with a supplied preliminary LDA.
+- [ ] CTX020-044 Finding 4: make assay-peptide features identical to background features.
+  - (a) **Scan set.** Score assay entries against the same isolation range's stripes and precursors as background (`getScoringTask` stripes/precursors; in `completeAssays`, that range's `getStripes`/`getPrecursors`). This replaces the merge of every isolation window containing the m/z and the per-row full-run MS1 reload in `ContextEncyclopediaScoringFactory` (lines ~64–67).
+  - (b) Drop the assay-only `+1` local window length (`EncyclopediaTwoPointOneScoringTask` line ~249).
+  - (c) Drop the assay-only retention of zero-sum fragment chromatograms (line ~263).
+  - (d) Keep the isotope-index guards (lines ~310–312) only if they are needed to avoid an exception; if kept, document them.
+  - (e) Skip the redundant second `scoreChromatograms` pass when the assay window is the full run (lines ~201–209).
+  - Weak fallback, finite checks, detection tracking, report, IDs and schema stay unchanged.
+  - Decide and record whether the run-level cache identity version must change so r5.3 outputs are not reused.
+  - Tests: assay-mode features equal background-mode features on identical entries and scans; background-only output byte-identical; searched-target/forced-decoy competition in both directions.
+- [ ] CTX020-045 Validation, with criteria fixed before results are seen.
+  - **Noise floor first:**
+    - rerun Context-Percolator on the existing r5.3 feature files with background training seeds 2–5 (plus 1);
+    - rerun one seed with an identical build and seed to confirm determinism.
+  - **Then:** focused tests and Java 17 `-Ppackage verify` (finding 10's stale fixture error is out of scope); rerun the 9-seed matrix with `docs/validation/ctx020_confidence_assessment.R`. Comparators: current r5.3 and pre-CTX-020 + range fix.
+  - **Calibration is worse if any of the following holds:**
+    - pooled upper-bound entrapment FDP at PEP<0.01 is above both 1% and r5.3 (1.0%) by more than the noise floor;
+    - the count-weighted mean |lower FDP − mean PEP| across bins rises by more than the noise floor;
+    - more bins have a 95% CI entirely above the diagonal (r5.3 has 3);
+    - pooled q≤0.01 entrapment FDP rises beyond the noise floor (reported with and without seed 2).
+  - **Sensitivity is worse if any of the following holds:**
+    - the median paired per-seed change in PEP<0.01 targets is negative beyond the noise floor, or the fix is lower in ≥7/9 seeds;
+    - median AUPRC falls beyond the noise floor;
+    - maximum recall drops.
+  - **Hard gates:** all 9 runs complete; 576-row detection reports; feature/pair ID parity; no assay identity in background; background-only output byte-identical.
+  - **Success:** no "worse" condition holds, and PEP<0.01 targets move toward the baseline median (71; r5.3 is 63).
+  - **Limits:** with n=9 and about 5 entrapments at PEP<0.01, this detects clear regressions but cannot prove equivalence. Entrapment FDP is likely inflated by off-schedule real signal, equally across builds.
+- [ ] CTX020-046 Independent review of this proposal (`docs/ctx-020-r5.4-fix-proposal-review.md`), then of the fix diff, if Ariana authorizes it.
+- [ ] CTX020-047 Delivery: commit grouping and push only when Ariana asks.
+
+- 2026-11-19 — r5.4 proposal revised at Ariana's request. Finding 2 recorded as having no production effect (no preliminary LDA in Context). Fix round reduced to finding 4. Pre-registered 'worse' criteria and a training-seed noise-floor step added to 045. Reviewer hand-off written.
