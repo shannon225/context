@@ -397,6 +397,10 @@ An unmarked partial or stale cache is rejected. Partitioning retains the best
 feature per modified sequence and charge before assigning reference/background populations.
 Keep each `.pairs.tsv` beside its feature file when handing
 split features to a downstream workflow.
+The r5.4 assay feature-parity correction also requires a fresh raw-data output location: r5.3
+per-run feature caches are not reused. Compatible shared prediction libraries remain reusable.
+Assay scoring now uses the same processing-range stripe set, local window length, fragment
+filtering and spectrum scaling as background scoring; weak fallback remains enabled.
 
 JChronologer 1.0.10 bundles PyTorch 2.7.1 native libraries for macOS Apple Silicon, Linux
 x86_64, and Windows x86_64. Intel Mac users run raw prediction through the Linux container

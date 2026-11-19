@@ -1,4 +1,4 @@
-# CTX-020 — Forced assay XIC extraction: approved r5.3
+# CTX-020 — Forced assay XIC extraction: approved r5.4
 
 ## Current decision and handoff — 2026-11-16
 
@@ -402,9 +402,9 @@ Readiness checked: local Intel macOS x86_64, Java 17 and Maven 3.9.9 using Java 
 
 Google r4 appendix and baseline update succeeded after Ariana's explicit edit authorization; readback confirmed appendix and her section-2 edit preserved. Earlier approval-rejection history remains in TASKS.md. Completion clarification appended separately after her confirmation.
 
-## Proposed r5.4 — fix round for review finding 4 (2026-11-19, revised; pending Ariana's approval)
+## Approved r5.4 — fix round for review finding 4 (Ariana, 2026-11-18)
 
-Not approved yet. The r5.3 text above stays authoritative until Ariana approves this section.
+Ariana authorized implementing agreed reviewer corrections on 2026-11-18. This r5.4 handoff supersedes r5.3 only for assay/background feature parity. Freeze this section before implementation; retain earlier proposals and logs as history. Guarded short/zero-signal behavior and original full-gradient/TDC/status requirements remain in force.
 
 **Evidence.** The round-2 9-seed assessment (`docs/validation/ctx020-confidence-assessment-2026-11-18.md`) found that CTX-020 kept PEP calibration but had a median of 6 fewer PEP<0.01 targets than pre-CTX-020 plus the range fix (8/9 seeds). Review finding 4 (`docs/ctx-020-review-2026-11-18.md`) is a candidate cause; this is not proven.
 

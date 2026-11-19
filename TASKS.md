@@ -1117,18 +1117,18 @@ Ariana's decisions, 2026-11-18:
   - Next: Ariana decides which findings to fix, and whether to commit the docs or upload the figures.
 - 2026-11-19 — CTX020-042: Ariana chose to commit and push the round-2 records and to upload the figures to Drive, and asked for a fix round for review findings 2 and 4 (proposal r5.4, pending approval). Analysis script copied to `docs/validation/ctx020_confidence_assessment.R`.
 
-### CTX-020 — fix round r5.4 (proposed 2026-11-19, revised 2026-11-19; approval Pending)
+### CTX-020 — fix round r5.4 (approved for agreed correction by Ariana, 2026-11-18)
 
 - Ariana chose review findings 2 and 4 for a fix round.
 - On closer reading, finding 2 has no effect in Context's production path (see 043), so the fix round is finding 4 only.
-- No Java edits until Ariana approves this checklist.
+- Ariana authorized implementing the correction after assessing the feedback on 2026-11-18; implementation and validation remain in progress.
 - Proposal: canonical plan section "Proposed r5.4". Reviewer hand-off: `docs/ctx-020-r5.4-fix-proposal-review.md`.
 
-- [ ] CTX020-043 **Finding 2: no production effect; not pursued as a behavior fix.**
+- [x] CTX020-043 **Finding 2: no production effect; not pursued as a behavior fix.**
   - `ContextFeatureScorer` (line ~289) calls `EncyclopediaTwo.generateFeatureFile(..., Optional.empty(), ...)`, so `EncyclopediaTwoLDAScorer.getLDAScorer()` is empty and the LDA rescoring leaves `score` unchanged.
   - `auxScoreArray[0]` is already `score` (`EncyclopediaTwoPointOneScoringTask` line ~362), so the weak fallback is on the same scale as every other candidate.
   - Optional defensive change, only if Ariana wants it: route the fallback through the same rescoring helper, and test it with a supplied preliminary LDA.
-- [ ] CTX020-044 Finding 4: make assay-peptide features identical to background features.
+- [x] CTX020-044 Finding 4: make assay-peptide features identical to background features.
   - (a) **Scan set.** Score assay entries against the same isolation range's stripes and precursors as background (`getScoringTask` stripes/precursors; in `completeAssays`, that range's `getStripes`/`getPrecursors`). This replaces the merge of every isolation window containing the m/z and the per-row full-run MS1 reload in `ContextEncyclopediaScoringFactory` (lines ~64–67).
   - (b) Drop the assay-only `+1` local window length (`EncyclopediaTwoPointOneScoringTask` line ~249).
   - (c) Drop the assay-only retention of zero-sum fragment chromatograms (line ~263).
@@ -1158,3 +1158,20 @@ Ariana's decisions, 2026-11-18:
 - [ ] CTX020-047 Delivery: commit grouping and push only when Ariana asks.
 
 - 2026-11-19 — r5.4 proposal revised at Ariana's request. Finding 2 recorded as having no production effect (no preliminary LDA in Context). Fix round reduced to finding 4. Pre-registered 'worse' criteria and a training-seed noise-floor step added to 045. Reviewer hand-off written.
+
+- 2026-11-18 — CTX020-043/044 review and fix round authorized by Ariana: pull feedback, assess agreement, and implement the agreed fix. Fast-forwarded ctx020 to5946fe2. Reviewed round2 and r5.4 proposal against current source/APIs. Agree finding4; finding2 has no current Context effect (both production calls pass Optional.empty). Scratch variant removes assay +1 and zero-chromatogram exception: existing two short/weak/zero/MS1-absent tests pass; log tmp/ctx020-r54-review/proposed-filter-probe.log. Retain isotope guards, version run cache, preserve TDC/status/schema/background path. Adopting r5.4 under this explicit conditional implementation authorization; no other review findings included. Begin focused parity/range-selection tests and narrow fix. Full scientific validation remains CTX020-045; source cloud round2 artifacts are not present locally.
+
+- 2026-11-18 — CTX020-043/044 correction implemented and checked. Finding2 disposition: both current Context call sites pass empty preliminary LDA; no behavior fix. Factory now reuses background processing stripes/precursors for search tasks; completion loads/sorts at the selected range midpoint, caches its precursor map, and uses the background square-root setting for target/mapped-decoy spectra. Empty stripe dispatch is not treated as completed. Scorer uses background local length and zero-sum filtering; skips redundant full-range second pass; missing-MS1 guards/weak fallback/finite checks/statuses/TDC remain. Run identity v2→v3; shared predictions unchanged. Added AssayFeatureParityTest and strengthened AssayCompletionTest. Fifteen focused tests:0 failures/errors/skips. Final Java17 offline -Ppackage verify:230 tests,0 failures/errors,10 skips (Mac Intel native-prediction/live skips do not exercise Linux stale-fixture finding10). Logs: tmp/ctx020-r54-review/focused-final.log, package-verify-final.log. Byte-identical old/new non-assay IL2A output:6945 bytes,mismatch=-1, background-regression.log. Cache-version scratch probe compares old/current input digests and preserves shared identity; initial probe failed compilation due missing byte cast and a retry read the jar while shade was rewriting it; corrected after packaging, see cache-version-probe.log. New asymmetric fixture initially allowed both spectra to pass due shared target/decoy fragments; distinct synthetic fragment sets now exercise both requested searched/forced directions. No production bug inferred from that initial fixture failure. Review response: docs/ctx-020-r5.4-review-response.md. README and Google normal/native-bullet r5.4 correction notes updated. No other reviewer findings fixed; no commit/push.
+- 2026-11-18 — CTX020-045 scientific validation pending. Round2 tmp/ctx020-r2 artifacts not present locally; Ariana said they are uploading to Drive and instructed a check after5 minutes, then a second check after5 more if absent. First check due00:50:53UTC (elapsed-time deadline; user-facing date stays America/Chicago). Continue preserving inputs and pre-registered criteria. No sensitivity/calibration success claimed from unit/package checks.
+
+- 2026-11-18 — CTX020-045 Drive follow-up. Both requested checks found an empty2026-11-18-CTX020-round2-runs folder (ID1-HnNCn5k0xSxMM43SLbLZCzemWBmEATZ). Downloaded available logs/unmodified-baseline archive (499658 bytes,82 entries) and confidence-assessment archive (659383 bytes,17 entries) to tmp/ctx020-r54-review; these establish comparator summaries/provenance but do not provide the completed nine-seed feature/model run files for the required noise-floor reruns. No additional waiting/check loops beyond the requested two. Scientific validation remains pending uploaded artifacts; do not mark045 or final human acceptance complete. Google record now records completed final230-test verification, unchanged shared cache identity and the validation prerequisite. No commit or push.
+
+
+### CTX-020 r5.4 authorized delivery — 2026-11-19
+
+- Ariana explicitly authorized committing and pushing the current r5.4 changes ("commit/push what we have so far"). Scientific validation CTX020-045 remains pending the uploaded completed run artifacts; this delivery is not final feature acceptance.
+- Commit group1 — CTX020-044/045 and run-cache compatibility: ContextEncyclopediaScoringFactory.java, EncyclopediaTwoPointOneScoringTask.java, ContextFeatureCacheIdentity.java, AssayCompletionTest.java and new AssayFeatureParityTest.java. Scope: background/assay feature parity, consistent forced spectrum scaling, cache identity v3 and focused regressions. Message: fix: align assay features with background scoring.
+- Commit group2 — CTX020-043/044/045/047 records: README.md, TASKS.md, docs/uu-ctx-020-forced-assay-xic.md and docs/ctx-020-r5.4-review-response.md. Scope: approved r5.4 handoff, review dispositions, completed code checks and explicitly pending scientific comparison. Message: docs: record CTX-020 r5.4 correction and validation.
+- Pre-delivery check: git fetch origin ctx020 succeeded; local HEAD and origin/ctx020 both5946fe2. git diff --check passed. Validation unchanged since the final tested source:15 focused tests passed; Java17 package verify230 tests,0 failures/errors,10 skips; non-assay fixture byte-identical; per-run identity changes without invalidating shared working libraries. Local inputs, archives, cache, build/container outputs and scratch probes stay excluded.
+
+- 2026-11-19 — CTX020-047 group1 committed as8111513 (fix: align assay features with background scoring), exactly the five reviewed source/test files. Group2 records this result and the current validation limits; source is unchanged from tested state. Push of both groups is explicitly authorized; no merge/rebase/force-push or release/PR is included.
