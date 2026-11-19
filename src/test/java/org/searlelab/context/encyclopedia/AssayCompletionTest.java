@@ -63,21 +63,23 @@ public class AssayCompletionTest {
 				double ion = edu.washington.gs.maccoss.encyclopedia.utils.massspec.PeptideUtils.getPeptideModel("PEPTIDEK", p.getAAConstants())
 						.getPrimaryIonObjects(p.getFragType(), (byte) 2, true)[3].getMass();
 				var target = new LibraryEntry("synthetic", new java.util.HashSet<>(), 500, (byte) 2, "PEPTIDEK", 1, 101, 1,
-						new double[] {ion}, new float[] {1}, java.util.Optional.empty(), p.getAAConstants());
+						new double[] {ion}, new float[] {16}, java.util.Optional.empty(), p.getAAConstants());
 				supplement.addEntries(new ArrayList<>(List.of(target)), false);
 				var window = new IsolationWindow(target.getPeptideModSeq(), target.getPrecursorMZ(), target.getPrecursorCharge(), 200, 202, false);
 				assertTrue(library.getEntries("WWWWWWWWWWWWK", (byte) 2, false).isEmpty());
 				var missing = new IsolationWindow("WWWWWWWWWWWWK", 700, (byte) 2, 100, 102, true);
 				var scans = new ArrayList<FragmentScan>();
-				var range = new Range((float) target.getPrecursorMZ() - 1, (float) target.getPrecursorMZ() + 1);
+				var range = new Range((float) target.getPrecursorMZ() - 2, (float) target.getPrecursorMZ() + 1);
 				if (hasScans) for (int t = 100; t <= 102; t++) scans.add(new FragmentScan("synthetic", "scan" + t, t,
 						target.getPrecursorMZ(), t, 1, null, range.getStart(), range.getStop(), new double[0], new float[0], new float[0], (byte) 2, 100, 2000));
 				var ranges = new HashMap<Range, WindowData>();
 				if (hasScans) ranges.put(range, new WindowData(1f, 3));
+				var requestedCenters = new ArrayList<Double>();
+				var precursorReads = new int[1];
 				var raw = (StripeFileInterface) Proxy.newProxyInstance(getClass().getClassLoader(), new Class<?>[] {StripeFileInterface.class},
 						(proxy, method, args) -> switch (method.getName()) {
-							case "getStripes" -> new ArrayList<>(scans);
-							case "getPrecursors" -> new ArrayList<>();
+							case "getStripes" -> { requestedCenters.add((Double) args[0]); yield new ArrayList<>(scans); }
+							case "getPrecursors" -> { precursorReads[0]++; yield new ArrayList<>(); }
 							case "getRanges" -> ranges;
 							default -> throw new AssertionError(method.getName());
 						});
@@ -94,6 +96,13 @@ public class AssayCompletionTest {
 				assertEquals(0, library.countUniqueTargetPrecursors());
 				assertEquals(hasScans ? 1 : 0, queue.size());
 				assertEquals(hasScans ? 1 : 0, selections.size());
+				assertEquals(hasScans ? 1 : 0, precursorReads[0]);
+				if (hasScans) {
+					assertTrue("Completion must load the selected processing range, not merge at precursor m/z",
+							requestedCenters.contains((double) range.getMiddle()));
+					assertArrayEquals(supplement.getEntries("PEPTIDEK", (byte) 2, EncyclopediaTwo.useSqrt).get(0).getIntensityArray(),
+							selections.get(0).target().getIntensityArray(), 0);
+				}
 			} finally { library.close(); supplement.close(); }
 		}
 	}

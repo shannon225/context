@@ -95,7 +95,7 @@ final class ContextFeatureCacheIdentity {
 	static String inputs(File library, File run, File fasta, File massList, SearchParameters parameters,
 			ContextFeatureScorer.Options options) throws IOException {
 		MessageDigest digest = sha256();
-		update(digest, "Context-matched-decoys-v1|assay-full-gradient-scoring-v2|Encyclopedia-6.9.23|JChronologer-1.0.10");
+		update(digest, "Context-matched-decoys-v1|assay-full-gradient-scoring-v3|Encyclopedia-6.9.23|JChronologer-1.0.10");
 		update(digest, parameters.toString());
 		update(digest, options.predictionNce() + "|" + options.predictionDefaultCharge() + "|"
 				+ options.adjustNceForDia() + "|" + options.candidateDiagnostics());

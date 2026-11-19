@@ -2,7 +2,7 @@ package org.searlelab.context.encyclopedia;
 
 import java.util.ArrayList;
 import java.util.HashSet;
-import java.util.Comparator;
+import java.util.Collections;
 import org.searlelab.context.xic.AssayCandidateTracker;
 import org.searlelab.context.xic.AssayScoringTask;
 import org.searlelab.msrawjava.io.StripeFileInterface;
@@ -54,23 +54,16 @@ public class ContextEncyclopediaScoringFactory extends EncyclopediaTwoScoringFac
 		if (assays != null && !entries.isEmpty() && isAssayTarget(entries.get(0))) {
 			var tasks = new ArrayList<AbstractLibraryScoringTask>();
 			for (var row : assays.matching(entries.get(0))) {
+				if (stripes.isEmpty()) continue;
 				if (!dispatchedRows.add(row.number())) continue;
-				try {
-					var window = row.window();
-					var canonicalWindow = new org.searlelab.context.datastructures.IsolationWindow(row.correctedSequence(),
-							window.getTargetMz(), window.getCharge(), window.getRtMin(), window.getRtMax(), window.isDecoy());
-					if (org.searlelab.context.xic.AssayXicExtractor.referenceProblem(canonicalWindow, entries.get(0), parameters) != null) continue;
-					if (org.searlelab.context.xic.AssayXicExtractor.readFragments(raw, window).isEmpty()) continue;
-					var allScans = raw.getStripes(window.getTargetMz(), -Float.MAX_VALUE, Float.MAX_VALUE, EncyclopediaTwo.useSqrt);
-					allScans.removeIf(scan -> !scan.getPrecursorRange().contains((float) window.getTargetMz()));
-					allScans.sort(Comparator.comparingDouble(FragmentScan::getScanStartTime).thenComparingInt(FragmentScan::getSpectrumIndex));
-					var localPrecursors = raw.getPrecursors(-Float.MAX_VALUE, Float.MAX_VALUE);
-					tasks.add(new AssayScoringTask(scorer, entries, allScans, precursorIsolationRange, dutyCycle,
-							new PrecursorScanMap(localPrecursors), resultsQueue, parameters, assays, row,
-							diagnosticWriter == null ? null : diagnosticWriter::accept));
-				} catch (java.io.IOException | java.sql.SQLException | java.util.zip.DataFormatException e) {
-					throw new IllegalStateException("Cannot read assay scans at row " + row.number(), e);
-				}
+				var window = row.window();
+				var canonicalWindow = new org.searlelab.context.datastructures.IsolationWindow(row.correctedSequence(),
+						window.getTargetMz(), window.getCharge(), window.getRtMin(), window.getRtMax(), window.isDecoy());
+				if (org.searlelab.context.xic.AssayXicExtractor.referenceProblem(canonicalWindow, entries.get(0), parameters) != null) continue;
+				// Use the same processing-range scans and precursor map as background scoring.
+				tasks.add(new AssayScoringTask(scorer, entries, stripes, precursorIsolationRange, dutyCycle,
+						precursors, resultsQueue, parameters, assays, row,
+						diagnosticWriter == null ? null : diagnosticWriter::accept));
 			}
 			return new AbstractLibraryScoringTask(scorer, entries, stripes, precursors, resultsQueue, parameters) {
 				@Override protected Nothing process() {
@@ -98,15 +91,16 @@ public class ContextEncyclopediaScoringFactory extends EncyclopediaTwoScoringFac
 			throws java.io.IOException, java.sql.SQLException, java.util.zip.DataFormatException {
 		if (assays == null) return;
 		var completed = new ArrayList<AssayCandidateTracker.Detection>();
+		PrecursorScanMap forcedPrecursors = null;
 		var strategy = edu.washington.gs.maccoss.encyclopedia.algorithms.library.EncyclopediaTwoDecoyStrategy.resolve(library, parameters);
 
 		for (var row : assays.rows()) {
 			var window = row.window();
 			var rowLibrary = library;
-			var references = rowLibrary.getEntries(row.correctedSequence(), window.getCharge(), false);
+			var references = rowLibrary.getEntries(row.correctedSequence(), window.getCharge(), EncyclopediaTwo.useSqrt);
 			if (references.isEmpty() && assaySupplement != null) {
 				rowLibrary = assaySupplement;
-				references = rowLibrary.getEntries(row.correctedSequence(), window.getCharge(), false);
+				references = rowLibrary.getEntries(row.correctedSequence(), window.getCharge(), EncyclopediaTwo.useSqrt);
 			}
 			references.removeIf(entry -> entry.isDecoy() || !row.correctedSequence().equals(entry.getPeptideModSeq()));
 			if (references.size() > 1) throw new java.io.IOException("Multiple prepared references for assay row " + row.number());
@@ -120,18 +114,21 @@ public class ContextEncyclopediaScoringFactory extends EncyclopediaTwoScoringFac
 				var range = raw.getRanges().keySet().stream()
 						.filter(r -> r.contains((float) window.getTargetMz()) && Float.isFinite(raw.getRanges().get(r).getAverageDutyCycle())
 								&& raw.getRanges().get(r).getAverageDutyCycle() > 0)
-						.sorted(Comparator.comparingDouble(org.searlelab.msrawjava.model.Range::getStart)).findFirst()
+						.sorted().findFirst()
 						.orElseThrow(() -> new java.io.IOException("No valid acquisition duty cycle for assay row " + row.number()));
 				var decoys = new java.util.HashMap<edu.washington.gs.maccoss.encyclopedia.filereaders.MatchedDecoyKey, LibraryEntry>();
 				if (strategy.usesPredictedDecoys()) {
 					decoys = ((edu.washington.gs.maccoss.encyclopedia.filereaders.MatchedDecoyLibrary) rowLibrary).getMappedDecoyEntries(
 							new org.searlelab.msrawjava.model.Range((float) reference.getPrecursorMZ() - 0.01f,
-									(float) reference.getPrecursorMZ() + 0.01f), false, parameters.getAAConstants());
+									(float) reference.getPrecursorMZ() + 0.01f), EncyclopediaTwo.useSqrt, parameters.getAAConstants());
 				}
 				var entries = EncyclopediaTwo.getTargetAndPrimaryDecoy(reference, strategy, decoys, parameters);
 				selections.accept(new EncyclopediaTwo.SearchSelection(reference, java.util.List.copyOf(entries), strategy.getMode()));
-				getScoringTask(scorer, entries, new ArrayList<>(), range, raw.getRanges().get(range).getAverageDutyCycle(),
-						new PrecursorScanMap(new ArrayList<>()), queue).call();
+				var stripes = raw.getStripes(range.getMiddle(), -Float.MAX_VALUE, Float.MAX_VALUE, EncyclopediaTwo.useSqrt);
+				Collections.sort(stripes);
+				if (forcedPrecursors == null) forcedPrecursors = new PrecursorScanMap(raw.getPrecursors(-Float.MAX_VALUE, Float.MAX_VALUE));
+				getScoringTask(scorer, entries, stripes, range, raw.getRanges().get(range).getAverageDutyCycle(),
+						forcedPrecursors, queue).call();
 			}
 			completed.add(assays.detection(row, problem, scans));
 		}

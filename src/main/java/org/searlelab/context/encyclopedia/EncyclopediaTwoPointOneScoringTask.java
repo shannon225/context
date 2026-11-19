@@ -198,7 +198,7 @@ public class EncyclopediaTwoPointOneScoringTask extends AbstractLibraryScoringTa
 			TFloatFloatHashMap map=new TFloatFloatHashMap();
 			for (int i=0; i<primary.length; i++) map.put(i, primary[i]);
 			EValueCalculator calculator=new EValueCalculator(map, 0f, 0.5f);
-			if (assayWindow != null) {
+			if (assayWindow != null && scans.stream().anyMatch(scan -> !assayWindow.contains(scan.getScanStartTime()))) {
 				scans=new ArrayList<>();
 				for (FragmentScan scan : super.stripes) {
 					if (assayWindow.contains(scan.getScanStartTime())) scans.add(scan);
@@ -246,7 +246,7 @@ public class EncyclopediaTwoPointOneScoringTask extends AbstractLibraryScoringTa
 					FragmentScan stripe=scans.get(index);
 					int lowerWindow=Math.max(0, index-2*movingAverageLength);
 					int upperWindow=Math.min(scans.size()-1, index+2*movingAverageLength);
-					int range=Math.max(1, upperWindow-lowerWindow+(assayWindow == null ? 0 : 1));
+					int range=Math.max(1, upperWindow-lowerWindow);
 					float[] localRetentionTimes=new float[range];
 					float[][] localRawIntensities=new float[range][]; // raw intensities, not sqrt
 					System.arraycopy(retentionTimes, lowerWindow, localRetentionTimes, 0, range);
@@ -260,7 +260,7 @@ public class EncyclopediaTwoPointOneScoringTask extends AbstractLibraryScoringTa
 					float[][] chromatograms=General.transposeMatrix(localRawIntensities);
 					ArrayList<float[]> chromatogramList=new ArrayList<float[]>();
 					for (int j = 0; j < chromatograms.length; j++) {
-						if (assayWindow != null || General.sum(chromatograms[j])>0.0f) {
+						if (General.sum(chromatograms[j])>0.0f) {
 							if (parameters.isSmoothIntegrations()) {
 								chromatograms[j]=SkylineSGFilter.paddedSavitzkyGolaySmooth(chromatograms[j]);
 							}
@@ -307,6 +307,7 @@ public class EncyclopediaTwoPointOneScoringTask extends AbstractLibraryScoringTa
 							
 							// zero outside peak
 							Peak[] peaks=precursors.getIsotopePacket(entry.getPrecursorMZ(), localRetentionTimes[j], entry.getPrecursorCharge(), parameters.getPrecursorTolerance());
+							// Assays can lack MS1 scans; keep zero precursor traces instead of indexing an empty packet.
 							if (assayWindow == null || peaks.length > PrecursorScanMap.monoisotopicIndex)
 									precursor[j]=peaks[PrecursorScanMap.monoisotopicIndex].intensity;
 							if (assayWindow == null || peaks.length > PrecursorScanMap.plusOneIndex)
