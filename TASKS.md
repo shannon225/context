@@ -1076,3 +1076,43 @@ Exclude tmp/, target/, build-cache/, downloaded inputs, prediction caches, gener
 
 - 2026-11-16 — Authorized delivery groups1–5 committed: d8a7f63 identity/reference helpers;94ccfc9 full-gradient scoring/partitioning;9d65ffc raw integration/supplementation/report/cache protections;1f1ceef optional QC;ac65da3 calibration analysis/validation evidence. Group1’s initial isolated test compilation exposed identity-test integration assertions requiring group2 APIs. Kept resolver assertions in group1 and staged only those dependent integration assertions with group2; final source/test contents unchanged. Recheck passed5 tests; group2 passed23; group3 passed26; group4 passed2, all with0 failures/errors/skips. Logs: tmp/ctx020-probes/delivery-group1.log (initial failure), delivery-group1-recheck.log, delivery-group2.log, delivery-group3.log, delivery-group4.log. Group5 script syntax and staged whitespace checks passed. All source/test changes are now committed; remaining group6 contains exactly README.md, TASKS.md, canonical r5.3 and the independent review record.
 - 2026-11-16 — Group6 documentation delivery is authorized with message `docs: document CTX-020 r5.3 behavior and review evidence`. Prior final-worktree Java17 package verification remains227 tests,0 failures/errors,10 skips; source contents were unchanged during delivery. Remote ctx020 was verified at b018711 before delivery, matching the prior side-quest checkpoint. Push the six approved commits without force; stop on unexpected remote divergence. To avoid a self-referential commit hash, the final documentation commit hash and verified remote tip will be appended after push to the archived task log in /Users/arianashannon/Downloads/2026-11-16-CTX-020-Report.md. This delivery does not mark CTX020-021 accepted.
+
+### CTX-020 — review round 2 and confidence assessment (approved by Ariana, 2026-11-18)
+
+Ariana's decisions, 2026-11-18:
+- Another official review round, with one independent read-only reviewer subagent.
+- Assess FDR validity and sensitivity by rerunning all 9 seeds in the cloud.
+- Calibration: entrapment FDP per PEP bin (the existing R-derived method).
+- Comparator: pre-CTX-020 Context at `7d0f524`.
+- Plan approved in chat (plan mode).
+- No code fixes without approval. Asking before any commit, push or Drive upload.
+
+- [x] CTX020-037 Review round 2. One read-only reviewer on `git diff 7d0f524 1cf1985 -- src/ README.md`, plus my scientific review of the reference confidence population and target/decoy fairness. Re-run Java 17 `-Ppackage verify` on HEAD. Record findings and dispositions in `docs/ctx-020-review-2026-11-18.md`. Code fixes are proposed only.
+- [x] CTX020-038 Inputs and environment. Download Drive inputs into the git-ignored `tmp/ctx020-inputs/` and verify sizes/hashes. Build jars for pre-CTX-020 (`7d0f524`) and CTX-020 (`1cf1985`) in separate worktrees under `tmp/wt/`. Install pyIsoPEP in a local venv. Record versions and hashes.
+- [x] CTX020-039 Runs: 9 seeds (1, 2, 22–28) × 2 builds. `features-folder`, then Context + Percolator (defaults). Fresh directory and copied cache per run. Record logs and exit codes. Record baseline failures as findings; do not patch.
+- [x] CTX020-040 PEP calibration: entrapment FDP per squared-edge PEP bin (lower E/(T+E), upper with the 1+T/E factor, binomial intervals), per seed and pooled, both builds. Stratify by original-schedule membership. R/ggplot2 figures (theme_bw, Arial). Cross-check against `docs/validation/ctx020_peptide_calibration.py`.
+- [x] CTX020-041 Sensitivity: precision–recall (precision = T/(T+E), recall = T/96, ties together), counts at PEP<.01, PEP<.01 & q<.01 and q≤.01, partial AUPRC; paired per-seed comparison.
+- [x] CTX020-042 Write `docs/validation/ctx020-confidence-assessment-2026-11-18.md` with provenance and a plain verdict. Send figures and tables to Ariana. Ask before Drive upload or commit. Ask where the Report should go.
+
+- 2026-11-18 — Round 2 started. Fast-forwarded local `ctx020` 683a5d6 → 1cf1985 (`git pull --ff-only`). Started the Drive downloads (the direct download host is reachable and returned the FASTA's bytes, not HTML), the independent reviewer (read-only, background), and builds of both jars in worktrees `tmp/wt/pre` and `tmp/wt/ctx`.
+- 2026-11-18 — CTX020-038:
+  - Inputs downloaded from Drive. Sizes match Drive metadata; zip CRC passed; zips deleted after extraction.
+  - The first Maven builds failed on transient Central downloads; the retry with `retryHandler.count=6` passed.
+  - Jars (SHA-256): `7d0f524` 04052da3…, CTX-020 `1cf1985` f0eb3070…, `7d0f524`+`5532fd3` 9b7bdd6f….
+  - pyIsoPEP 0.1.4 installed in a local venv.
+- 2026-11-18 — CTX020-039:
+  - Unmodified `7d0f524` produced about 72 features per seed (3 reference targets, 0 reference decoys). Context-Percolator rejects that ("3 targets and no decoys") on seeds 23–25. The runner was stopped.
+  - Ariana chose the comparator `7d0f524` + CTX020-035 fix (`5532fd3`), uncommitted, in worktree `tmp/wt/prefix`.
+  - All 18 runs (9 seeds × 2 builds) exited 0. Logs: `tmp/ctx020-r2/logs/run-{ctx,prefix}.log`.
+- 2026-11-18 — CTX020-040/041:
+  - R analysis `tmp/ctx020-r2/ctx020_confidence_assessment.R`. The assay N-terminal acetyl notation was normalized, and all peptides matched.
+  - Pooled bins agree with the Python script within 1e-10.
+  - PEP calibration has the same shape in both builds. FDP at PEP<.01 is 0.85% (CTX-020) against 0.96% (baseline). q≤.01 FDP is 2.6% against 3.4%, driven by seed 2; that issue predates CTX-020.
+  - CTX-020 has 6 fewer targets (median) at PEP<.01 (8/9 seeds), the same count at q≤.01, and AUPRC +0.015.
+  - Write-up: `docs/validation/ctx020-confidence-assessment-2026-11-18.md`.
+- 2026-11-18 — CTX020-037:
+  - The reviewer reported 11 findings. Findings 2 and 4 were confirmed by source read; 1 is not exercised by the supplied assays.
+  - `-Ppackage verify` on `1cf1985` (Linux): 227 tests, 0 failures, 1 error (stale IL2A fixture in `ContextFeatureScorerSharedLibraryLiveTest`; an opt-in skipped on macOS), 7 skipped.
+  - Record: `docs/ctx-020-review-2026-11-18.md`. No code changes.
+  - Next: Ariana decides which findings to fix, and whether to commit the docs or upload the figures.
+- 2026-11-19 — CTX020-042: Ariana chose to commit and push the round-2 records and to upload the figures to Drive, and asked for a fix round for review findings 2 and 4 (proposal r5.4, pending approval). Analysis script copied to `docs/validation/ctx020_confidence_assessment.R`.
